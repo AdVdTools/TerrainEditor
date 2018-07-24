@@ -85,7 +85,7 @@ public class MapEditor : Editor {
                 //Event.current.Use();//TODO check LC prefab placer test
             
                 //Debug.Log(screenPoint+" "+ray);
-                RaycastHit hitInfo;
+                MapData.RaycastHit hitInfo;
                 //TODO measure and optimize Raycast methods
                 stopWatch.Reset();
                 stopWatch.Start();

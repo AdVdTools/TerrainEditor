@@ -114,6 +114,13 @@ public class MapData : ScriptableObject
 
     }
 
+    public struct RaycastHit {
+        public float distance;
+        public Vector3 point;
+        public Vector3 barycentricCoordinate;
+        public int triangleIndex;
+    }
+
     const float epsilon = 1e-5f;
     public bool Raycast(Ray ray, out RaycastHit hitInfo, float raycastDistance)
     {
@@ -148,7 +155,7 @@ public class MapData : ScriptableObject
                 hitInfo.distance = distance;
                 hitInfo.point = ray.GetPoint(distance);
                 hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
-                //hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+                hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
             }
         }
         if (hitInfo.distance >= raycastDistance) return false;
@@ -221,7 +228,7 @@ public class MapData : ScriptableObject
                         td.hitInfo.distance = distance;
                         td.hitInfo.point = ray.GetPoint(distance);
                         td.hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
-                        //td.hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+                        td.hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
                     }
                     //sampler.End();
                 }
