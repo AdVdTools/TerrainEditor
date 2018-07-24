@@ -89,7 +89,8 @@ public class MapEditor : Editor {
                 //TODO measure and optimize Raycast methods
                 stopWatch.Reset();
                 stopWatch.Start();
-                rayHits = data.Raycast(ray, out hitInfo, raycastDistance);
+                //rayHits = data.Raycast(ray, out hitInfo, raycastDistance);
+                rayHits = data.RaycastParallel(ray, out hitInfo, raycastDistance, 8);
                 stopWatch.Stop();
                 raycastDuration += (stopWatch.ElapsedMilliseconds - raycastDuration) * 0.5f;
                 //Debug.Log(intersection+" "+stopWatch.ElapsedMilliseconds);

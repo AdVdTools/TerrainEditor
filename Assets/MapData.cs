@@ -1,6 +1,8 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 [CreateAssetMenu(fileName = "Map")]
 public class MapData : ScriptableObject
@@ -160,4 +162,174 @@ public class MapData : ScriptableObject
     // r · ((or - v0) x e1) = e1 · ((v0 - or) x r) = (or - v0) · (e1 x r) -> v (r · (e2 x e1))
 
     // e2 · ((or - v0) x e1)
+
+    #region testB
+    private class ThreadData {
+        public int startIndex, endIndex;
+        public RaycastHit hitInfo;
+        public ManualResetEvent mre;
+    }
+
+    public bool RaycastParallel(Ray ray, out RaycastHit hitInfo, float raycastDistance, int threads)
+    {
+        hitInfo = new RaycastHit() { distance = raycastDistance };
+        if (indices == null || vertices == null) return false;
+
+        int trianglesCount = indices.Length / 3;
+        int trianglesPerThread = trianglesCount / threads;
+        var threadsData = new List<ThreadData>();
+        //var sampler = CustomSampler.Create("ParallelRaycast");
+        for (int i = 0; i < threads; ++i)
+        {
+            var data = new ThreadData()
+            {
+                startIndex = i * trianglesPerThread,
+                endIndex = Mathf.Min((i + 1) * trianglesPerThread, trianglesCount),
+                hitInfo = new RaycastHit() { distance = raycastDistance },
+                mre = new ManualResetEvent(false)
+            };
+            ThreadPool.QueueUserWorkItem((d) =>
+            {
+                ThreadData td = (ThreadData)d;
+                Profiler.BeginThreadProfiling("ParallelRaycast", td.startIndex + "-" + td.endIndex);
+                for (int triIndex = td.startIndex; triIndex < td.endIndex; ++triIndex)
+                {
+                    //sampler.Begin();
+                    int index = triIndex * 3;
+                    Vector3 v0 = vertices[indices[index]];
+                    Vector3 v1 = vertices[indices[index + 1]];
+                    Vector3 v2 = vertices[indices[index + 2]];
+                    Vector3 e1 = v1 - v0, e2 = v2 - v0;
+
+                    Vector3 crossE1R = Vector3.Cross(e1, ray.direction);
+                    float projArea = Vector3.Dot(crossE1R, e2);
+                    if (projArea < epsilon && projArea > -epsilon) continue;
+                    float invArea = 1 / projArea;
+
+                    Vector3 offset = ray.origin - v0;
+                    Vector3 crossE2O = Vector3.Cross(e2, offset);
+
+                    float u = Vector3.Dot(ray.direction, crossE2O) * invArea;
+                    if (u < 0 || u > 1) continue;
+                    float v = Vector3.Dot(offset, crossE1R) * invArea;
+                    float uPlusV = u + v;
+                    if (v < 0 || uPlusV > 1) continue;
+
+                    float distance = Vector3.Dot(e1, crossE2O) * invArea;// offset · (e1 x e2) / r · (e1 x e2)
+                    if (distance > epsilon && distance < td.hitInfo.distance)
+                    {
+                        td.hitInfo.distance = distance;
+                        td.hitInfo.point = ray.GetPoint(distance);
+                        td.hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
+                        //td.hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+                    }
+                    //sampler.End();
+                }
+                Profiler.EndThreadProfiling();
+                td.mre.Set();
+            }, data);
+            threadsData.Add(data);
+        }
+        foreach (var data in threadsData)
+        {
+            data.mre.WaitOne();
+
+            if (hitInfo.distance > data.hitInfo.distance) hitInfo = data.hitInfo;
+        }
+
+        if (hitInfo.distance >= raycastDistance) return false;
+        return true;
+    }
+#endregion
+
+    #region testA
+    //public class Worker {
+    //    Thread thread;
+    //    public RaycastHit hitInfo;
+    //    Ray ray;
+    //    Vector3[] vertices;
+    //    int[] indices;
+    //    float raycastDistance;
+
+    //    public void Setup(Ray ray, Vector3[] vertices, int[] indices, float raycastDistance)
+    //    {
+    //        this.ray = ray;
+    //        this.vertices = vertices;
+    //        this.indices = indices;
+    //        this.raycastDistance = raycastDistance;
+    //    }
+
+    //    public void Run(int startIndex, int endIndex)
+    //    {
+    //        hitInfo = new RaycastHit() { distance = raycastDistance };
+    //        if (thread == null) thread = new Thread(() => {
+    //            //TODO wait for thread to be unlocked?
+    //            for (int i = startIndex; i < endIndex; ++i) {
+    //                it(i);
+    //            }
+    //        });
+    //    }
+
+    //    void it(int i)
+    //    {
+    //        int index = i * 3;
+    //        Vector3 v0 = vertices[indices[index]];
+    //        Vector3 v1 = vertices[indices[index + 1]];
+    //        Vector3 v2 = vertices[indices[index + 2]];
+    //        Vector3 e1 = v1 - v0, e2 = v2 - v0;
+
+    //        Vector3 crossE1R = Vector3.Cross(e1, ray.direction);
+    //        float projArea = Vector3.Dot(crossE1R, e2);
+    //        if (projArea < epsilon && projArea > -epsilon) return;
+    //        float invArea = 1 / projArea;
+
+    //        Vector3 offset = ray.origin - v0;
+    //        Vector3 crossE2O = Vector3.Cross(e2, offset);
+
+    //        float u = Vector3.Dot(ray.direction, crossE2O) * invArea;
+    //        if (u < 0 || u > 1) return;
+    //        float v = Vector3.Dot(offset, crossE1R) * invArea;
+    //        float uPlusV = u + v;
+    //        if (v < 0 || uPlusV > 1) return;
+
+    //        float distance = Vector3.Dot(e1, crossE2O) * invArea;// offset · (e1 x e2) / r · (e1 x e2)
+    //        if (distance > epsilon && distance < hitInfo.distance)
+    //        {
+    //            hitInfo.distance = distance;
+    //            hitInfo.point = ray.GetPoint(distance);
+    //            hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
+    //            //hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+    //        }
+    //    }
+    //}
+    //Worker[] workersPool;
+
+    //public bool RaycastParallel(Ray ray, out RaycastHit hitInfo, float raycastDistance)
+    //{
+    //    hitInfo = new RaycastHit() { distance = raycastDistance };
+    //    if (indices == null || vertices == null) return false;
+
+    //    if (workersPool == null) workersPool = new Worker[10];
+    //    for (int i = 0; i < workersPool.Length; ++i)
+    //    {
+
+    //    }
+
+    //    int trianglesCount = indices.Length / 3;
+
+    //    for (int triIndex = 0; triIndex < trianglesCount; ++triIndex)
+    //    {
+
+    //    }
+
+    //    for (int i = 0; i < workersPool.Length; ++i)
+    //    {
+    //        Worker w = workersPool[i];
+    //        if (w.hitInfo.distance < hitInfo.distance) hitInfo = w.hitInfo;
+    //    }
+    //    return hitInfo;
+    //    if (hitInfo.distance >= raycastDistance) return false;
+    //    return true;
+    //}
+    #endregion
 }
