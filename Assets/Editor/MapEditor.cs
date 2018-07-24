@@ -41,6 +41,27 @@ public class MapEditor : Editor {
 
     }
 
+    [System.Serializable]
+    public class Brush {
+        public enum Op { Add, Substract, Set, Average, Smooth };
+        //TODO math vs curve brush?
+        public Op operation = Op.Add;
+        public float strength = 1f;
+        public float radius = 1f;
+        public AnimationCurve curve = AnimationCurve.Constant(0f, 1f, 1f);
+        //Projection CilindricY vs Sphere?
+
+        public float GetStrength(Vector3 point, Vector3 center)
+        {
+            float distance = Vector3.Distance(point, center);
+            if (distance > radius) return 0f;
+            float curveValue = curve.Evaluate(1f - distance / radius);
+            return curveValue * strength;//?? use strength in op math?
+        }
+    }
+
+    [SerializeField] Brush currentBrush = new Brush();
+
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
@@ -48,6 +69,11 @@ public class MapEditor : Editor {
         editing = GUILayout.Toggle(editing, new GUIContent("Edit"), EditorStyles.miniButton);
         Tools.hidden = editing;
 
+        currentBrush.operation = (Brush.Op)EditorGUILayout.EnumPopup(new GUIContent("Operation"), currentBrush.operation);
+        currentBrush.strength = EditorGUILayout.FloatField(new GUIContent("Strength"), currentBrush.strength);
+        currentBrush.radius = EditorGUILayout.FloatField(new GUIContent("Radius"), currentBrush.radius);
+        currentBrush.curve = EditorGUILayout.CurveField(new GUIContent("Curve"), currentBrush.curve);
+        
         if (GUI.changed) SceneView.RepaintAll();
     }
 
