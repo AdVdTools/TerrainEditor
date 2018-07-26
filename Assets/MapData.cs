@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
@@ -11,6 +12,7 @@ public class MapData : ScriptableObject
     [SerializeField] private int width, depth;
     [HideInInspector] [SerializeField] private float[] heights = new float[0];
 
+    public float[] Heights { get { return heights; } }
 
     public const float sqrt3 = 1.7320508f;
     public const float cos30 = 0.8660254f;
@@ -58,53 +60,7 @@ public class MapData : ScriptableObject
     [ContextMenu("RebuildMesh")]
     public Mesh RefreshMesh()
     {
-        if (mesh == null) {
-            mesh = new Mesh();
-            mesh.name = this.name;
-            mesh.hideFlags = HideFlags.HideAndDontSave;
-        }
-        else {
-            mesh.Clear();
-        }
-
-        int verticesLength = width * depth;
-        int indicesLength = (width - 1) * (depth - 1) * 6;
-
-
-        if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
-        if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
-
-        if (indices == null || indices.Length != indicesLength) indices = new int[indicesLength];
-
-        // Fill arrays
-        for (int vertexIndex = 0; vertexIndex < verticesLength; ++vertexIndex)
-        {
-            vertices[vertexIndex] = GetPosition(vertexIndex);
-            normals[vertexIndex] = Vector3.up;
-        }
-
-        int indexIndex = 0;
-        for (int r = 1; r < depth; ++r) {
-            for (int c = 1; c < width; ++c) {
-                int r_1 = r - 1;
-                int c_1 = c - 1;
-                int baseIndex = GridToIndex(r_1, c_1);
-                int oddRow = r_1 & 1;
-
-                indices[indexIndex++] = baseIndex;
-                indices[indexIndex++] = baseIndex + width;
-                indices[indexIndex++] = baseIndex + 1 + width * oddRow;
-                indices[indexIndex++] = baseIndex + width * (1 - oddRow);
-                indices[indexIndex++] = baseIndex + 1 + width;
-                indices[indexIndex++] = baseIndex + 1;
-            }
-        }
-
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.triangles = indices;
-
-        return mesh;
+        return RebuildParallel(1);
     }
 
     private void OnValidate()
@@ -113,6 +69,16 @@ public class MapData : ScriptableObject
         if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
 
     }
+
+
+
+    public void ForEachVertex(Action<int, Vector3> handler)
+    {
+        for (int i = 0; i < vertices.Length; ++i) {
+            handler(i, vertices[i]);
+        }
+    }
+
 
     public struct RaycastHit {
         public float distance;
@@ -161,6 +127,7 @@ public class MapData : ScriptableObject
         if (hitInfo.distance >= raycastDistance) return false;
         return true;
     }
+
     //  e1 · (r x e2) = e1x (ry e2z - rz e2y) + e1y (rz e2x - rx e2z) + e1z (rx e2y - ry e2x)
     // r · (e2 x e1) = rx (e1z e2y - e1y e2z) + ry (e1x e2z - e1z e2x) + rz (e1y e2x - e1x e2y)
     // ~0 -> parallel
@@ -247,7 +214,7 @@ public class MapData : ScriptableObject
         if (hitInfo.distance >= raycastDistance) return false;
         return true;
     }
-#endregion
+    #endregion
 
     #region testA
     //public class Worker {
@@ -339,4 +306,106 @@ public class MapData : ScriptableObject
     //    return true;
     //}
     #endregion
+        
+    
+
+    private class ThreadData<T>
+    {
+        public int startIndex, endIndex;
+        public T[] array;
+        public ManualResetEvent mre;
+    }
+    private class ThreadData<T, U>
+    {
+        public int startIndex, endIndex;
+        public T[] array0;
+        public U[] array1;
+        public ManualResetEvent mre;
+    }
+
+    public Mesh RebuildParallel(int threads)
+    {
+        if (mesh == null)
+        {
+            mesh = new Mesh();
+            mesh.name = this.name;
+            mesh.hideFlags = HideFlags.HideAndDontSave;
+        }
+        else
+        {
+            mesh.Clear();
+        }
+
+        int verticesLength = width * depth;
+        int indicesLength = (width - 1) * (depth - 1) * 6;
+        
+        if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
+        if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
+
+        bool rebuildIndices = false;
+        if (indices == null || indices.Length != indicesLength)
+        {
+            rebuildIndices = true;
+            indices = new int[indicesLength];
+        }
+
+        // Fill arrays
+        int verticesPerThread = verticesLength / threads;
+        var threadsData = new List<ThreadData<Vector3, Vector3>>();
+        //var sampler = CustomSampler.Create("ParallelRaycast");
+        for (int i = 0; i < threads; ++i)
+        {
+            var data = new ThreadData<Vector3, Vector3>()
+            {
+                startIndex = i * verticesPerThread,
+                endIndex = Mathf.Min((i + 1) * verticesPerThread, verticesLength),
+                array0 = vertices,
+                array1 = normals,
+                mre = new ManualResetEvent(false)
+            };
+            ThreadPool.QueueUserWorkItem((d) =>
+            {
+                var td = (ThreadData<Vector3, Vector3>)d;
+                for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
+                {
+                    vertices[vertexIndex] = GetPosition(vertexIndex);
+                    normals[vertexIndex] = Vector3.up;
+                }
+                td.mre.Set();
+            }, data);
+            threadsData.Add(data);
+        }
+        foreach (var data in threadsData)
+        {
+            data.mre.WaitOne();
+        }
+
+        if (rebuildIndices)
+        {
+            int indexIndex = 0;
+            for (int r = 1; r < depth; ++r)
+            {
+                for (int c = 1; c < width; ++c)
+                {
+                    int r_1 = r - 1;
+                    int c_1 = c - 1;
+                    int baseIndex = GridToIndex(r_1, c_1);
+                    int oddRow = r_1 & 1;
+
+                    indices[indexIndex++] = baseIndex;
+                    indices[indexIndex++] = baseIndex + width;
+                    indices[indexIndex++] = baseIndex + 1 + width * oddRow;
+                    indices[indexIndex++] = baseIndex + width * (1 - oddRow);
+                    indices[indexIndex++] = baseIndex + 1 + width;
+                    indices[indexIndex++] = baseIndex + 1;
+                }
+            }
+        }
+
+        mesh.vertices = vertices;
+        mesh.normals = normals;
+        mesh.triangles = indices;
+
+        return mesh;
+    }
 }

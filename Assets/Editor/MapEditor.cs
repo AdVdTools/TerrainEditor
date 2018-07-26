@@ -58,6 +58,19 @@ public class MapEditor : Editor {
             float curveValue = curve.Evaluate(1f - distance / radius);
             return curveValue * strength;//?? use strength in op math?
         }
+
+        public float Math(float value, float multiplier, float timeStep)
+        {
+            switch (operation)
+            {
+                case Op.Add:
+                    return value + multiplier * timeStep;
+                case Op.Set:
+                    return value + (strength/*replace with target value or something*/ - value) * multiplier * timeStep;
+                default:
+                    return value;
+            }
+        }
     }
 
     [SerializeField] Brush currentBrush = new Brush();
@@ -77,8 +90,11 @@ public class MapEditor : Editor {
         if (GUI.changed) SceneView.RepaintAll();
     }
 
-    System.Diagnostics.Stopwatch stopWatch = new System.Diagnostics.Stopwatch();
+    System.Diagnostics.Stopwatch raycastStopWatch = new System.Diagnostics.Stopwatch();
     float raycastDuration;
+
+    System.Diagnostics.Stopwatch rebuildStopWatch = new System.Diagnostics.Stopwatch();
+    float rebuildDuration;
 
     System.Diagnostics.Stopwatch repaintStopWatch = new System.Diagnostics.Stopwatch();
     float repaintPeriod;
@@ -100,7 +116,7 @@ public class MapEditor : Editor {
             //Debug.Log(Event.current.type);
             int controlId = GUIUtility.GetControlID(new GUIContent("MapEditor"), FocusType.Passive);
 
-            if (Event.current.type == EventType.MouseMove) {
+            if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag) {
                 Repaint();
             }
             if (Event.current.type == EventType.Repaint) {//TODO Layout vs Repaint?
@@ -113,12 +129,12 @@ public class MapEditor : Editor {
                 //Debug.Log(screenPoint+" "+ray);
                 MapData.RaycastHit hitInfo;
                 //TODO measure and optimize Raycast methods
-                stopWatch.Reset();
-                stopWatch.Start();
+                raycastStopWatch.Reset();
+                raycastStopWatch.Start();
                 //rayHits = data.Raycast(ray, out hitInfo, raycastDistance);
                 rayHits = data.RaycastParallel(ray, out hitInfo, raycastDistance, 8);
-                stopWatch.Stop();
-                raycastDuration += (stopWatch.ElapsedMilliseconds - raycastDuration) * 0.5f;
+                raycastStopWatch.Stop();
+                raycastDuration += (raycastStopWatch.ElapsedMilliseconds - raycastDuration) * 0.5f;
                 //Debug.Log(intersection+" "+stopWatch.ElapsedMilliseconds);
 
                 if (rayHits) {
@@ -131,6 +147,15 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
+
+                Handles.color = Color.red;
+                data.ForEachVertex((index, vertex) =>
+                {
+                    float strength = currentBrush.GetStrength(vertex, intersection);
+                    if (strength > 0) {
+                        Handles.DrawWireCube(vertex, Vector3.one * (strength * 0.5f));
+                    }
+                });
             }
             if (Event.current.type == EventType.Layout)
             {//This will allow us to eat the click
@@ -140,7 +165,6 @@ public class MapEditor : Editor {
             {
                 if (rayHits)
                 {
-                    //Undo.RecordObject(map, "Map Changed");//mapData?
                     if (Event.current.control)
                     {
                         // Do spceial stuff
@@ -148,8 +172,22 @@ public class MapEditor : Editor {
                     else
                     {
                         // Do stuff
+                        ApplyBrush();//TODO handle overtime!!
                     }
                 }
+                Event.current.Use();
+            }
+            if (Event.current.type == EventType.MouseDrag && Event.current.button == 0)
+            {
+                if (rayHits)
+                {
+                    ApplyBrush();//TODO handle overtime!!
+                }
+                Event.current.Use();
+            }
+            if (Event.current.type == EventType.MouseUp && Event.current.button == 0)
+            {
+                FullMeshRebuild();//TODO rebuilds normals and other things, not just vertices
                 Event.current.Use();
             }
             
@@ -159,10 +197,36 @@ public class MapEditor : Editor {
             Handles.BeginGUI();
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(40f));
             EditorGUILayout.LabelField(string.Format("{0} ms", raycastDuration), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(string.Format("{0} ms", rebuildDuration), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
             EditorGUILayout.EndVertical();
             Handles.EndGUI();
         }
+    }
+
+    void ApplyBrush()
+    {
+        //Undo.RecordObject(mapData, "Map Changed");//TODO records per MouseUp?
+
+        float[] heights = data.Heights;
+        data.ForEachVertex((index, vertex) =>
+        {
+            float strength = currentBrush.GetStrength(vertex, intersection);
+            if (strength > 0)
+            {
+                //TODO handle data serialization/dirtying somehow and trigger rebuild mesh
+                heights[index] = currentBrush.Math(heights[index], strength, 0.05f/*timeStep*/);
+            }
+        });
+
+
+        rebuildStopWatch.Reset();
+        rebuildStopWatch.Start();
+        data.RebuildParallel(8);
+        rebuildStopWatch.Stop();
+        rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
+        
+        Repaint();
     }
     //TODO serialize MapData object!!
     //TODO do raycasting in background jobs?
