@@ -187,7 +187,7 @@ public class MapEditor : Editor {
             }
             if (Event.current.type == EventType.MouseUp && Event.current.button == 0)
             {
-                FullMeshRebuild();//TODO rebuilds normals and other things, not just vertices
+                data.RebuildParallel(8);//TODO rebuilds normals and other things, not just vertices
                 Event.current.Use();
             }
             
@@ -222,7 +222,7 @@ public class MapEditor : Editor {
 
         rebuildStopWatch.Reset();
         rebuildStopWatch.Start();
-        data.RebuildParallel(8);
+        data.QuickRebuildParallel(8);
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
         

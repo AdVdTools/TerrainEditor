@@ -74,6 +74,7 @@ public class MapData : ScriptableObject
 
     public void ForEachVertex(Action<int, Vector3> handler)
     {
+        if (vertices == null) return;
         for (int i = 0; i < vertices.Length; ++i) {
             handler(i, vertices[i]);
         }
@@ -341,13 +342,8 @@ public class MapData : ScriptableObject
         
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
-
-        bool rebuildIndices = false;
-        if (indices == null || indices.Length != indicesLength)
-        {
-            rebuildIndices = true;
-            indices = new int[indicesLength];
-        }
+        
+        if (indices == null || indices.Length != indicesLength) indices = new int[indicesLength];
 
         // Fill arrays
         int verticesPerThread = verticesLength / threads;
@@ -369,7 +365,87 @@ public class MapData : ScriptableObject
                 for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
                 {
                     vertices[vertexIndex] = GetPosition(vertexIndex);
-                    normals[vertexIndex] = Vector3.up;
+                    normals[vertexIndex] = Vector3.zero;// Vector3.up;
+                }
+                td.mre.Set();
+            }, data);
+            threadsData.Add(data);
+        }
+        foreach (var data in threadsData)
+        {
+            data.mre.WaitOne();
+        }
+        
+        int indexIndex = 0;
+        for (int r = 1; r < depth; ++r)
+        {
+            for (int c = 1; c < width; ++c)
+            {
+                int r_1 = r - 1;
+                int c_1 = c - 1;
+                int baseIndex = GridToIndex(r_1, c_1);
+                int oddRow = r_1 & 1;
+
+                indices[indexIndex++] = baseIndex;
+                indices[indexIndex++] = baseIndex + width;
+                indices[indexIndex++] = baseIndex + 1 + width * oddRow;
+                indices[indexIndex++] = baseIndex + width * (1 - oddRow);
+                indices[indexIndex++] = baseIndex + 1 + width;
+                indices[indexIndex++] = baseIndex + 1;
+            }
+        }
+
+        for (indexIndex = 0; indexIndex < indicesLength; ++indexIndex)
+        {
+            int i0 = indices[indexIndex];
+            int i1 = indices[++indexIndex];
+            int i2 = indices[++indexIndex];
+
+            Vector3 v0 = vertices[i0], v1 = vertices[i1], v2 = vertices[i2];
+            Vector3 normal = Vector3.Cross(v1 - v0, v2 - v0).normalized;
+            normals[i0] += normal;
+            normals[i1] += normal;
+            normals[i2] += normal;
+        }
+        for (int vertexIndex = 0; vertexIndex < verticesLength; ++vertexIndex)
+        {
+            normals[vertexIndex] = normals[vertexIndex].normalized;
+        }
+
+        mesh.vertices = vertices;
+        mesh.normals = normals;
+        mesh.triangles = indices;
+
+        return mesh;
+    }
+
+    public void QuickRebuildParallel(int threads)
+    {
+        if (mesh == null) return;
+
+        int verticesLength = width * depth;
+
+        if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
+        
+        // Fill arrays
+        int verticesPerThread = verticesLength / threads;
+        var threadsData = new List<ThreadData<Vector3>>();
+        //var sampler = CustomSampler.Create("ParallelRaycast");
+        for (int i = 0; i < threads; ++i)
+        {
+            var data = new ThreadData<Vector3>()
+            {
+                startIndex = i * verticesPerThread,
+                endIndex = Mathf.Min((i + 1) * verticesPerThread, verticesLength),
+                array = vertices,
+                mre = new ManualResetEvent(false)
+            };
+            ThreadPool.QueueUserWorkItem((d) =>
+            {
+                var td = (ThreadData<Vector3>)d;
+                for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
+                {
+                    vertices[vertexIndex] = GetPosition(vertexIndex);
                 }
                 td.mre.Set();
             }, data);
@@ -380,32 +456,6 @@ public class MapData : ScriptableObject
             data.mre.WaitOne();
         }
 
-        if (rebuildIndices)
-        {
-            int indexIndex = 0;
-            for (int r = 1; r < depth; ++r)
-            {
-                for (int c = 1; c < width; ++c)
-                {
-                    int r_1 = r - 1;
-                    int c_1 = c - 1;
-                    int baseIndex = GridToIndex(r_1, c_1);
-                    int oddRow = r_1 & 1;
-
-                    indices[indexIndex++] = baseIndex;
-                    indices[indexIndex++] = baseIndex + width;
-                    indices[indexIndex++] = baseIndex + 1 + width * oddRow;
-                    indices[indexIndex++] = baseIndex + width * (1 - oddRow);
-                    indices[indexIndex++] = baseIndex + 1 + width;
-                    indices[indexIndex++] = baseIndex + 1;
-                }
-            }
-        }
-
         mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.triangles = indices;
-
-        return mesh;
     }
 }
