@@ -49,94 +49,13 @@ public class MapEditor : Editor {
         if (brushProjectorMaterial != null) DestroyImmediate(brushProjectorMaterial, false);
     }
 
-    [System.Serializable]
-    public class Brush {
-        public enum Op { Add, Substract, Set, Average, Smooth }
-        public enum Projection { Sphere, Vertical, View, Perspective }//TODO merge view and perspective?
-        //TODO math vs curve brush?
-        public Op operation = Op.Add;
-        public float amount = 1f;
-        public float opacity = 1f;
-        public float radius = 1f;
-        public AnimationCurve curve = AnimationCurve.Constant(0f, 1f, 1f);
-        public Projection projection = Projection.Sphere;
-
-        public float GetStrength(Vector3 projectedOffset)
-        {
-            float distance = Vector3.Magnitude(projectedOffset);
-            if (distance > 1f) return 0f;
-            float curveValue = curve.Evaluate(1f - distance);
-            return curveValue * opacity;//?? use strength in op math?
-        }
-
-        public float Math(float value, float multiplier)
-        {
-            switch (operation)
-            {
-                case Op.Add:
-                    return value + amount * multiplier;
-                case Op.Substract:
-                    return value - amount * multiplier;
-                case Op.Set:
-                    return value + (amount - value) * multiplier;
-                default:
-                    return value;
-            }
-        }
-
-        public Matrix4x4 GetProjectionMatrix(Vector3 center, Transform mapTransform, Camera camera)
-        {
-            switch (projection)
-            {
-                case Projection.Sphere:
-                    return Matrix4x4.TRS(center, Quaternion.identity, new Vector3(radius, radius, radius)).inverse;
-                case Projection.Vertical:
-                    Matrix4x4 vm = Matrix4x4.TRS(center, Quaternion.identity, new Vector3(radius, radius, radius)).inverse;
-                    vm.SetRow(1, Vector4.zero);
-                    return vm;
-                case Projection.View:
-                    Transform camTransform = camera.transform;
-
-                    Vector3 camPosition = mapTransform.InverseTransformPoint(camTransform.position);
-                    Vector3 lookDirection = mapTransform.InverseTransformVector(camTransform.forward);// center - camPosition;
-                    Matrix4x4 cm = Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, lookDirection), new Vector3(radius, radius, radius)).inverse;
-
-                    //Quaternion mr = mapTransform.worldToLocalMatrix.rotation;
-                    //Matrix4x4 cm = Matrix4x4.TRS(center, mr * camTransform.rotation, new Vector3(radius, radius, radius)).inverse;
-                    cm.SetRow(2, Vector4.zero);
-                    return cm;
-                case Projection.Perspective:
-                    Vector3 ld = mapTransform.InverseTransformVector(camera.transform.forward);// center - camPosition;
-
-                    //Matrix4x4 pm = camera.projectionMatrix.inverse * camera.worldToCameraMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
-                    Matrix4x4 pm = camera.transform.worldToLocalMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
-                    pm = camera.projectionMatrix.inverse * pm;
-                    pm =  Matrix4x4.Translate(-pm.MultiplyPoint(center)) * pm;
-                    pm.SetRow(1, pm.GetRow(1) * camera.aspect);
-                    pm.SetRow(2, Vector4.zero);
-                    pm.SetRow(3, pm.GetRow(3) * (camera.orthographic ? radius * 50f : radius / 50f));
-                    return pm;//TODO keep in mind map transform!
-                default:
-                    return Matrix4x4.identity;
-            }
-        }
-    }
-
-    [SerializeField] Brush currentBrush = new Brush();
-
+    
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
 
         editing = GUILayout.Toggle(editing, new GUIContent("Edit"), EditorStyles.miniButton);
         Tools.hidden = editing;
-
-        currentBrush.operation = (Brush.Op)EditorGUILayout.EnumPopup(new GUIContent("Operation"), currentBrush.operation);
-        currentBrush.amount = EditorGUILayout.FloatField(new GUIContent("Amount"), currentBrush.amount);
-        currentBrush.opacity = EditorGUILayout.FloatField(new GUIContent("Opacity"), currentBrush.opacity);
-        currentBrush.radius = EditorGUILayout.FloatField(new GUIContent("Radius"), currentBrush.radius);
-        currentBrush.curve = EditorGUILayout.CurveField(new GUIContent("Curve"), currentBrush.curve);
-        currentBrush.projection = (Brush.Projection)EditorGUILayout.EnumPopup(new GUIContent("Projection"), currentBrush.projection);
         
         if (GUI.changed) SceneView.RepaintAll();
     }
@@ -209,12 +128,16 @@ public class MapEditor : Editor {
                 //});
                 //Handles.SphereHandleCap(controlId, intersection, Quaternion.identity, 1f, Event.current.type);
 
-                
-                Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
+                Mesh mesh = data.sharedMesh;
+                if (mesh != null)
+                {
+                    Matrix4x4 projMatrix = BrushSettings.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
 
-                brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
-                brushProjectorMaterial.SetPass(0);
-                Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
+                    brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+                    brushProjectorMaterial.SetPass(0);
+                    Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
+                }
+                
             }
             if (Event.current.type == EventType.Layout)
             {//This will allow us to eat the click
@@ -251,14 +174,18 @@ public class MapEditor : Editor {
             }
             
             Handles.BeginGUI();
+            GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
+
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(40f));
             EditorGUILayout.LabelField(string.Format("{0} ms", raycastDuration), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(string.Format("{0} ms", rebuildDuration), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(new GUIContent("Proj " + currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera) * new Vector4(intersection.x, intersection.y, intersection.z, 1f)));
+            //EditorGUILayout.Space();
+            //EditorGUILayout.LabelField(new GUIContent("Proj " + currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera) * new Vector4(intersection.x, intersection.y, intersection.z, 1f)));
             EditorGUILayout.EndVertical();
+
+            BrushSettings.DrawBrushWindow();
             Handles.EndGUI();
         }
     }
@@ -266,16 +193,28 @@ public class MapEditor : Editor {
     void ApplyBrush()
     {
         //Undo.RecordObject(mapData, "Map Changed");//TODO records per MouseUp?
-
-        Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
+        Brush brush = BrushSettings.currentBrush;
+        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
         float[] heights = data.Heights;
         data.ForEachVertex((index, vertex) =>
         {
-            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
+            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
             if (strength > 0)
             {
                 //TODO handle data serialization/dirtying somehow and trigger rebuild mesh
-                heights[index] = currentBrush.Math(heights[index], strength);
+                switch (brush.mode)
+                {
+                    case Brush.Mode.Add:
+                        heights[index] += brush.amount * strength;
+                        break;
+                    case Brush.Mode.Substract:
+                        heights[index] -= brush.amount * strength;
+                        break;
+                    case Brush.Mode.Set:
+                        heights[index] += (brush.amount - heights[index]) * strength;
+                        break;
+                }
+                
             }
         });
 
