@@ -14,6 +14,8 @@ public class MapData : ScriptableObject
 
     public float[] Heights { get { return heights; } }
 
+    public Mesh sharedMesh { get { return mesh; } }
+
     public const float sqrt3 = 1.7320508f;
     public const float cos30 = 0.8660254f;
     public Vector2 GridToWorld(int row, int column)

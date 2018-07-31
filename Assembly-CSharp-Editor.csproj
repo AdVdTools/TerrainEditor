@@ -61,7 +61,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\Editor\BrushSettings.cs" />
     <Compile Include="Assets\Editor\MapEditor.cs" />
+    <None Include="Assets\Editor\BrushProjector.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
     </Reference>
