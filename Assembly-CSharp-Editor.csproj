@@ -61,7 +61,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Editor\BrushSettings.cs" />
+    <Compile Include="Assets\Editor\Brush.cs" />
     <Compile Include="Assets\Editor\MapEditor.cs" />
     <None Include="Assets\Editor\BrushProjector.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">

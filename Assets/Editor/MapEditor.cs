@@ -11,7 +11,7 @@ public class MapEditor : Editor {
     Material brushProjectorMaterial;
     int mainColorID;
     int projMatrixID;
-
+    
     private bool editing;
 
     private void OnEnable()
@@ -131,7 +131,7 @@ public class MapEditor : Editor {
                 Mesh mesh = data.sharedMesh;
                 if (mesh != null)
                 {
-                    Matrix4x4 projMatrix = BrushSettings.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
+                    Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
 
                     brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
                     brushProjectorMaterial.SetPass(0);
@@ -172,7 +172,9 @@ public class MapEditor : Editor {
                 data.RebuildParallel(8);//TODO rebuilds normals and other things, not just vertices
                 Event.current.Use();
             }
-            
+
+            Brush.DoBrushControls();
+
             Handles.BeginGUI();
             GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
 
@@ -185,7 +187,7 @@ public class MapEditor : Editor {
             //EditorGUILayout.LabelField(new GUIContent("Proj " + currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera) * new Vector4(intersection.x, intersection.y, intersection.z, 1f)));
             EditorGUILayout.EndVertical();
 
-            BrushSettings.DrawBrushWindow();
+            Brush.DrawBrushWindow();
             Handles.EndGUI();
         }
     }
@@ -193,7 +195,7 @@ public class MapEditor : Editor {
     void ApplyBrush()
     {
         //Undo.RecordObject(mapData, "Map Changed");//TODO records per MouseUp?
-        Brush brush = BrushSettings.currentBrush;
+        Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
         float[] heights = data.Heights;
         data.ForEachVertex((index, vertex) =>

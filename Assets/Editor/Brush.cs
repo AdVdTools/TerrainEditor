@@ -7,10 +7,12 @@ using System.IO;
 [System.Serializable]
 public class Brush
 {
-    public enum Mode { Add, Substract, Set, Smooth }
+    private const int MODES = 5;
+    public enum Mode { Add, Substract, Set, Smooth, Average }
     public enum Type { Sharp, Smooth }//TODO more?
     public enum Projection { Sphere, Vertical, View }//TODO merge view and perspective?
                                                      //TODO math vs curve brush?
+
     public Mode mode = Mode.Add;
     public float amount = 1f;
     public float opacity = 1f;
@@ -72,57 +74,68 @@ public class Brush
                 return Matrix4x4.identity;
         }
     }
-}
-
-public class BrushSettings : ScriptableObject {
-
-    public const string settingsPath = "Assets/Editor/BrushSettings.asset";
-
-    private static BrushSettings instance;
-    public static BrushSettings Instance {
-        get {
-            if (instance == null)
-            {
-                instance = AssetDatabase.LoadAssetAtPath<BrushSettings>(settingsPath);
-                if (instance == null)
-                {
-                    instance = CreateInstance<BrushSettings>();
-
-                    if (!Directory.Exists(settingsPath)) Directory.CreateDirectory(Directory.GetParent(settingsPath).ToString());
-                    AssetDatabase.CreateAsset(instance, settingsPath);
-                    AssetDatabase.SaveAssets();
-                }
-                currentBrush = instance.savedBrushes.Length > 0 ? instance.savedBrushes[0] : new Brush(); ;
-            }
-            return instance;
-        }
-    }
+    
 
     private static Rect windowPosition = new Rect(10f, 20f, 0f, 0f);
     private static bool editBrush;
     public static Brush currentBrush = new Brush();
 
-    [HideInInspector] [SerializeField] Brush[] savedBrushes = new Brush[] { new Brush() };
+    private static bool brushChanged;
+
+    public static void DoBrushControls()
+    {
+        if (Event.current.type == EventType.ScrollWheel && Event.current.control)
+        {
+            currentBrush.radius -= Event.current.delta.y * 0.5f;
+            Event.current.Use();
+            brushChanged = true;
+        }
+        else if (Event.current.type == EventType.ScrollWheel && Event.current.alt)
+        {
+            currentBrush.opacity -= Event.current.delta.y * 0.05f;
+            currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
+            Event.current.Use();
+            brushChanged = true;
+        }
+        else if (Event.current.type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
+        {
+            currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
+            Event.current.Use();
+            brushChanged = true;
+        }
+        else if (Event.current.type == EventType.MouseDrag || Event.current.type == EventType.MouseMove)
+        {
+            brushChanged = false;
+        }
+    }
 
     public static void DrawBrushWindow()
     {
+        GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
         windowPosition = GUILayout.Window(GUIUtility.GetControlID(new GUIContent("BrushWindow"), FocusType.Passive), windowPosition, DrawBrushWindow, new GUIContent("Brush"));
     }
     private static void DrawBrushWindow(int id)
     {
-        EditorGUIUtility.labelWidth = 120f;
+        EditorGUIUtility.labelWidth = 80f;
         Color normalColor = EditorStyles.label.normal.textColor;
         EditorStyles.label.normal.textColor = GUI.skin.label.normal.textColor;//Gets window greyish font color
-
-        //TODO foldout label color, change size when folded?
-        if (editBrush = EditorGUILayout.Foldout(editBrush, new GUIContent("Edit Brush")))
+        
+        editBrush = GUILayout.Toggle(editBrush, new GUIContent("Edit Brush"), EditorStyles.miniButton);
+        if (editBrush || brushChanged)
         {
             currentBrush.mode = (Brush.Mode)EditorGUILayout.EnumPopup(new GUIContent("Brush Mode"), currentBrush.mode);
             currentBrush.amount = EditorGUILayout.FloatField(new GUIContent("Amount"), currentBrush.amount);
-            currentBrush.opacity = EditorGUILayout.Slider(new GUIContent("Opacity"), currentBrush.opacity, 0f, 1f);
+            currentBrush.opacity = EditorGUILayout.FloatField(new GUIContent("Opacity (%)"), currentBrush.opacity * 100f) * 0.01f;
             currentBrush.radius = EditorGUILayout.FloatField(new GUIContent("Radius"), currentBrush.radius);
             currentBrush.type = (Brush.Type)EditorGUILayout.EnumPopup(new GUIContent("Brush Type"), currentBrush.type);
             currentBrush.projection = (Brush.Projection)EditorGUILayout.EnumPopup(new GUIContent("Projection"), currentBrush.projection);
+
+            currentBrush.opacity = Mathf.Clamp01(currentBrush.opacity);
+            currentBrush.radius = Mathf.Max(currentBrush.radius, 0.01f);
+        }
+        else
+        {
+            windowPosition.size = new Vector2(100f, 40f);//Min size
         }
 
         EditorStyles.label.normal.textColor = normalColor;
