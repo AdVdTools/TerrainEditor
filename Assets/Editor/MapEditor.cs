@@ -11,6 +11,7 @@ public class MapEditor : Editor {
     Material brushProjectorMaterial;
     int mainColorID;
     int projMatrixID;
+    int opacityID;
     
     private bool editing;
 
@@ -24,7 +25,8 @@ public class MapEditor : Editor {
         
         mainColorID = Shader.PropertyToID("_MainColor");
         projMatrixID = Shader.PropertyToID("_ProjMatrix");
-        
+        opacityID = Shader.PropertyToID("_Opacity");
+
         brushProjectorMaterial.SetColor(mainColorID, Color.green);
 
         //hexMesh = new Mesh();
@@ -134,6 +136,7 @@ public class MapEditor : Editor {
                     Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
 
                     brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+                    brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
                     brushProjectorMaterial.SetPass(0);
                     Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
                 }
@@ -198,6 +201,25 @@ public class MapEditor : Editor {
         Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
         float[] heights = data.Heights;
+
+        float targetAmount = 0f;
+        if (brush.mode == Brush.Mode.Average)
+        {
+            double heightSum = 0;
+            double weightSum = 0;
+            data.ForEachVertex((index, vertex) =>
+            {
+                float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                if (strength > 0)
+                {
+                    heightSum += heights[index] * strength;
+                    weightSum += strength;
+                }
+            });
+            targetAmount = weightSum != 0 ? (float) (heightSum / weightSum) : 0f;
+        }
+
+
         data.ForEachVertex((index, vertex) =>
         {
             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
@@ -214,6 +236,30 @@ public class MapEditor : Editor {
                         break;
                     case Brush.Mode.Set:
                         heights[index] += (brush.amount - heights[index]) * strength;
+                        break;
+                    case Brush.Mode.Average:
+                        heights[index] += (targetAmount - heights[index]) * strength;
+                        break;
+                    case Brush.Mode.Smooth:
+                        float neighbourAverage = 0f;
+                        Vector2Int coords = data.IndexToGrid(index);
+                        int columnOffset = coords.y & 1;
+                        int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
+                        int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
+                        int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
+                        int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
+                        int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
+                        int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
+
+                        neighbourAverage += heights[eastIndex];
+                        neighbourAverage += heights[neIndex];
+                        neighbourAverage += heights[nwIndex];
+                        neighbourAverage += heights[westIndex];
+                        neighbourAverage += heights[swIndex];
+                        neighbourAverage += heights[seIndex];
+                        neighbourAverage /= 6f;//DO weighted average?
+
+                        heights[index] += (neighbourAverage - heights[index]) * strength * 0.5f;
                         break;
                 }
                 

@@ -4,8 +4,8 @@ Shader "Hidden/BrushProjector"
 {
 	Properties
 	{
-		_MainColor ("Color", Color) = (1, 1, 1, 1)
-		_MainTex ("Texture", 2D) = "white" {}
+		_MainColor("Color", Color) = (1, 1, 1, 1)
+		_Opacity("Opacity", Float) = 0.25
 	}
 	SubShader
 	{
@@ -40,6 +40,8 @@ Shader "Hidden/BrushProjector"
 
 			float4x4 _ProjMatrix;
 			fixed4 _MainColor;
+
+			float _Opacity;
 			
 			v2f vert (appdata v)
 			{
@@ -53,10 +55,9 @@ Shader "Hidden/BrushProjector"
 			
 			fixed4 frag (v2f i) : SV_Target
 			{
-				// sample the texture
 				fixed4 col = _MainColor;
 				float distSqrt = dot(i.vertex, i.vertex);
-				col.a = 0.25 - step(1.0, distSqrt) + step(0.9, distSqrt) * 0.75;
+				col.a = _Opacity - step(1.0, distSqrt) + step(0.9, distSqrt) * (1 - _Opacity);
 				//col.a = step(15.0, distSqrt % 20.0);
 
 				// apply fog

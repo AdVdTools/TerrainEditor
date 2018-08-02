@@ -8,7 +8,7 @@ using System.IO;
 public class Brush
 {
     private const int MODES = 5;
-    public enum Mode { Add, Substract, Set, Smooth, Average }
+    public enum Mode { Add, Substract, Set, Average, Smooth }
     public enum Type { Sharp, Smooth }//TODO more?
     public enum Projection { Sphere, Vertical, View }//TODO merge view and perspective?
                                                      //TODO math vs curve brush?
@@ -16,7 +16,7 @@ public class Brush
     public Mode mode = Mode.Add;
     public float amount = 1f;
     public float opacity = 1f;
-    public float radius = 1f;
+    public float radius = 5f;
     public Type type = Type.Smooth;
     public Projection projection = Projection.Sphere;
 
@@ -60,7 +60,7 @@ public class Brush
             //    cm.SetRow(2, Vector4.zero);
             //    return cm;
             //case Projection.Perspective:
-                Vector3 ld = mapTransform.InverseTransformVector(camera.transform.forward);// center - camPosition;
+                //Vector3 ld = mapTransform.InverseTransformVector(camera.transform.forward);// center - camPosition;
 
                 //Matrix4x4 pm = camera.projectionMatrix.inverse * camera.worldToCameraMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
                 Matrix4x4 pm = camera.transform.worldToLocalMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
@@ -92,7 +92,7 @@ public class Brush
         }
         else if (Event.current.type == EventType.ScrollWheel && Event.current.alt)
         {
-            currentBrush.opacity -= Event.current.delta.y * 0.05f;
+            currentBrush.opacity -= Event.current.delta.y * 0.0625f;
             currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
             Event.current.Use();
             brushChanged = true;
@@ -124,7 +124,9 @@ public class Brush
         if (editBrush || brushChanged)
         {
             currentBrush.mode = (Brush.Mode)EditorGUILayout.EnumPopup(new GUIContent("Brush Mode"), currentBrush.mode);
+            GUI.enabled = currentBrush.mode != Mode.Average && currentBrush.mode != Mode.Smooth;
             currentBrush.amount = EditorGUILayout.FloatField(new GUIContent("Amount"), currentBrush.amount);
+            GUI.enabled = true;
             currentBrush.opacity = EditorGUILayout.FloatField(new GUIContent("Opacity (%)"), currentBrush.opacity * 100f) * 0.01f;
             currentBrush.radius = EditorGUILayout.FloatField(new GUIContent("Radius"), currentBrush.radius);
             currentBrush.type = (Brush.Type)EditorGUILayout.EnumPopup(new GUIContent("Brush Type"), currentBrush.type);
