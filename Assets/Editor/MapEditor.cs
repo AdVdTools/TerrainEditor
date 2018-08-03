@@ -29,6 +29,8 @@ public class MapEditor : Editor {
 
         brushProjectorMaterial.SetColor(mainColorID, Color.green);
 
+        Undo.undoRedoPerformed += OnUndoRedo;
+
         //hexMesh = new Mesh();
         //hexMesh.hideFlags = HideFlags.HideAndDontSave;
         //Vector3[] vertices = new Vector3[6];
@@ -49,6 +51,8 @@ public class MapEditor : Editor {
     {
         //if (gridMaterial != null) DestroyImmediate(gridMaterial, false);
         if (brushProjectorMaterial != null) DestroyImmediate(brushProjectorMaterial, false);
+
+        Undo.undoRedoPerformed -= OnUndoRedo;
     }
 
     
@@ -60,6 +64,11 @@ public class MapEditor : Editor {
         Tools.hidden = editing;
         
         if (GUI.changed) SceneView.RepaintAll();
+    }
+
+    private void OnUndoRedo()
+    {
+        data.RebuildParallel(8);
     }
 
     System.Diagnostics.Stopwatch raycastStopWatch = new System.Diagnostics.Stopwatch();
@@ -86,8 +95,7 @@ public class MapEditor : Editor {
         if (editing)
         {
             //Debug.Log(Event.current.type);
-            int controlId = GUIUtility.GetControlID(new GUIContent("MapEditor"), FocusType.Passive);
-
+            
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag) {
                 Repaint();
             }
@@ -119,64 +127,33 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
-
-                //Handles.color = Color.red;
-                //data.ForEachVertex((index, vertex) =>
-                //{
-                //    float strength = currentBrush.GetStrength(vertex, intersection);
-                //    if (strength > 0) {
-                //        Handles.DrawWireCube(vertex, Vector3.one * (strength * 0.5f));
-                //    }
-                //});
-                //Handles.SphereHandleCap(controlId, intersection, Quaternion.identity, 1f, Event.current.type);
-
-                Mesh mesh = data.sharedMesh;
-                if (mesh != null)
-                {
-                    Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
-
-                    brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
-                    brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
-                    brushProjectorMaterial.SetPass(0);
-                    Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
-                }
-                
             }
-            if (Event.current.type == EventType.Layout)
-            {//This will allow us to eat the click
-                HandleUtility.AddDefaultControl(controlId);
-            }
-            if (Event.current.type == EventType.MouseDown && Event.current.button == 0)
+
+            switch (Brush.CheckBrushEvent())
             {
-                if (rayHits)
-                {
-                    if (Event.current.control)
+                case BrushEvent.BrushDraw:
+                    Mesh mesh = data.sharedMesh;
+                    if (mesh != null)
                     {
-                        // Do spceial stuff
-                    }
-                    else
-                    {
-                        // Do stuff
-                        ApplyBrush();//TODO handle overtime!!
-                    }
-                }
-                Event.current.Use();
-            }
-            if (Event.current.type == EventType.MouseDrag && Event.current.button == 0)
-            {
-                if (rayHits)
-                {
-                    ApplyBrush();//TODO handle overtime!!
-                }
-                Event.current.Use();
-            }
-            if (Event.current.type == EventType.MouseUp && Event.current.button == 0)
-            {
-                data.RebuildParallel(8);//TODO rebuilds normals and other things, not just vertices
-                Event.current.Use();
-            }
+                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
 
-            Brush.DoBrushControls();
+                        brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+                        brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
+                        brushProjectorMaterial.SetPass(Brush.currentBrush.type == Brush.Type.Smooth ? 1 : 0);
+                        Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
+                    }
+                    break;
+                case BrushEvent.BrushPaint:
+                    if (rayHits)
+                    {
+                        Undo.RecordObject(data, "Map Paint");
+                        ApplyBrush();
+                    }
+                    break;
+                case BrushEvent.BrushPaintEnd:
+                    data.RebuildParallel(8);
+                    break;
+            }
 
             Handles.BeginGUI();
             GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);

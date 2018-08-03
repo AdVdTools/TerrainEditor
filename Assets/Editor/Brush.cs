@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 
+public enum BrushEvent { None, BrushDraw, BrushPaint, BrushPaintEnd, BrushChanged }
+
 [System.Serializable]
 public class Brush
 {
@@ -82,31 +84,59 @@ public class Brush
 
     private static bool brushChanged;
 
-    public static void DoBrushControls()
+    public static BrushEvent CheckBrushEvent()
     {
-        if (Event.current.type == EventType.ScrollWheel && Event.current.control)
+        int controlId = GUIUtility.GetControlID(new GUIContent("MapEditor"), FocusType.Passive);
+        EventType type = Event.current.type;
+        bool leftClick = Event.current.button == 0;
+
+        if (Event.current.type == EventType.Repaint)
         {
-            currentBrush.radius -= Event.current.delta.y * 0.5f;
+            return BrushEvent.BrushDraw;
+        }
+        else if (type == EventType.Layout)
+        {//This will allow clicks to be eaten
+            HandleUtility.AddDefaultControl(controlId);
+        }
+        else if ((type == EventType.MouseDown || type == EventType.MouseDrag) && leftClick)
+        {
             Event.current.Use();
-            brushChanged = true;
+            return BrushEvent.BrushPaint;
         }
-        else if (Event.current.type == EventType.ScrollWheel && Event.current.alt)
+        else if (type == EventType.MouseUp && leftClick)
         {
-            currentBrush.opacity -= Event.current.delta.y * 0.0625f;
-            currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
             Event.current.Use();
-            brushChanged = true;
+            return BrushEvent.BrushPaintEnd;
         }
-        else if (Event.current.type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
-        {
-            currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
-            Event.current.Use();
-            brushChanged = true;
+        else {
+            if (type == EventType.ScrollWheel && Event.current.control)
+            {
+                currentBrush.radius -= Event.current.delta.y * 0.5f;
+                Event.current.Use();
+                brushChanged = true;
+                return BrushEvent.BrushChanged;
+            }
+            else if (type == EventType.ScrollWheel && Event.current.alt)
+            {
+                currentBrush.opacity -= Event.current.delta.y * 0.0625f;
+                currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
+                Event.current.Use();
+                brushChanged = true;
+                return BrushEvent.BrushChanged;
+            }
+            else if (type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
+            {
+                currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
+                Event.current.Use();
+                brushChanged = true;
+                return BrushEvent.BrushChanged;
+            }
+            else if (type == EventType.MouseDrag || type == EventType.MouseMove)
+            {
+                brushChanged = false;
+            }
         }
-        else if (Event.current.type == EventType.MouseDrag || Event.current.type == EventType.MouseMove)
-        {
-            brushChanged = false;
-        }
+        return BrushEvent.None;
     }
 
     public static void DrawBrushWindow()
