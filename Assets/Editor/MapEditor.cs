@@ -156,7 +156,8 @@ public class MapEditor : Editor {
                 case BrushEvent.BrushPaintStart:
                     if (rayHits)
                     {
-                        Undo.RecordObject(data, "Map Paint");
+                        //Undo.RecordObject(data, "Map Paint");
+                        Undo.RegisterCompleteObjectUndo(data, "Map Paint");
                         ApplyBrush();
                     }
                     break;
