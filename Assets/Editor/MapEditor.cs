@@ -84,6 +84,9 @@ public class MapEditor : Editor {
     System.Diagnostics.Stopwatch rebuildStopWatch = new System.Diagnostics.Stopwatch();
     float rebuildDuration;
 
+    System.Diagnostics.Stopwatch applyStopWatch = new System.Diagnostics.Stopwatch();
+    float applyDuration;
+
     System.Diagnostics.Stopwatch repaintStopWatch = new System.Diagnostics.Stopwatch();
     float repaintPeriod;
 
@@ -150,10 +153,16 @@ public class MapEditor : Editor {
                         Graphics.DrawMeshNow(data.sharedMesh, Handles.matrix, 0);
                     }
                     break;
-                case BrushEvent.BrushPaint:
+                case BrushEvent.BrushPaintStart:
                     if (rayHits)
                     {
                         Undo.RecordObject(data, "Map Paint");
+                        ApplyBrush();
+                    }
+                    break;
+                case BrushEvent.BrushPaint:
+                    if (rayHits)
+                    {
                         ApplyBrush();
                     }
                     break;
@@ -168,6 +177,7 @@ public class MapEditor : Editor {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(40f));
             EditorGUILayout.LabelField(string.Format("{0} ms", raycastDuration), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(string.Format("{0} ms", rebuildDuration), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(string.Format("{0} ms", applyDuration), EditorStyles.boldLabel);
             EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
 
             //EditorGUILayout.Space();
@@ -203,6 +213,9 @@ public class MapEditor : Editor {
         Vector3[] vertices = data.Vertices;
         int pointCount = vertices.Length;
         //TODO check null vertices?
+        applyStopWatch.Reset();
+        applyStopWatch.Start();
+
         if (auxHeight == null || auxHeight.Length != pointCount) auxHeight = new float[pointCount];
 
         float avgAmount = 0f;
@@ -312,6 +325,9 @@ public class MapEditor : Editor {
         }
         System.Array.Copy(auxHeight, heights, pointCount);
 
+        applyStopWatch.Stop();
+        applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
+
         //data.ForEachVertex((index, vertex) =>
         //{
         //    float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
@@ -354,7 +370,7 @@ public class MapEditor : Editor {
         //                heights[index] += (neighbourAverage - heights[index]) * strength * 0.5f;
         //                break;
         //        }
-                
+
         //    }
         //});
 

@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 
-public enum BrushEvent { None, BrushDraw, BrushPaint, BrushPaintEnd, BrushChanged }
+public enum BrushEvent { None, BrushDraw, BrushPaintStart, BrushPaint, BrushPaintEnd, BrushChanged }
 
 [System.Serializable]
 public class Brush
@@ -98,7 +98,12 @@ public class Brush
         {//This will allow clicks to be eaten
             HandleUtility.AddDefaultControl(controlId);
         }
-        else if ((type == EventType.MouseDown || type == EventType.MouseDrag) && leftClick)
+        else if (type == EventType.MouseDown && leftClick)
+        {
+            Event.current.Use();
+            return BrushEvent.BrushPaintStart;
+        }
+        else if (type == EventType.MouseDrag && leftClick)
         {
             Event.current.Use();
             return BrushEvent.BrushPaint;
