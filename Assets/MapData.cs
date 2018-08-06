@@ -141,7 +141,7 @@ public class MapData : ScriptableObject
     // e2 · ((or - v0) x e1)
 
     #region testB
-    private class ThreadData {
+    private class RaycastThreadData {
         public int startIndex, endIndex;
         public RaycastHit hitInfo;
         public ManualResetEvent mre;
@@ -153,12 +153,12 @@ public class MapData : ScriptableObject
         if (indices == null || vertices == null) return false;
 
         int trianglesCount = indices.Length / 3;
-        int trianglesPerThread = trianglesCount / threads;
-        var threadsData = new List<ThreadData>();
+        int trianglesPerThread = (trianglesCount - 1) / threads + 1;
+        var threadsData = new List<RaycastThreadData>(threads);
         //var sampler = CustomSampler.Create("ParallelRaycast");
         for (int i = 0; i < threads; ++i)
         {
-            var data = new ThreadData()
+            var data = new RaycastThreadData()
             {
                 startIndex = i * trianglesPerThread,
                 endIndex = Mathf.Min((i + 1) * trianglesPerThread, trianglesCount),
@@ -167,8 +167,8 @@ public class MapData : ScriptableObject
             };
             ThreadPool.QueueUserWorkItem((d) =>
             {
-                ThreadData td = (ThreadData)d;
-                Profiler.BeginThreadProfiling("ParallelRaycast", td.startIndex + "-" + td.endIndex);
+                RaycastThreadData td = (RaycastThreadData)d;
+                //Profiler.BeginThreadProfiling("ParallelRaycast", td.startIndex + "-" + td.endIndex);
                 for (int triIndex = td.startIndex; triIndex < td.endIndex; ++triIndex)
                 {
                     //sampler.Begin();
@@ -202,7 +202,7 @@ public class MapData : ScriptableObject
                     }
                     //sampler.End();
                 }
-                Profiler.EndThreadProfiling();
+                //Profiler.EndThreadProfiling();
                 td.mre.Set();
             }, data);
             threadsData.Add(data);
@@ -309,20 +309,10 @@ public class MapData : ScriptableObject
     //    return true;
     //}
     #endregion
-        
-    
 
-    private class ThreadData<T>
+    private class ThreadData
     {
         public int startIndex, endIndex;
-        public T[] array;
-        public ManualResetEvent mre;
-    }
-    private class ThreadData<T, U>
-    {
-        public int startIndex, endIndex;
-        public T[] array0;
-        public U[] array1;
         public ManualResetEvent mre;
     }
 
@@ -348,22 +338,20 @@ public class MapData : ScriptableObject
         if (indices == null || indices.Length != indicesLength) indices = new int[indicesLength];
 
         // Fill arrays
-        int verticesPerThread = verticesLength / threads;
-        var threadsData = new List<ThreadData<Vector3, Vector3>>();
+        int verticesPerThread = (verticesLength - 1) / threads + 1;
+        var threadsData = new List<ThreadData>();
         //var sampler = CustomSampler.Create("ParallelRaycast");
         for (int i = 0; i < threads; ++i)
         {
-            var data = new ThreadData<Vector3, Vector3>()
+            var data = new ThreadData()
             {
                 startIndex = i * verticesPerThread,
                 endIndex = Mathf.Min((i + 1) * verticesPerThread, verticesLength),
-                array0 = vertices,
-                array1 = normals,
                 mre = new ManualResetEvent(false)
             };
             ThreadPool.QueueUserWorkItem((d) =>
             {
-                var td = (ThreadData<Vector3, Vector3>)d;
+                var td = (ThreadData)d;
                 for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
                 {
                     vertices[vertexIndex] = GetPosition(vertexIndex);
@@ -430,21 +418,20 @@ public class MapData : ScriptableObject
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         
         // Fill arrays
-        int verticesPerThread = verticesLength / threads;
-        var threadsData = new List<ThreadData<Vector3>>();
+        int verticesPerThread = (verticesLength - 1) / threads + 1;
+        var threadsData = new List<ThreadData>();
         //var sampler = CustomSampler.Create("ParallelRaycast");
         for (int i = 0; i < threads; ++i)
         {
-            var data = new ThreadData<Vector3>()
+            var data = new ThreadData()
             {
                 startIndex = i * verticesPerThread,
                 endIndex = Mathf.Min((i + 1) * verticesPerThread, verticesLength),
-                array = vertices,
                 mre = new ManualResetEvent(false)
             };
             ThreadPool.QueueUserWorkItem((d) =>
             {
-                var td = (ThreadData<Vector3>)d;
+                var td = (ThreadData)d;
                 for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
                 {
                     vertices[vertexIndex] = GetPosition(vertexIndex);
