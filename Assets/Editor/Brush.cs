@@ -86,7 +86,7 @@ public class Brush
 
     public static BrushEvent CheckBrushEvent()
     {
-        int controlId = GUIUtility.GetControlID(new GUIContent("MapEditor"), FocusType.Passive);
+        int controlId = GUIUtility.GetControlID(brushEditorGUIContent, FocusType.Passive);
         EventType type = Event.current.type;
         bool leftClick = Event.current.button == 0;
 
@@ -139,10 +139,23 @@ public class Brush
         return BrushEvent.None;
     }
 
+    private static readonly GUIContent brushGUIContent = new GUIContent("Brush");
+    private static readonly GUIContent brushWindowGUIContent = new GUIContent("BrushWindow");
+    private static readonly GUIContent editBrushGUIContent = new GUIContent("Edit Brush");
+    private static readonly GUIContent brushEditorGUIContent = new GUIContent("BrushEditor");
+
+    private static readonly GUIContent brushModeGUIContent = new GUIContent("Brush Mode");
+    private static readonly GUIContent amountGUIContent = new GUIContent("Amount");
+    private static readonly GUIContent opacityGUIContent = new GUIContent("Opacity");
+    private static readonly GUIContent radiusGUIContent = new GUIContent("Radius");
+    private static readonly GUIContent brushTypeGUIContent = new GUIContent("Brush Type");
+    private static readonly GUIContent projectionGUIContent = new GUIContent("Projection");
+
+
     public static void DrawBrushWindow()
     {
         GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
-        windowPosition = GUILayout.Window(GUIUtility.GetControlID(new GUIContent("BrushWindow"), FocusType.Passive), windowPosition, DrawBrushWindow, new GUIContent("Brush"));
+        windowPosition = GUILayout.Window(GUIUtility.GetControlID(brushWindowGUIContent, FocusType.Passive), windowPosition, DrawBrushWindow, brushGUIContent);
     }
     private static void DrawBrushWindow(int id)
     {
@@ -150,17 +163,17 @@ public class Brush
         Color normalColor = EditorStyles.label.normal.textColor;
         EditorStyles.label.normal.textColor = GUI.skin.label.normal.textColor;//Gets window greyish font color
         
-        editBrush = GUILayout.Toggle(editBrush, new GUIContent("Edit Brush"), EditorStyles.miniButton);
+        editBrush = GUILayout.Toggle(editBrush, editBrushGUIContent, EditorStyles.miniButton);
         if (editBrush || brushChanged)
         {
-            currentBrush.mode = (Brush.Mode)EditorGUILayout.EnumPopup(new GUIContent("Brush Mode"), currentBrush.mode);
+            currentBrush.mode = (Brush.Mode)EditorGUILayout.EnumPopup(brushModeGUIContent, currentBrush.mode);
             GUI.enabled = currentBrush.mode != Mode.Average && currentBrush.mode != Mode.Smooth;
-            currentBrush.amount = EditorGUILayout.FloatField(new GUIContent("Amount"), currentBrush.amount);
+            currentBrush.amount = EditorGUILayout.FloatField(amountGUIContent, currentBrush.amount);
             GUI.enabled = true;
-            currentBrush.opacity = EditorGUILayout.FloatField(new GUIContent("Opacity (%)"), currentBrush.opacity * 100f) * 0.01f;
-            currentBrush.radius = EditorGUILayout.FloatField(new GUIContent("Radius"), currentBrush.radius);
-            currentBrush.type = (Brush.Type)EditorGUILayout.EnumPopup(new GUIContent("Brush Type"), currentBrush.type);
-            currentBrush.projection = (Brush.Projection)EditorGUILayout.EnumPopup(new GUIContent("Projection"), currentBrush.projection);
+            currentBrush.opacity = EditorGUILayout.FloatField(opacityGUIContent, currentBrush.opacity * 100f) * 0.01f;
+            currentBrush.radius = EditorGUILayout.FloatField(radiusGUIContent, currentBrush.radius);
+            currentBrush.type = (Brush.Type)EditorGUILayout.EnumPopup(brushTypeGUIContent, currentBrush.type);
+            currentBrush.projection = (Brush.Projection)EditorGUILayout.EnumPopup(projectionGUIContent, currentBrush.projection);
 
             currentBrush.opacity = Mathf.Clamp01(currentBrush.opacity);
             currentBrush.radius = Mathf.Max(currentBrush.radius, 0.01f);

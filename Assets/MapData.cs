@@ -73,14 +73,14 @@ public class MapData : ScriptableObject
     }
 
 
-
-    public void ForEachVertex(Action<int, Vector3> handler)
-    {
-        if (vertices == null) return;
-        for (int i = 0; i < vertices.Length; ++i) {
-            handler(i, vertices[i]);
-        }
-    }
+    public Vector3[] Vertices { get { return vertices; } }
+    //public void ForEachVertex(Action<int, Vector3> handler)
+    //{
+    //    if (vertices == null) return;
+    //    for (int i = 0; i < vertices.Length; ++i) {
+    //        handler(i, vertices[i]);
+    //    }
+    //}
 
 
     public struct RaycastHit {

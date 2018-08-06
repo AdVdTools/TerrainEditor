@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using System.Threading;
 
 [CustomEditor(typeof(Map))]
 public class MapEditor : Editor {
@@ -22,7 +23,7 @@ public class MapEditor : Editor {
 
         brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
         brushProjectorMaterial.hideFlags = HideFlags.HideAndDontSave;
-        
+
         mainColorID = Shader.PropertyToID("_MainColor");
         projMatrixID = Shader.PropertyToID("_ProjMatrix");
         opacityID = Shader.PropertyToID("_Opacity");
@@ -45,6 +46,11 @@ public class MapEditor : Editor {
         //hexMesh.vertices = vertices;
         //hexMesh.SetIndices(lineIndices, MeshTopology.LineStrip, 0);
         //hexMesh.SetIndices(areaIndices, MeshTopology.Quads, 1);
+
+        for (int i = 0; i < threads; ++i)
+        {
+            threadsData[i] = new ThreadData();
+        }
     }
 
     private void OnDisable()
@@ -55,12 +61,13 @@ public class MapEditor : Editor {
         Undo.undoRedoPerformed -= OnUndoRedo;
     }
 
-    
+    readonly GUIContent editButtonContent = new GUIContent("Edit");
+
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
-
-        editing = GUILayout.Toggle(editing, new GUIContent("Edit"), EditorStyles.miniButton);
+        
+        editing = GUILayout.Toggle(editing, editButtonContent, EditorStyles.miniButton);
         Tools.hidden = editing;
         
         if (GUI.changed) SceneView.RepaintAll();
@@ -172,76 +179,184 @@ public class MapEditor : Editor {
         }
     }
 
+    private class ThreadData
+    {
+        public int startIndex, endIndex;
+        public ManualResetEvent mre = new ManualResetEvent(false);
+
+        public void Reset(int startIndex, int endIndex)
+        {
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+            mre.Reset();
+        }
+    }
+    const int threads = 8;
+    ThreadData[] threadsData = new ThreadData[threads];
+    float[] auxHeight;
+
     void ApplyBrush()
     {
-        //Undo.RecordObject(mapData, "Map Changed");//TODO records per MouseUp?
         Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
         float[] heights = data.Heights;
+        Vector3[] vertices = data.Vertices;
+        int pointCount = vertices.Length;
+        //TODO check null vertices?
+        if (auxHeight == null || auxHeight.Length != pointCount) auxHeight = new float[pointCount];
 
-        float targetAmount = 0f;
+        float avgAmount = 0f;
         if (brush.mode == Brush.Mode.Average)
         {
             double heightSum = 0;
             double weightSum = 0;
-            data.ForEachVertex((index, vertex) =>
+            for(int index = 0; index < pointCount; ++index)
             {
+                Vector3 vertex = vertices[index];
                 float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
                 if (strength > 0)
                 {
                     heightSum += heights[index] * strength;
                     weightSum += strength;
                 }
-            });
-            targetAmount = weightSum != 0 ? (float) (heightSum / weightSum) : 0f;
+            }
+            avgAmount = weightSum != 0 ? (float)(heightSum / weightSum) : 0f;
         }
 
-
-        data.ForEachVertex((index, vertex) =>
+        //TODO is this slower?
+        int pointsPerThread = (pointCount - 1) / threads + 1;//TODO change to process all points!! round down is the ruin!
+        for (int i = 0; i < threads; ++i)
         {
-            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-            if (strength > 0)
+            ThreadData threadData = threadsData[i];
+            threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
+            //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
+            ThreadPool.QueueUserWorkItem((d) =>
             {
-                //TODO handle data serialization/dirtying somehow and trigger rebuild mesh
+                ThreadData td = (ThreadData)d;
+                //TODO work on different heights array? smooth needs to read and write the same array in uncontroled indices
                 switch (brush.mode)
                 {
                     case Brush.Mode.Add:
-                        heights[index] += brush.amount * strength;
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = vertices[index];
+                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            if (strength > 0f) auxHeight[index] = heights[index] + brush.amount * strength;
+                            else auxHeight[index] = heights[index];
+                        }
                         break;
                     case Brush.Mode.Substract:
-                        heights[index] -= brush.amount * strength;
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = vertices[index];
+                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            if (strength > 0f) auxHeight[index] = heights[index] - brush.amount * strength;
+                            else auxHeight[index] = heights[index];
+                        }
                         break;
                     case Brush.Mode.Set:
-                        heights[index] += (brush.amount - heights[index]) * strength;
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = vertices[index];
+                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            if (strength > 0f) auxHeight[index] = heights[index] + (brush.amount - heights[index]) * strength;
+                            else auxHeight[index] = heights[index];
+                        }
                         break;
                     case Brush.Mode.Average:
-                        heights[index] += (targetAmount - heights[index]) * strength;
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = vertices[index];
+                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            if (strength > 0f) auxHeight[index] = heights[index] + (avgAmount - heights[index]) * strength;
+                            else auxHeight[index] = heights[index];
+                        }
                         break;
                     case Brush.Mode.Smooth:
-                        float neighbourAverage = 0f;
-                        Vector2Int coords = data.IndexToGrid(index);
-                        int columnOffset = coords.y & 1;
-                        int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
-                        int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
-                        int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
-                        int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
-                        int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
-                        int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = vertices[index];
+                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            if (strength > 0f)
+                            {
+                                float neighbourAverage = 0f;
+                                Vector2Int coords = data.IndexToGrid(index);
+                                int columnOffset = coords.y & 1;
+                                int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
+                                int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
+                                int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
+                                int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
+                                int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
+                                int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
 
-                        neighbourAverage += heights[eastIndex];
-                        neighbourAverage += heights[neIndex];
-                        neighbourAverage += heights[nwIndex];
-                        neighbourAverage += heights[westIndex];
-                        neighbourAverage += heights[swIndex];
-                        neighbourAverage += heights[seIndex];
-                        neighbourAverage /= 6f;//DO weighted average?
+                                neighbourAverage += heights[eastIndex];
+                                neighbourAverage += heights[neIndex];
+                                neighbourAverage += heights[nwIndex];
+                                neighbourAverage += heights[westIndex];
+                                neighbourAverage += heights[swIndex];
+                                neighbourAverage += heights[seIndex];
+                                neighbourAverage /= 6f;//DO weighted average?
 
-                        heights[index] += (neighbourAverage - heights[index]) * strength * 0.5f;
+                                auxHeight[index] = heights[index] + (neighbourAverage - heights[index]) * strength * 0.5f;
+                            }
+                            else auxHeight[index] = heights[index];
+                        }
                         break;
                 }
+                td.mre.Set();
+            }, threadData);
+        }
+        foreach (var threadData in threadsData)
+        {
+            threadData.mre.WaitOne();
+        }
+        System.Array.Copy(auxHeight, heights, pointCount);
+
+        //data.ForEachVertex((index, vertex) =>
+        //{
+        //    float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+        //    if (strength > 0)
+        //    {
+        //        //TODO handle data serialization/dirtying somehow and trigger rebuild mesh
+        //        switch (brush.mode)
+        //        {
+        //            case Brush.Mode.Add:
+        //                heights[index] += brush.amount * strength;
+        //                break;
+        //            case Brush.Mode.Substract:
+        //                heights[index] -= brush.amount * strength;
+        //                break;
+        //            case Brush.Mode.Set:
+        //                heights[index] += (brush.amount - heights[index]) * strength;
+        //                break;
+        //            case Brush.Mode.Average:
+        //                heights[index] += (targetAmount - heights[index]) * strength;
+        //                break;
+        //            case Brush.Mode.Smooth:
+        //                float neighbourAverage = 0f;
+        //                Vector2Int coords = data.IndexToGrid(index);
+        //                int columnOffset = coords.y & 1;
+        //                int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
+        //                int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
+        //                int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
+        //                int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
+        //                int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
+        //                int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
+
+        //                neighbourAverage += heights[eastIndex];
+        //                neighbourAverage += heights[neIndex];
+        //                neighbourAverage += heights[nwIndex];
+        //                neighbourAverage += heights[westIndex];
+        //                neighbourAverage += heights[swIndex];
+        //                neighbourAverage += heights[seIndex];
+        //                neighbourAverage /= 6f;//DO weighted average?
+
+        //                heights[index] += (neighbourAverage - heights[index]) * strength * 0.5f;
+        //                break;
+        //        }
                 
-            }
-        });
+        //    }
+        //});
 
 
         rebuildStopWatch.Reset();
