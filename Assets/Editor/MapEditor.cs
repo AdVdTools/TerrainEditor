@@ -15,6 +15,15 @@ public class MapEditor : Editor {
     int opacityID;
     
     private bool editing;
+    private int brushTarget;
+    private const int HEIGHT_TARGET = 0;
+    private const int COLOR_TARGET = 1;
+    private GUIContent[] brushTargetGUIContents = new GUIContent[]
+    {
+        new GUIContent("Height"), new GUIContent("Color")
+    };
+    private float height = 1f;
+    private Color color = Color.white;
 
     private void OnEnable()
     {
@@ -31,22 +40,7 @@ public class MapEditor : Editor {
         brushProjectorMaterial.SetColor(mainColorID, Color.green);
 
         Undo.undoRedoPerformed += OnUndoRedo;
-
-        //hexMesh = new Mesh();
-        //hexMesh.hideFlags = HideFlags.HideAndDontSave;
-        //Vector3[] vertices = new Vector3[6];
-        //float cos30 = Mathf.Sqrt(3) / 2;
-        //vertices[0] = new Vector3(1, 0, 0); vertices[1] = new Vector3(0.5f, 0, -cos30); vertices[2] = new Vector3(-0.5f, 0, -cos30);
-        //vertices[3] = new Vector3(-1, 0, 0); vertices[4] = new Vector3(-0.5f, 0, cos30); vertices[5] = new Vector3(0.5f, 0, cos30);
-        //int[] lineIndices = new int[7];
-        //for (int i = 0; i < 6; ++i) lineIndices[i] = i;//Last index remains 0
-        //int[] areaIndices = new int[8];
-        //for (int i = 0; i < 8; ++i) areaIndices[i] = (i - (i & 4) / 4) % 6;//TODO unwrap, you silly
-        //hexMesh.subMeshCount = 2;
-        //hexMesh.vertices = vertices;
-        //hexMesh.SetIndices(lineIndices, MeshTopology.LineStrip, 0);
-        //hexMesh.SetIndices(areaIndices, MeshTopology.Quads, 1);
-
+        
         for (int i = 0; i < threads; ++i)
         {
             threadsData[i] = new ThreadData();
@@ -69,6 +63,23 @@ public class MapEditor : Editor {
         
         editing = GUILayout.Toggle(editing, editButtonContent, EditorStyles.miniButton);
         Tools.hidden = editing;
+
+        if (editing)
+        {
+            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
+
+            GUI.enabled = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
+            switch (brushTarget)
+            {
+                case HEIGHT_TARGET:
+                    height = EditorGUILayout.FloatField(new GUIContent("Height"), height);
+                    break;
+                case COLOR_TARGET:
+                    color = EditorGUILayout.ColorField(new GUIContent("Color"), color);
+                    break;
+            }
+            GUI.enabled = true;
+        }
         
         if (GUI.changed) SceneView.RepaintAll();
     }
@@ -169,6 +180,9 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintEnd:
                     data.RebuildParallel(8);
+                    // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
+                    // but will once some other event happens (such as right click)
+                    // first click outside of the scene window wont work either
                     break;
             }
 
@@ -204,37 +218,130 @@ public class MapEditor : Editor {
     }
     const int threads = 8;
     ThreadData[] threadsData = new ThreadData[threads];
-    float[] auxHeight;
+    float[] auxHeights;
+    Color[] auxColors;
 
     void ApplyBrush()
     {
+        switch (brushTarget)
+        {
+            case HEIGHT_TARGET:
+                ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, height, FloatMath.sharedHandler);
+                break;
+            case COLOR_TARGET:
+                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, color, ColorMath.sharedHandler);//TODO handle masks in inspector
+                break;
+        }
+
+        rebuildStopWatch.Reset();
+        rebuildStopWatch.Start();
+        switch (brushTarget)
+        {
+            case HEIGHT_TARGET:
+                data.QuickRebuildParallel(8);
+                break;
+            case COLOR_TARGET:
+                data.UpdateMeshColor();
+                break;
+        }
+        rebuildStopWatch.Stop();
+        rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
+
+        Repaint();
+    }
+
+    #region Crazyness
+    interface IMathHandler<T> {
+        T Product(T value1, float value2);
+        T Product(T value1, T value2);
+        T Sum(T value1, T value2);
+        T WeightedSum(T value1, T value2, float weight2);
+        T Blend(T value1, T value2, float t);
+    }
+
+    public class FloatMath : IMathHandler<float>
+    {
+        public static FloatMath sharedHandler = new FloatMath();
+        public float Product(float value1, float value2)
+        {
+            return value1 * value2;
+        }
+
+        public float Sum(float value1, float value2)
+        {
+            return value1 + value2;
+        }
+
+        public float WeightedSum(float value1, float value2, float weight2)
+        {
+            return value1 + value2 * weight2;
+        }
+
+        public float Blend(float value1, float value2, float t)
+        {
+            return value1 + (value2 - value1) * t;
+        }
+    }
+
+
+    public class ColorMath : IMathHandler<Color>
+    {
+        public static ColorMath sharedHandler = new ColorMath();
+        public Color Product(Color value1, float value2)
+        {
+            return value1 * value2;
+        }
+
+        public Color Product(Color value1, Color value2)
+        {
+            return value1 * value2;
+        }
+
+        public Color Sum(Color value1, Color value2)
+        {
+            return value1 + value2;
+        }
+
+        public Color WeightedSum(Color value1, Color value2, float weight2)
+        {
+            return value1 + value2 * weight2;
+        }
+
+        public Color Blend(Color value1, Color value2, float t)
+        {
+            return value1 + (value2 - value1) * t;
+        }
+    }
+    #endregion
+
+    void ApplyBrush<T>(Vector3[] vertices, T[] srcArray, T[] auxArray, T value, IMathHandler<T> mathHandler) where T: struct
+    {
         Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
-        float[] heights = data.Heights;
-        Vector3[] vertices = data.Vertices;
+
         int pointCount = vertices.Length;
         //TODO check null vertices?
         applyStopWatch.Reset();
         applyStopWatch.Start();
 
-        if (auxHeight == null || auxHeight.Length != pointCount) auxHeight = new float[pointCount];
+        if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];
 
-        float avgAmount = 0f;
+        T avgValue = default(T);
         if (brush.mode == Brush.Mode.Average)
         {
-            double heightSum = 0;
-            double weightSum = 0;
+            T valueSum = default(T);
+            float weightSum = 0;
             for(int index = 0; index < pointCount; ++index)
             {
                 Vector3 vertex = vertices[index];
                 float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
                 if (strength > 0)
                 {
-                    heightSum += heights[index] * strength;
+                    valueSum = mathHandler.WeightedSum(valueSum, srcArray[index], strength);
                     weightSum += strength;
                 }
             }
-            avgAmount = weightSum != 0 ? (float)(heightSum / weightSum) : 0f;
+            if (weightSum > 0.001f) avgValue = mathHandler.Product(valueSum, 1f / weightSum);
         }
 
         //TODO is this slower?
@@ -255,8 +362,8 @@ public class MapEditor : Editor {
                         {
                             Vector3 vertex = vertices[index];
                             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-                            if (strength > 0f) auxHeight[index] = heights[index] + brush.amount * strength;
-                            else auxHeight[index] = heights[index];
+                            if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, strength);
+                            else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Substract:
@@ -264,8 +371,8 @@ public class MapEditor : Editor {
                         {
                             Vector3 vertex = vertices[index];
                             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-                            if (strength > 0f) auxHeight[index] = heights[index] - brush.amount * strength;
-                            else auxHeight[index] = heights[index];
+                            if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, -strength);
+                            else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Set:
@@ -273,8 +380,8 @@ public class MapEditor : Editor {
                         {
                             Vector3 vertex = vertices[index];
                             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-                            if (strength > 0f) auxHeight[index] = heights[index] + (brush.amount - heights[index]) * strength;
-                            else auxHeight[index] = heights[index];
+                            if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], value, strength);
+                            else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Average:
@@ -282,8 +389,8 @@ public class MapEditor : Editor {
                         {
                             Vector3 vertex = vertices[index];
                             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-                            if (strength > 0f) auxHeight[index] = heights[index] + (avgAmount - heights[index]) * strength;
-                            else auxHeight[index] = heights[index];
+                            if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], avgValue, strength);
+                            else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Smooth:
@@ -293,7 +400,6 @@ public class MapEditor : Editor {
                             float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f)
                             {
-                                float neighbourAverage = 0f;
                                 Vector2Int coords = data.IndexToGrid(index);
                                 int columnOffset = coords.y & 1;
                                 int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
@@ -303,17 +409,25 @@ public class MapEditor : Editor {
                                 int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
                                 int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
 
-                                neighbourAverage += heights[eastIndex];
-                                neighbourAverage += heights[neIndex];
-                                neighbourAverage += heights[nwIndex];
-                                neighbourAverage += heights[westIndex];
-                                neighbourAverage += heights[swIndex];
-                                neighbourAverage += heights[seIndex];
-                                neighbourAverage /= 6f;//DO weighted average?
+                                T neighbourAverage = mathHandler.Product(
+                                    mathHandler.Sum(
+                                        mathHandler.Sum(srcArray[eastIndex], srcArray[neIndex]),
+                                        mathHandler.Sum(
+                                            mathHandler.Sum(srcArray[nwIndex], srcArray[westIndex]),
+                                            mathHandler.Sum(srcArray[swIndex], srcArray[seIndex]))),
+                                    1f / 6);
+                                
+                                //neighbourAverage += srcArray[eastIndex];
+                                //neighbourAverage += srcArray[neIndex];
+                                //neighbourAverage += srcArray[nwIndex];
+                                //neighbourAverage += srcArray[westIndex];
+                                //neighbourAverage += srcArray[swIndex];
+                                //neighbourAverage += srcArray[seIndex];
+                                //neighbourAverage /= 6f;//DO weighted average?
 
-                                auxHeight[index] = heights[index] + (neighbourAverage - heights[index]) * strength * 0.5f;
+                                auxArray[index] = mathHandler.Blend(srcArray[index], neighbourAverage, strength * 0.5f);
                             }
-                            else auxHeight[index] = heights[index];
+                            else auxArray[index] = srcArray[index];
                         }
                         break;
                 }
@@ -324,7 +438,7 @@ public class MapEditor : Editor {
         {
             threadData.mre.WaitOne();
         }
-        System.Array.Copy(auxHeight, heights, pointCount);
+        System.Array.Copy(auxArray, srcArray, pointCount);
 
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
@@ -375,14 +489,6 @@ public class MapEditor : Editor {
         //    }
         //});
 
-
-        rebuildStopWatch.Reset();
-        rebuildStopWatch.Start();
-        data.QuickRebuildParallel(8);
-        rebuildStopWatch.Stop();
-        rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
-        
-        Repaint();
     }
     //TODO serialize MapData object!!
     //TODO do raycasting in background jobs?

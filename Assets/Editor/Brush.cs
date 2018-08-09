@@ -16,12 +16,12 @@ public class Brush
                                                      //TODO math vs curve brush?
 
     public Mode mode = Mode.Add;
-    public float amount = 1f;
     public float opacity = 1f;
     public float radius = 5f;
     public Type type = Type.Smooth;
     public Projection projection = Projection.Sphere;
 
+    //TODO replace curve with simple math? or same math but simplified
     public static readonly AnimationCurve smoothCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     
     public float GetStrength(Vector3 projectedOffset)
@@ -90,7 +90,7 @@ public class Brush
         EventType type = Event.current.type;
         bool leftClick = Event.current.button == 0;
 
-        if (Event.current.type == EventType.Repaint)
+        if (type == EventType.Repaint)
         {
             return BrushEvent.BrushDraw;
         }
@@ -150,7 +150,6 @@ public class Brush
     private static readonly GUIContent brushEditorGUIContent = new GUIContent("BrushEditor");
 
     private static readonly GUIContent brushModeGUIContent = new GUIContent("Brush Mode");
-    private static readonly GUIContent amountGUIContent = new GUIContent("Amount");
     private static readonly GUIContent opacityGUIContent = new GUIContent("Opacity");
     private static readonly GUIContent radiusGUIContent = new GUIContent("Radius");
     private static readonly GUIContent brushTypeGUIContent = new GUIContent("Brush Type");
@@ -172,9 +171,6 @@ public class Brush
         if (editBrush || brushChanged)
         {
             currentBrush.mode = (Brush.Mode)EditorGUILayout.EnumPopup(brushModeGUIContent, currentBrush.mode);
-            GUI.enabled = currentBrush.mode != Mode.Average && currentBrush.mode != Mode.Smooth;
-            currentBrush.amount = EditorGUILayout.FloatField(amountGUIContent, currentBrush.amount);
-            GUI.enabled = true;
             currentBrush.opacity = EditorGUILayout.FloatField(opacityGUIContent, currentBrush.opacity * 100f) * 0.01f;
             currentBrush.radius = EditorGUILayout.FloatField(radiusGUIContent, currentBrush.radius);
             currentBrush.type = (Brush.Type)EditorGUILayout.EnumPopup(brushTypeGUIContent, currentBrush.type);
