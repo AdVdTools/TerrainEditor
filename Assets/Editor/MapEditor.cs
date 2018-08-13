@@ -126,7 +126,7 @@ public class MapEditor : Editor {
 
     private void OnSceneGUI()
     {
-        EventType currentTypeForGraph = Event.current.type;
+        EventType currentType = Event.current.type;//TODO use when posible
         eventsStopWatch.Reset();
         eventsStopWatch.Start();
 
@@ -136,11 +136,16 @@ public class MapEditor : Editor {
 
         if (editing)
         {
+            if (Event.current.type == EventType.KeyUp || Event.current.type == EventType.Used)
+            {
+                Debug.Log(Event.current.type + " " + Brush.currentBrush.mode);
+            }
+            //TODO the mesh might be lost from the scriptable object but not the monobehaviour on git changes?
+            //TODO sometimes ctrl+tab[+shift] may only work 1 every 2 times
             //Debug.Log(Event.current.type);
             if (Event.current.type == EventType.Repaint)
             {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
-                //AdVd.Graphs.Graph.AddData("Repaint", accumTime * 0.001f, repaintPeriod);
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
             }
@@ -176,30 +181,18 @@ public class MapEditor : Editor {
                         brushProjectorMaterial.SetPass(Brush.currentBrush.type == Brush.Type.Smooth ? 1 : 0);
                         Graphics.DrawMeshNow(data.sharedMesh, matrix, 0);
                     }
-                    //Debug.LogWarningFormat("Draw {0} {1} {2}", currentTypeForGraph, Event.current.mousePosition, Event.current.delta);
+                    Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
                 case BrushEvent.BrushPaintStart:
                     shouldApplyBrush = true;
-                    //Undo.RecordObject(data, "Map Paint");
-                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");
 
-                    //if (updatedRay && rayHits)
-                    //{
-                    //    ApplyBrush();
-                    //    updatedRay = false;
-                    //}
-                    //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentTypeForGraph, Event.current.mousePosition, Event.current.delta);
+                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");
+                    Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
                 case BrushEvent.BrushPaint:
-                    // 3-4 MouseDrag for each Repaint, but updating ray is costly
-                    // so moving it to MouseDrag might be undesirable
+                    // BrushApply moved to Repaint since Raycast is too expensive to be used on MouseDrag
                     shouldApplyBrush = true;
-                    //if (updatedRay && rayHits)
-                    //{
-                    //    ApplyBrush();
-                    //    updatedRay = false;
-                    //}
-                    //Debug.LogWarningFormat("Paint {0} {1} {2}", currentTypeForGraph, Event.current.mousePosition, Event.current.delta);
+                    Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
                 case BrushEvent.BrushPaintEnd:
                     data.RebuildParallel(8);
@@ -207,7 +200,7 @@ public class MapEditor : Editor {
                     // but will once some other event happens (such as right click)
                     // first click outside of the scene window wont work either
 
-                    //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentTypeForGraph, Event.current.mousePosition, Event.current.delta);
+                    Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
             }
 
@@ -222,8 +215,6 @@ public class MapEditor : Editor {
                 EditorGUILayout.LabelField(string.Format("{0} ms", applyDuration), EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
 
-                //EditorGUILayout.Space();
-                //EditorGUILayout.LabelField(new GUIContent("Proj " + currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera) * new Vector4(intersection.x, intersection.y, intersection.z, 1f)));
                 EditorGUILayout.EndVertical();
             }
             Brush.DrawBrushWindow();
@@ -231,7 +222,6 @@ public class MapEditor : Editor {
         }
 
         accumTime += eventsStopWatch.ElapsedMilliseconds;
-        //AdVd.Graphs.Graph.AddData(currentTypeForGraph.ToString(), accumTime * 0.001f, eventsStopWatch.ElapsedMilliseconds);
         eventsStopWatch.Stop();
 
     }
@@ -245,13 +235,10 @@ public class MapEditor : Editor {
 
         raycastStopWatch.Stop();
         raycastDuration += (raycastStopWatch.ElapsedMilliseconds - raycastDuration) * 0.5f;
-        //AdVd.Graphs.Graph.AddData("Raycast", accumTime * 0.001f, raycastDuration);
-        //Debug.Log(intersection+" "+stopWatch.ElapsedMilliseconds);
-
+        
         if (rayHits)
         {
-            //if (intersection != hitInfo.point) Repaint();
-            intersection = hitInfo.point;//ray.GetPoint(ray.origin.y / -ray.direction.y);//TEMP Y-0 cast
+            intersection = hitInfo.point;
         }
     }
 
@@ -297,8 +284,7 @@ public class MapEditor : Editor {
         }
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
-        //AdVd.Graphs.Graph.AddData("Rebuild", accumTime * 0.001f, rebuildDuration);
-
+        
         Repaint();
     }
 
@@ -470,14 +456,6 @@ public class MapEditor : Editor {
                                             mathHandler.Sum(srcArray[swIndex], srcArray[seIndex]))),
                                     1f / 6);
                                 
-                                //neighbourAverage += srcArray[eastIndex];
-                                //neighbourAverage += srcArray[neIndex];
-                                //neighbourAverage += srcArray[nwIndex];
-                                //neighbourAverage += srcArray[westIndex];
-                                //neighbourAverage += srcArray[swIndex];
-                                //neighbourAverage += srcArray[seIndex];
-                                //neighbourAverage /= 6f;//DO weighted average?
-
                                 auxArray[index] = mathHandler.Blend(srcArray[index], neighbourAverage, strength * 0.5f);
                             }
                             else auxArray[index] = srcArray[index];
@@ -495,7 +473,6 @@ public class MapEditor : Editor {
 
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
-        //AdVd.Graphs.Graph.AddData("Apply", accumTime * 0.001f, applyDuration);
     }
     //TODO serialize MapData object!!
 }
