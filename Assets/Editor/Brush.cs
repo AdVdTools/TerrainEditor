@@ -84,13 +84,16 @@ public class Brush
 
     private static bool brushChanged;
 
+    private static bool dragging;
+
     public static BrushEvent CheckBrushEvent()
     {
         int controlId = GUIUtility.GetControlID(brushEditorGUIContent, FocusType.Passive);
         EventType type = Event.current.type;
         bool leftClick = Event.current.button == 0;
+        bool focused = EditorWindow.focusedWindow == SceneView.currentDrawingSceneView;
 
-        if (type == EventType.Repaint)
+        if (type == EventType.Repaint && focused)
         {
             return BrushEvent.BrushDraw;
         }
@@ -98,48 +101,57 @@ public class Brush
         {//This will allow clicks to be eaten
             HandleUtility.AddDefaultControl(controlId);
         }
-        else if (type == EventType.MouseDown && leftClick)
+        else if (type == EventType.MouseDown && focused && leftClick)
         {
+            dragging = true;
             Event.current.Use();
             return BrushEvent.BrushPaintStart;
         }
-        else if (type == EventType.MouseDrag && leftClick)
+        else if (type == EventType.MouseDrag && focused && dragging && leftClick)
         {
             Event.current.Use();
             return BrushEvent.BrushPaint;
         }
         else if (type == EventType.MouseUp && leftClick)
         {
+            dragging = false;
             Event.current.Use();
             return BrushEvent.BrushPaintEnd;
         }
         else {
-            if (type == EventType.ScrollWheel && Event.current.control)
-            {
-                currentBrush.radius -= Event.current.delta.y * 0.5f;
-                Event.current.Use();
-                brushChanged = true;
-                return BrushEvent.BrushChanged;
-            }
-            else if (type == EventType.ScrollWheel && Event.current.alt)
-            {
-                currentBrush.opacity -= Event.current.delta.y * 0.0625f;
-                currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
-                Event.current.Use();
-                brushChanged = true;
-                return BrushEvent.BrushChanged;
-            }
-            else if (type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
-            {
-                currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
-                Event.current.Use();
-                brushChanged = true;
-                return BrushEvent.BrushChanged;
-            }
-            else if (type == EventType.MouseDrag || type == EventType.MouseMove)
-            {
-                brushChanged = false;
-            }
+            return HandleBrushShortcuts();
+        }
+        return BrushEvent.None;
+    }
+
+    public static BrushEvent HandleBrushShortcuts()
+    {
+        EventType type = Event.current.type;
+        if (type == EventType.ScrollWheel && Event.current.control)
+        {
+            currentBrush.radius -= Event.current.delta.y * 0.5f;
+            Event.current.Use();
+            brushChanged = true;
+            return BrushEvent.BrushChanged;
+        }
+        else if (type == EventType.ScrollWheel && Event.current.alt)
+        {
+            currentBrush.opacity -= Event.current.delta.y * 0.0625f;
+            currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
+            Event.current.Use();
+            brushChanged = true;
+            return BrushEvent.BrushChanged;
+        }
+        else if (type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
+        {
+            currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
+            Event.current.Use();
+            brushChanged = true;
+            return BrushEvent.BrushChanged;
+        }
+        else if (type == EventType.MouseDrag || type == EventType.MouseMove)
+        {
+            brushChanged = false;
         }
         return BrushEvent.None;
     }
