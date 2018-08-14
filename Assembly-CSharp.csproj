@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="Assets\Map.cs" />
     <Compile Include="Assets\MapData.cs" />
+    <None Include="Assets\TerrainShader.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
     </Reference>

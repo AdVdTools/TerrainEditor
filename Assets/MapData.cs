@@ -57,10 +57,13 @@ public class MapData : ScriptableObject
 
     public Vector3[] Vertices { get { return vertices; } }
 
+    public int[] Indices { get { return indices; } }
+
     Mesh mesh;
     Vector3[] vertices;
     Vector3[] normals;
-    // colors, uvs?
+    // colors is serialized and defined at the beginning
+    Vector2[] uvs;
     int[] indices;
     
     [ContextMenu("RebuildMesh")]
@@ -239,7 +242,8 @@ public class MapData : ScriptableObject
         
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
-        
+        if (uvs == null || uvs.Length != verticesLength) uvs = new Vector2[verticesLength];
+
         if (indices == null || indices.Length != indicesLength) indices = new int[indicesLength];
 
         // Fill arrays
@@ -260,6 +264,7 @@ public class MapData : ScriptableObject
                 for (int vertexIndex = td.startIndex; vertexIndex < td.endIndex; ++vertexIndex)
                 {
                     vertices[vertexIndex] = GetPosition(vertexIndex);
+                    uvs[vertexIndex] = new Vector2(vertices[vertexIndex].x, vertices[vertexIndex].z);//TODO normalize?
                     normals[vertexIndex] = Vector3.zero;// Vector3.up;
                 }
                 td.mre.Set();
@@ -309,6 +314,7 @@ public class MapData : ScriptableObject
 
         mesh.vertices = vertices;
         mesh.normals = normals;
+        mesh.uv = uvs;
         mesh.colors = colors;
         mesh.triangles = indices;
 
