@@ -10,7 +10,7 @@ public enum BrushEvent { None, BrushDraw, BrushPaintStart, BrushPaint, BrushPain
 public class Brush
 {
     private const int MODES = 5;
-    public enum Mode { Add, Substract, Set, Average, Smooth }
+    public enum Mode { Set, Add, Substract, Average, Smooth }
     public enum Type { Sharp, Smooth }//TODO more?
     public enum Projection { Sphere, Vertical, View }//TODO merge view and perspective?
                                                      //TODO math vs curve brush?

@@ -77,10 +77,11 @@ public class MapEditor : Editor {
 
             brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
 
-            GUI.enabled = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
+            bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
             switch (brushTarget)
             {
                 case HEIGHT_TARGET:
+                    GUI.enabled = enableValueFields;
                     height = EditorGUILayout.FloatField(new GUIContent("Height"), height);
                     break;
                 case COLOR_TARGET:
@@ -92,6 +93,8 @@ public class MapEditor : Editor {
                     maskA = GUILayout.Toggle(maskA, new GUIContent("A"), EditorStyles.miniButtonRight);
                     EditorGUILayout.EndHorizontal();
                     ColorMath.mask = new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
+
+                    GUI.enabled = enableValueFields;
                     color = EditorGUILayout.ColorField(new GUIContent("Color"), color);
                     break;
             }
@@ -213,6 +216,11 @@ public class MapEditor : Editor {
                     Event.current.Use();
                 }
                 if (type == EventType.MouseUp) pickingValue = false;
+            }
+            else if (Event.current.type == EventType.KeyUp && Event.current.keyCode == KeyCode.C)
+            {
+                pickingValue = true;
+                Event.current.Use();
             }
             else
             {
