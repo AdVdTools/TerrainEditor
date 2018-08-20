@@ -11,6 +11,7 @@ public class MapEditor : Editor {
     private Map map;
     private MapData data;
     Material brushProjectorMaterial;
+    int mainTexID;
     int mainColorID;
     int projMatrixID;
     int opacityID;
@@ -23,13 +24,7 @@ public class MapEditor : Editor {
     {
         new GUIContent("Height"), new GUIContent("Color")
     };
-    private float height = 1f;
-    private Color color = Color.white;
-    private bool maskR = true, maskG = true, maskB = true, maskA = true;
 
-    private bool pickingValue;
-    private float pickingHeight;
-    private Color pickingColor;
 
     private void OnEnable()
     {
@@ -39,6 +34,7 @@ public class MapEditor : Editor {
         brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
         brushProjectorMaterial.hideFlags = HideFlags.HideAndDontSave;
 
+        mainTexID = Shader.PropertyToID("_MainTex");
         mainColorID = Shader.PropertyToID("_MainColor");
         projMatrixID = Shader.PropertyToID("_ProjMatrix");
         opacityID = Shader.PropertyToID("_Opacity");
@@ -46,6 +42,8 @@ public class MapEditor : Editor {
         brushProjectorMaterial.SetColor(mainColorID, Color.green);
 
         Undo.undoRedoPerformed += OnUndoRedo;
+        SceneView.onSceneGUIDelegate += OnSceneHandler;
+        Debug.LogWarning("OnEnable");
 
         for (int i = 0; i < threads; ++i)
         {
@@ -59,10 +57,11 @@ public class MapEditor : Editor {
         if (brushProjectorMaterial != null) DestroyImmediate(brushProjectorMaterial, false);
 
         Undo.undoRedoPerformed -= OnUndoRedo;
+        SceneView.onSceneGUIDelegate -= OnSceneHandler;
+        Debug.LogWarning("OnDisable");
     }
-
+    
     readonly GUIContent editButtonContent = new GUIContent("Edit");
-    readonly GUIContent pickValueButtonContent = new GUIContent("Pick Value");
 
     public override void OnInspectorGUI()
     {
@@ -73,32 +72,20 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            pickingValue = GUILayout.Toggle(pickingValue, pickValueButtonContent, EditorStyles.miniButton);
-
             brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
 
-            bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
-            switch (brushTarget)
+            switch (brushTarget)//TODO test vector values?
             {
                 case HEIGHT_TARGET:
-                    GUI.enabled = enableValueFields;
-                    height = EditorGUILayout.FloatField(new GUIContent("Height"), height);
+                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;
+                    Brush.currentBrush.DrawBrushValueInspector();
                     break;
                 case COLOR_TARGET:
-                    EditorGUILayout.BeginHorizontal();
-                    GUILayout.Label(new GUIContent("Mask"));
-                    maskR = GUILayout.Toggle(maskR, new GUIContent("R"), EditorStyles.miniButtonLeft);
-                    maskG = GUILayout.Toggle(maskG, new GUIContent("G"), EditorStyles.miniButtonMid);
-                    maskB = GUILayout.Toggle(maskB, new GUIContent("B"), EditorStyles.miniButtonMid);
-                    maskA = GUILayout.Toggle(maskA, new GUIContent("A"), EditorStyles.miniButtonRight);
-                    EditorGUILayout.EndHorizontal();
-                    ColorMath.mask = new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
-
-                    GUI.enabled = enableValueFields;
-                    color = EditorGUILayout.ColorField(new GUIContent("Color"), color);
+                    Brush.currentBrush.currentValueType = Brush.ValueType.Color;
+                    Brush.currentBrush.DrawBrushValueInspector();
+                    ColorMath.mask = Brush.currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
                     break;
             }
-            GUI.enabled = true;
         }
 
         if (GUI.changed) SceneView.RepaintAll();
@@ -135,8 +122,10 @@ public class MapEditor : Editor {
 
     bool shouldApplyBrush;
 
-    private void OnSceneGUI()
+    private void OnSceneHandler(SceneView sceneView)
     {
+        //SceneView sceneView = SceneView.currentDrawingSceneView;
+
         EventType currentType = Event.current.type;//TODO use when posible
         eventsStopWatch.Reset();
         eventsStopWatch.Start();
@@ -147,10 +136,10 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            if (Event.current.type == EventType.KeyUp || Event.current.type == EventType.Used)
-            {
-                Debug.Log(Event.current.type + " " + Brush.currentBrush.mode);
-            }
+            //if (Event.current.type == EventType.KeyUp || Event.current.type == EventType.Used)
+            //{
+            //    Debug.Log(Event.current.type + " " + Brush.currentBrush.mode);
+            //}
             //TODO the mesh might be lost from the scriptable object but not the monobehaviour on git changes?
             //TODO sometimes ctrl+tab[+shift] may only work 1 every 2 times
             //TODO sometimes MouseMove wont reach
@@ -179,86 +168,58 @@ public class MapEditor : Editor {
                     shouldApplyBrush = false;
                 }
             }
+            
+            switch (Brush.currentBrush.CheckBrushEvent())
+            {
+                case BrushEvent.BrushDraw:
+                    Mesh mesh = data.sharedMesh;
+                    if (mesh != null)
+                    {
+                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, sceneView.camera);
 
-            if (pickingValue)
-            {
-                int controlId = GUIUtility.GetControlID(new GUIContent("ValuePicker"), FocusType.Passive);
-                EventType type = Event.current.type;
-                bool leftClick = Event.current.button == 0;
-                
-                if (type == EventType.Layout)
-                {//This will allow clicks to be eaten
-                    HandleUtility.AddDefaultControl(controlId);
-                }
-                if (rayHits && (type == EventType.MouseMove || type == EventType.MouseDrag))
-                {
-                    switch (brushTarget)
-                    {
-                        case HEIGHT_TARGET:
-                            pickingHeight = GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler);
-                            break;
-                        case COLOR_TARGET:
-                            pickingColor = GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler);
-                            break;
+                        brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+                        brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
+                        brushProjectorMaterial.SetTexture(mainTexID, Brush.currentBrush.currentTexture);
+                        brushProjectorMaterial.SetPass(0);
+                        //TODO move material to brush class?
+                        Graphics.DrawMeshNow(data.sharedMesh, matrix, 0);
                     }
-                }
-                if (rayHits && leftClick && (type == EventType.MouseDown || type == EventType.MouseDrag))
-                {
-                    switch (brushTarget)
-                    {
-                        case HEIGHT_TARGET:
-                            height = pickingHeight;
-                            break;
-                        case COLOR_TARGET:
-                            color = pickingColor;
-                            break;
-                    }
-                    Event.current.Use();
-                }
-                if (type == EventType.MouseUp) pickingValue = false;
-            }
-            else if (Event.current.type == EventType.KeyUp && Event.current.keyCode == KeyCode.C)
-            {
-                pickingValue = true;
-                Event.current.Use();
-            }
-            else
-            {
-                switch (Brush.CheckBrushEvent())
-                {
-                    case BrushEvent.BrushDraw:
-                        Mesh mesh = data.sharedMesh;
-                        if (mesh != null)
+                    //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaintStart:
+                    shouldApplyBrush = true;
+
+                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");
+                    //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaint:
+                    // BrushApply moved to Repaint since Raycast is too expensive to be used on MouseDrag
+                    shouldApplyBrush = true;
+                    //Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaintEnd:
+                    data.RebuildParallel(8);
+                    // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
+                    // but will once some other event happens (such as right click)
+                    // first click outside of the scene window wont work either
+
+                    //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.ValuePick:
+                    if (rayHits) {
+                        switch (brushTarget)
                         {
-                            Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
-
-                            brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
-                            brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
-                            brushProjectorMaterial.SetPass(Brush.currentBrush.type == Brush.Type.Smooth ? 1 : 0);
-                            Graphics.DrawMeshNow(data.sharedMesh, matrix, 0);
+                            case HEIGHT_TARGET:
+                                Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
+                                break;
+                            case COLOR_TARGET:
+                                Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
+                                break;
                         }
-                        Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaintStart:
-                        shouldApplyBrush = true;
-
-                        Undo.RegisterCompleteObjectUndo(data, "Map Paint");
-                        Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaint:
-                        // BrushApply moved to Repaint since Raycast is too expensive to be used on MouseDrag
-                        shouldApplyBrush = true;
-                        Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaintEnd:
-                        data.RebuildParallel(8);
-                        // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
-                        // but will once some other event happens (such as right click)
-                        // first click outside of the scene window wont work either
-
-                        Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                }
+                        Brush.currentBrush.AcceptPeekValue();
+                        Repaint();
+                    }
+                    break;
             }
 
             Handles.BeginGUI();
@@ -266,6 +227,7 @@ public class MapEditor : Editor {
             {
                 GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
 
+                GUILayout.FlexibleSpace();
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox, GUILayout.Width(40f));
                 EditorGUILayout.LabelField(string.Format("{0} ms", raycastDuration), EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(string.Format("{0} ms", rebuildDuration), EditorStyles.boldLabel);
@@ -274,7 +236,7 @@ public class MapEditor : Editor {
 
                 EditorGUILayout.EndVertical();
             }
-            Brush.DrawBrushWindow();
+            Brush.currentBrush.DrawBrushWindow();
             Handles.EndGUI();
         }
 
@@ -333,10 +295,10 @@ public class MapEditor : Editor {
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
-                ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, height, FloatMath.sharedHandler);
+                ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
             case COLOR_TARGET:
-                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, color, ColorMath.sharedHandler);//TODO handle masks in inspector
+                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, Brush.currentBrush.colorValue, ColorMath.sharedHandler);
                 break;
         }
 
@@ -453,16 +415,16 @@ public class MapEditor : Editor {
         }
 
         //TODO is this slower?
-        int pointsPerThread = (pointCount - 1) / threads + 1;//TODO change to process all points!! round down is the ruin!
+        int pointsPerThread = (pointCount - 1) / threads + 1;
         for (int i = 0; i < threads; ++i)
         {
             ThreadData threadData = threadsData[i];
             threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
             //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
-            ThreadPool.QueueUserWorkItem((d) =>
-            {
-                ThreadData td = (ThreadData)d;
-                //TODO work on different heights array? smooth needs to read and write the same array in uncontroled indices
+            //ThreadPool.QueueUserWorkItem((d) =>
+            //{
+            //    ThreadData td = (ThreadData)d;
+                ThreadData td = threadData;
                 switch (brush.mode)
                 {
                     case Brush.Mode.Add:
@@ -531,33 +493,16 @@ public class MapEditor : Editor {
                         }
                         break;
                 }
-                td.mre.Set();
-            }, threadData);
+            //    td.mre.Set();
+            //}, threadData);
         }
-        foreach (var threadData in threadsData)
-        {
-            threadData.mre.WaitOne();
-        }
-        // Copy Parallel (System.Array.Copy(auxArray, srcArray, pointCount);)
-        for (int i = 0; i < threads; ++i)
-        {
-            ThreadData threadData = threadsData[i];
-            threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
-            
-            ThreadPool.QueueUserWorkItem((d) =>
-            {
-                ThreadData td = (ThreadData)d;
-
-                System.Array.Copy(auxArray, td.startIndex, srcArray, td.startIndex, td.endIndex - td.startIndex);
-                
-                td.mre.Set();
-            }, threadData);
-        }
-        foreach (var threadData in threadsData)
-        {
-            threadData.mre.WaitOne();
-        }
-
+        //foreach (var threadData in threadsData)
+        //{
+        //    threadData.mre.WaitOne();
+        //}
+        
+        Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
     }
