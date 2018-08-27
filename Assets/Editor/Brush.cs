@@ -69,8 +69,6 @@ public class Brush
     
     public float GetStrength(Vector3 projectedOffset)
     {
-        Texture2D t = currentTexture;
-        if (t == null) return opacity;
         float zScale = 1f / Mathf.Sqrt(1 - projectedOffset.z * projectedOffset.z);
         if (float.IsInfinity(zScale) || float.IsNaN(zScale)) return 0f;
         Vector2 coords = new Vector2(projectedOffset.x, projectedOffset.y) * zScale;
@@ -83,19 +81,21 @@ public class Brush
     {
         coords.x *= currentBrushTextureWidth;
         coords.y *= currentBrushTextureHeight;
+        if (currentBrushTexturePixels == null) return 0f;
         int x = Mathf.FloorToInt(coords.x);
-        if (x < 0 || x >= currentBrushTextureWidth - 1) return 0f;
+        if (x < 0 || x >= currentBrushTextureWidth) return 0f;// -1 if interpolating?
         int y = Mathf.FloorToInt(coords.y);
-        if (y < 0 || y >= currentBrushTextureHeight - 1) return 0f;
+        if (y < 0 || y >= currentBrushTextureHeight) return 0f;// -1 if interpolating?
         int index = x + y * currentBrushTextureWidth;
-        float a00 = currentBrushTexturePixels[index].a;
         //TODO remove interpolation for speed! (avoid substraction in previus ifs too)
-        float a01 = currentBrushTexturePixels[index + 1].a;
-        float a10 = currentBrushTexturePixels[index + currentBrushTextureWidth].a;
-        float a11 = currentBrushTexturePixels[index + currentBrushTextureWidth + 1].a;
-        float u0 = coords.x - x, u1 = 1 - u0;
-        float v0 = coords.y - y, v1 = 1 - v0;
-        return a00 * u1 * v1 + a01 * u0 * v1 + a10 * u1 * v0 + a11 * u0 * v0;
+        return currentBrushTexturePixels[index].a;
+        //float a00 = currentBrushTexturePixels[index].a;
+        //float a01 = currentBrushTexturePixels[index + 1].a;
+        //float a10 = currentBrushTexturePixels[index + currentBrushTextureWidth].a;
+        //float a11 = currentBrushTexturePixels[index + currentBrushTextureWidth + 1].a;
+        //float u0 = coords.x - x, u1 = 1 - u0;
+        //float v0 = coords.y - y, v1 = 1 - v0;
+        //return a00 * u1 * v1 + a01 * u0 * v1 + a10 * u1 * v0 + a11 * u0 * v0;
     }
 
     public Matrix4x4 GetProjectionMatrix(Vector3 center, Transform mapTransform, Camera camera)

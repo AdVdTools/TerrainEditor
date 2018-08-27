@@ -234,6 +234,8 @@ public class MapEditor : Editor {
                 EditorGUILayout.LabelField(string.Format("{0} ms", applyDuration), EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
 
+                GUILayout.Space(20f);
+
                 EditorGUILayout.EndVertical();
             }
             Brush.currentBrush.DrawBrushWindow();
@@ -421,10 +423,10 @@ public class MapEditor : Editor {
             ThreadData threadData = threadsData[i];
             threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
             //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
-            //ThreadPool.QueueUserWorkItem((d) =>
-            //{
-            //    ThreadData td = (ThreadData)d;
-                ThreadData td = threadData;
+            ThreadPool.QueueUserWorkItem((d) =>
+            {
+                ThreadData td = (ThreadData)d;
+                //ThreadData td = threadData;
                 switch (brush.mode)
                 {
                     case Brush.Mode.Add:
@@ -493,14 +495,14 @@ public class MapEditor : Editor {
                         }
                         break;
                 }
-            //    td.mre.Set();
-            //}, threadData);
+            td.mre.Set();
+        }, threadData);
+    }
+        foreach (var threadData in threadsData)
+        {
+            threadData.mre.WaitOne();
         }
-        //foreach (var threadData in threadsData)
-        //{
-        //    threadData.mre.WaitOne();
-        //}
-        
+
         Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
         
         applyStopWatch.Stop();
