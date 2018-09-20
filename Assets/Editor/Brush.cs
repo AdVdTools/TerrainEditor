@@ -11,8 +11,8 @@ public enum BrushEvent { None, BrushDraw, BrushPaintStart, BrushPaint, BrushPain
 public class Brush
 {
     private const int MODES = 5;
-    public enum Mode { Set, Add, Substract, Average, Smooth }//TODO include picker? or move to separate variable
-    public enum Projection { Sphere, Vertical, View }//TODO merge view and perspective?
+    public enum Mode { Set, Add, Substract, Average, Smooth }
+    public enum Projection { Sphere, Vertical }
 
     public Mode mode = Mode.Add;
     public float opacity = 1f;
@@ -98,7 +98,7 @@ public class Brush
         //return a00 * u1 * v1 + a01 * u0 * v1 + a10 * u1 * v0 + a11 * u0 * v0;
     }
 
-    public Matrix4x4 GetProjectionMatrix(Vector3 center, Transform mapTransform, Camera camera)
+    public Matrix4x4 GetProjectionMatrix(Vector3 center, Matrix4x4 mapL2WMatrix, Camera camera)//TODO use camera to rotate brush
     {
         switch (projection)
         {
@@ -111,28 +111,6 @@ public class Brush
                 vm.SetRow(1, vm.GetRow(2));// Move Z to Y
                 vm.SetRow(2, Vector4.zero);// Remove Z
                 return vm;
-            case Projection.View:
-            //    Transform camTransform = camera.transform;
-
-            //    Vector3 camPosition = mapTransform.InverseTransformPoint(camTransform.position);
-            //    Vector3 lookDirection = mapTransform.InverseTransformVector(camTransform.forward);// center - camPosition;
-            //    Matrix4x4 cm = Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, lookDirection), new Vector3(radius, radius, radius)).inverse;
-
-            //    //Quaternion mr = mapTransform.worldToLocalMatrix.rotation;
-            //    //Matrix4x4 cm = Matrix4x4.TRS(center, mr * camTransform.rotation, new Vector3(radius, radius, radius)).inverse;
-            //    cm.SetRow(2, Vector4.zero);
-            //    return cm;
-            //case Projection.Perspective:
-                //Vector3 ld = mapTransform.InverseTransformVector(camera.transform.forward);// center - camPosition;
-
-                //Matrix4x4 pm = camera.projectionMatrix.inverse * camera.worldToCameraMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
-                Matrix4x4 pm = camera.transform.worldToLocalMatrix * mapTransform.localToWorldMatrix;// * Matrix4x4.TRS(center, Quaternion.FromToRotation(Vector3.forward, ld), new Vector3(radius, radius, radius)).inverse;
-                pm = camera.projectionMatrix.inverse * pm;
-                pm = Matrix4x4.Translate(-pm.MultiplyPoint(center)) * pm;
-                pm.SetRow(1, pm.GetRow(1) * camera.aspect);
-                pm.SetRow(2, Vector4.zero);
-                pm.SetRow(3, pm.GetRow(3) * (camera.orthographic ? size * 50f : size / 50f));
-                return pm;//TODO keep in mind map transform!
             default:
                 return Matrix4x4.identity;
         }
@@ -359,10 +337,9 @@ public class Brush
     readonly GUIContent ZContent = new GUIContent("Z");
     readonly GUIContent WContent = new GUIContent("W");
 
-    public void DrawBrushValueInspector()//TODO out values
+    public void DrawBrushValueInspector(bool enableValueFields, bool doPicker)//TODO out values
     {
         //TODO check value mode (color vs float, vs Vector?)
-        bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
         switch (currentValueType)
         {
             case ValueType.Float:
@@ -416,7 +393,8 @@ public class Brush
                 break;
         }
         GUI.enabled = true;
-        pickingValue = GUILayout.Toggle(pickingValue, pickValueButtonContent, EditorStyles.miniButton, GUILayout.Width(80f));
+        if (doPicker) pickingValue = GUILayout.Toggle(pickingValue, pickValueButtonContent, EditorStyles.miniButton, GUILayout.Width(80f));
+        else pickingValue = false;
     }
 
 }

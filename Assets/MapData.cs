@@ -6,19 +6,28 @@ using UnityEngine;
 using UnityEngine.Profiling;
 
 [CreateAssetMenu(fileName = "Map")]
-public class MapData : ScriptableObject
+public partial class MapData : ScriptableObject
 {
 
     [SerializeField] private int width, depth;
     [HideInInspector] [SerializeField] private float[] heights = new float[0];
     [HideInInspector] [SerializeField] private Color[] colors = new Color[0];
 
+    [SerializeField] private Material terrainMaterial;
+    //TODO Array of props data objects with arrays for prop data, prop materials and other prop set data
+
+    //[SerializeField] private PropsData[] propGroups = new PropsData[0];
+
+
     public float[] Heights { get { return heights; } }
     public Color[] Colors { get { return colors; } }
 
+    public Material TerrainMaterial { get { return terrainMaterial; } }
+    //TODO etc
+
     public const float sqrt3 = 1.7320508f;
     public const float cos30 = 0.8660254f;
-    public Vector2 GridToWorld(int row, int column)
+    public Vector2 GridToLocal2D(int row, int column)
     {
         return new Vector2(column * sqrt3 + (row & 1) * cos30, row * 1.5f);
     }
@@ -48,26 +57,97 @@ public class MapData : ScriptableObject
     public Vector3 GetPosition(int index)
     {
         Vector2Int gridPosition = IndexToGrid(index);
-        Vector2 position = GridToWorld(RowInBounds(gridPosition.y), gridPosition.x);
+        Vector2 position = GridToLocal2D(RowInBounds(gridPosition.y), gridPosition.x);
         return new Vector3(position.x, heights[index], position.y);
     }
 
+    public float SampleHeight(float x, float y)
+    {
+        Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
+        int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
+        normalizedCoords.x += - Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
+        //normalizedCoords.y += 0.5f + 0.5f * ((Mathf.FloorToInt(normalizedCoords.x) + 0) & 1);
+        //Debug.Log(normalizedCoords.x +" "+normalizedCoords.y + " " + ((Mathf.FloorToInt(normalizedCoords.y) + 1) & 1));
 
-    public Mesh sharedMesh { get { return mesh; } }
+        int i = Mathf.FloorToInt(normalizedCoords.y);
+        int j = Mathf.FloorToInt(normalizedCoords.x);
+
+        if (i < 0 || i >= depth - 1) return 0;
+        if (j < 0 || j >= width - 1) return 0;
+        int index = i * width + j;
+
+        float dx = normalizedCoords.x - j;
+        float dy = normalizedCoords.y - i;
+        //TODO figure out which triangle we are in
+        //TODO optimize interpolation
+        if (oddToEven == 0)
+        {
+            float dXY = dx + dy;
+            if (dXY < 1f)
+            {
+                return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
+            }
+            else
+            {
+                return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
+            }
+        }
+        else
+        {
+            float dXY = 1 - dx + dy;
+            if (dx > dy)
+            {
+                return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
+            }
+            else
+            {
+                return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
+            }
+        }
+
+    }
+
+    // There is no lighting in DrawMeshNow
+    //public void DrawMeshes(Matrix4x4 matrix)
+    //{
+    //    //TODO Draw terrain
+    //    int passCount = TerrainMaterial.passCount;
+    //    for (int p = 0; p < passCount; ++p)
+    //    {
+    //        TerrainMaterial.SetPass(p);
+    //        Graphics.DrawMeshNow(sharedTerrainMesh, matrix, 0);
+    //    }
+    //    //Graphics.DrawMesh(sharedTerrainMesh, matrix, TerrainMaterial, 0);//TODO vs MeshNow?
+        
+    //    //TODO Draw props meshes
+    //    for (int i = 0; i< meshesData.Length; ++i)
+    //    {
+    //        MeshData meshData = meshesData[i];
+    //        passCount = meshData.sharedMaterial.passCount;
+    //        for (int p = 0; p < passCount; ++p)
+    //        {
+    //            meshData.sharedMaterial.SetPass(p);
+    //            Graphics.DrawMeshNow(meshData.sharedMesh, matrix, 0);
+    //        }
+    //        //Graphics.DrawMesh(meshData.sharedMesh, matrix, meshData.sharedMaterial, 0);
+    //    }
+    //}
+
+    public Mesh sharedTerrainMesh { get { return terrainMesh; } }
 
     public Vector3[] Vertices { get { return vertices; } }
 
     public int[] Indices { get { return indices; } }
 
-    Mesh mesh;
+    Mesh terrainMesh;
     Vector3[] vertices;
     Vector3[] normals;
     // colors is serialized and defined at the beginning
     Vector2[] uvs;
     int[] indices;
     
-    [ContextMenu("RebuildMesh")]
-    public Mesh RefreshMesh()
+    [ContextMenu("RebuildTerrainMesh")]
+    public Mesh RefreshTerrainMesh()
     {
         return RebuildParallel(1);//TODO Y?
     }
@@ -226,15 +306,15 @@ public class MapData : ScriptableObject
 
     public Mesh RebuildParallel(int threads)
     {
-        if (mesh == null)
+        if (terrainMesh == null)
         {
-            mesh = new Mesh();
-            mesh.name = this.name;
-            mesh.hideFlags = HideFlags.HideAndDontSave;
+            terrainMesh = new Mesh();
+            terrainMesh.name = this.name;
+            terrainMesh.hideFlags = HideFlags.HideAndDontSave;
         }
         else
         {
-            mesh.Clear();
+            terrainMesh.Clear();
         }
 
         int verticesLength = width * depth;
@@ -312,18 +392,18 @@ public class MapData : ScriptableObject
             normals[vertexIndex] = normals[vertexIndex].normalized;
         }
 
-        mesh.vertices = vertices;
-        mesh.normals = normals;
-        mesh.uv = uvs;
-        mesh.colors = colors;
-        mesh.triangles = indices;
+        terrainMesh.vertices = vertices;
+        terrainMesh.normals = normals;
+        terrainMesh.uv = uvs;
+        terrainMesh.colors = colors;
+        terrainMesh.triangles = indices;
 
-        return mesh;
+        return terrainMesh;
     }
 
     public void QuickRebuildParallel(int threads)
     {
-        if (mesh == null) return;
+        if (terrainMesh == null) return;
 
         int verticesLength = width * depth;
 
@@ -358,14 +438,14 @@ public class MapData : ScriptableObject
             data.mre.WaitOne();
         }
 
-        mesh.vertices = vertices;
+        terrainMesh.vertices = vertices;
     }
 
     public void UpdateMeshColor()
     {
-        if (mesh == null) return;
+        if (terrainMesh == null) return;
         if (colors == null) return;
 
-        mesh.colors = colors;
+        terrainMesh.colors = colors;
     }
 }

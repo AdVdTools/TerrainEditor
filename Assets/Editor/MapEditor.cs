@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEditor;
 using System.Threading;
 using System;
-
 [CustomEditor(typeof(Map))]
 public class MapEditor : Editor {
 
@@ -20,11 +19,22 @@ public class MapEditor : Editor {
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
     private const int COLOR_TARGET = 1;
+    private const int PROPS_TARGET = 2;
+    private const int SELECT_TARGET = 3;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color")
+        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select")
     };
 
+    private int instanceProperty;
+    private const int SIZE_PROPERTY = 0;
+    private const int ROTATION_PROPERTY = 1;
+    private GUIContent[] instancePropertyGUIContents = new GUIContent[]
+    {
+        new GUIContent("Scale"), new GUIContent("Rotation")
+    };
+
+    private int currentInstanceSetIndex;
 
     private void OnEnable()
     {
@@ -60,7 +70,13 @@ public class MapEditor : Editor {
         SceneView.onSceneGUIDelegate -= OnSceneHandler;
         Debug.LogWarning("OnDisable");
     }
-    
+
+    private void OnUndoRedo()
+    {
+        data.RebuildParallel(8);
+        data.RefreshPropMeshes();
+    }
+
     readonly GUIContent editButtonContent = new GUIContent("Edit");
 
     public override void OnInspectorGUI()
@@ -72,18 +88,33 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
+            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, 4/*brushTargetGUIContents.Length*/);
+
+            bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
 
             switch (brushTarget)//TODO test vector values?
             {
                 case HEIGHT_TARGET:
                     Brush.currentBrush.currentValueType = Brush.ValueType.Float;
-                    Brush.currentBrush.DrawBrushValueInspector();
+                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
                 case COLOR_TARGET:
                     Brush.currentBrush.currentValueType = Brush.ValueType.Color;
-                    Brush.currentBrush.DrawBrushValueInspector();
+                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     ColorMath.mask = Brush.currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
+                    break;
+                case PROPS_TARGET:
+                    currentInstanceSetIndex = Mathf.Clamp(EditorGUILayout.IntField(new GUIContent("Instance Set"), currentInstanceSetIndex), 0, data.instanceSets.Length - 1);
+                    
+                    bool enableSetGUI = (Brush.currentBrush.mode == Brush.Mode.Set);
+                    GUI.enabled = enableSetGUI;
+                    instanceProperty = GUILayout.SelectionGrid(instanceProperty, instancePropertyGUIContents, 2);
+                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;//TODO do others?
+                    Brush.currentBrush.DrawBrushValueInspector(enableSetGUI, false);
+                    if (instanceProperty == SIZE_PROPERTY && Brush.currentBrush.floatValue < 0f) Brush.currentBrush.floatValue = 0f;
+                    
+                    //TODO Draw warn box if mode does nothing
+                    //TODO Props instance set selector
                     break;
             }
         }
@@ -94,11 +125,7 @@ public class MapEditor : Editor {
         //Brush.HandleBrushShortcuts();// If not drawing it makes no sense
     }
 
-    private void OnUndoRedo()
-    {
-        data.RebuildParallel(8);
-    }
-
+    #region StopWatches
     System.Diagnostics.Stopwatch raycastStopWatch = new System.Diagnostics.Stopwatch();
     float raycastDuration;
 
@@ -114,11 +141,7 @@ public class MapEditor : Editor {
 
     System.Diagnostics.Stopwatch eventsStopWatch = new System.Diagnostics.Stopwatch();
     long accumTime;
-
-    Ray ray;
-    bool rayHits;
-    Vector3 intersection;
-    private const float raycastDistance = 500f;
+    #endregion
 
     bool shouldApplyBrush;
 
@@ -136,12 +159,6 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            //if (Event.current.type == EventType.KeyUp || Event.current.type == EventType.Used)
-            //{
-            //    Debug.Log(Event.current.type + " " + Brush.currentBrush.mode);
-            //}
-            //TODO the mesh might be lost from the scriptable object but not the monobehaviour on git changes?
-            //TODO sometimes ctrl+tab[+shift] may only work 1 every 2 times
             //TODO sometimes MouseMove wont reach
             //Debug.Log(Event.current.type);
             if (Event.current.type == EventType.Repaint)
@@ -149,6 +166,9 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
+
+                Handles.color = Color.red;
+                Handles.DrawWireCube(new Vector3(intersection.x, data.SampleHeight(intersection.x, intersection.z), intersection.z), Vector3.one);
             }
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag) {
@@ -172,17 +192,21 @@ public class MapEditor : Editor {
             switch (Brush.currentBrush.CheckBrushEvent())
             {
                 case BrushEvent.BrushDraw:
-                    Mesh mesh = data.sharedMesh;
+                    Mesh mesh = data.sharedTerrainMesh;
                     if (mesh != null)
                     {
-                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, map.transform, sceneView.camera);
+                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
                         brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
                         brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
                         brushProjectorMaterial.SetTexture(mainTexID, Brush.currentBrush.currentTexture);
                         brushProjectorMaterial.SetPass(0);
                         //TODO move material to brush class?
-                        Graphics.DrawMeshNow(data.sharedMesh, matrix, 0);
+                        Graphics.DrawMeshNow(data.sharedTerrainMesh, matrix, 0);
+                    }
+                    if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+                    {
+                        foreach (var v in data.instanceSets[currentInstanceSetIndex].Instances) Handles.DrawLine(v.position, v.position + Vector3.up * 50);
                     }
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
@@ -199,6 +223,7 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintEnd:
                     data.RebuildParallel(8);
+                    data.RefreshPropMeshes();//TODO do parallel method?
                     // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
                     // but will once some other event happens (such as right click)
                     // first click outside of the scene window wont work either
@@ -234,6 +259,8 @@ public class MapEditor : Editor {
                 EditorGUILayout.LabelField(string.Format("{0} ms", applyDuration), EditorStyles.boldLabel);
                 EditorGUILayout.LabelField(string.Format("{0} ms", repaintPeriod), EditorStyles.label);
 
+                EditorGUILayout.LabelField(string.Format("{0} - {1}", intersection, data.SampleHeight(intersection.x, intersection.z)), EditorStyles.boldLabel);
+
                 GUILayout.Space(20f);
 
                 EditorGUILayout.EndVertical();
@@ -247,6 +274,10 @@ public class MapEditor : Editor {
 
     }
 
+    Ray ray;
+    bool rayHits;
+    Vector3 intersection;
+    private const float raycastDistance = 500f;
     MapData.RaycastHit hitInfo;
 
     private void HandleRaycast()
@@ -289,11 +320,16 @@ public class MapEditor : Editor {
     }
     const int threads = 8;
     ThreadData[] threadsData = new ThreadData[threads];
+
+
     float[] auxHeights = null;
     Color[] auxColors = null;
+    MapData.InstanceSet auxInstanceSet = null;
 
     void ApplyBrush()
     {
+        applyStopWatch.Reset();
+        applyStopWatch.Start();
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
@@ -302,7 +338,21 @@ public class MapEditor : Editor {
             case COLOR_TARGET:
                 ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, Brush.currentBrush.colorValue, ColorMath.sharedHandler);
                 break;
+            case PROPS_TARGET:
+                if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+                {
+                    MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+                    data.RecalculateInstancePositions(1, instanceSet, data);
+                    ApplyBrush(data.Vertices, instanceSet, auxInstanceSet);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
+                }
+                break;
         }
+        applyStopWatch.Stop();
+        applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
 
         rebuildStopWatch.Reset();
         rebuildStopWatch.Start();
@@ -314,6 +364,10 @@ public class MapEditor : Editor {
             case COLOR_TARGET:
                 data.UpdateMeshColor();
                 break;
+            case PROPS_TARGET:
+                //data.RefreshPropMesh(0); //quick?
+                data.RefreshPropMeshes();//
+                break;
         }
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
@@ -321,80 +375,13 @@ public class MapEditor : Editor {
         Repaint();
     }
 
-    #region Crazyness
-    interface IMathHandler<T> {
-        T Product(T value1, float value2);
-        T Product(T value1, T value2);
-        T Sum(T value1, T value2);
-        T WeightedSum(T value1, T value2, float weight2);
-        T Blend(T value1, T value2, float t);
-    }
-
-    public class FloatMath : IMathHandler<float>
-    {
-        public static FloatMath sharedHandler = new FloatMath();
-        public float Product(float value1, float value2)
-        {
-            return value1 * value2;
-        }
-
-        public float Sum(float value1, float value2)
-        {
-            return value1 + value2;
-        }
-
-        public float WeightedSum(float value1, float value2, float weight2)
-        {
-            return value1 + value2 * weight2;
-        }
-
-        public float Blend(float value1, float value2, float t)
-        {
-            return value1 + (value2 - value1) * t;
-        }
-    }
-
-
-    public class ColorMath : IMathHandler<Color>
-    {
-        public static Color mask = new Color(1f, 1f, 1f, 0f);
-        public static ColorMath sharedHandler = new ColorMath();
-        public Color Product(Color value1, float value2)
-        {
-            return value1 * value2;
-        }
-
-        public Color Product(Color value1, Color value2)
-        {
-            return value1 * value2;
-        }
-
-        public Color Sum(Color value1, Color value2)
-        {
-            return value1 + value2;
-        }
-
-        public Color WeightedSum(Color value1, Color value2, float weight2)
-        {
-            return value1 + value2 * (mask * weight2);
-        }
-
-        public Color Blend(Color value1, Color value2, float t)
-        {
-            return value1 + (value2 - value1) * (mask * t);
-        }
-    }
-    #endregion
-
     void ApplyBrush<T>(Vector3[] vertices, T[] srcArray, T[] auxArray, T value, IMathHandler<T> mathHandler) where T: struct
     {
         Brush brush = Brush.currentBrush;
-        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform, SceneView.currentDrawingSceneView.camera);
+        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
 
         int pointCount = vertices.Length;
         //TODO check null vertices?
-        applyStopWatch.Reset();
-        applyStopWatch.Start();
 
         if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];
 
@@ -505,8 +492,193 @@ public class MapEditor : Editor {
 
         Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
         
-        applyStopWatch.Stop();
-        applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
     }
     //TODO serialize MapData object!!
+
+    //void ApplyPropsBrush(propSetData?, T[] srcArray, T[] auxArray, T value, IMathHandler<T> mathHandler)
+    //{
+
+    //}
+
+
+
+    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)
+    {
+        Brush brush = Brush.currentBrush;
+        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
+        
+        int pointCount = vertices.Length;
+        //TODO check null vertices?
+
+        //if (auxInstanceSet == null) auxInstanceSet = new MapData.InstanceSet();
+        //TODO clear instanceSet?, calculate positions / distances?
+        
+        float rand, strength;
+        switch (brush.mode)
+        {
+            case Brush.Mode.Add://TODO do properly
+                Vector3 randUV = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
+                rand = UnityEngine.Random.value;
+                strength = brush.GetStrength(randUV);
+                Debug.Log(rand+" "+strength+" "+instanceSet.Instances.Count);
+
+                //TODO force vertical projection?
+                if (rand < strength)
+                {
+                    Vector3 position = intersection + randUV * brush.size;
+                    position.y = 0;//rand?
+                    //TODO Instances as array?
+                    instanceSet.Instances.Add(new MapData.PropInstance() {
+                        position = position,
+                        direction = Vector3.up,
+                        rotation = UnityEngine.Random.value * 360f,
+                        size = 1f
+                    });
+                }
+
+                break;
+            case Brush.Mode.Substract:
+                //TODO multithreading
+                for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                {
+                    Vector3 position = instanceSet.instancePositions[index];
+                    rand = UnityEngine.Random.value;
+                    strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                    if (rand < strength) instanceSet.Instances[index] = new MapData.PropInstance() { size = -1 };//TODO would an array allow .size = -1f;
+                }
+
+                instanceSet.Instances.RemoveAll((inst) => {
+                    return (inst.size < 0);
+                });
+                break;
+            case Brush.Mode.Set:
+
+                switch (instanceProperty)
+                {
+                    case SIZE_PROPERTY:
+                        for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                        {
+                            Vector3 position = instanceSet.instancePositions[index];
+
+                            strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                            if (strength > 0f)
+                            {
+                                var instance = instanceSet.Instances[index];
+                                instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;//TODO blend
+                                instanceSet.Instances[index] = instance;
+                            }
+                        }
+
+                        break;
+                    case ROTATION_PROPERTY:
+                        for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                        {
+                            Vector3 position = instanceSet.instancePositions[index];
+
+                            strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                            if (strength > 0f)
+                            {
+                                var instance = instanceSet.Instances[index];
+                                instance.rotation = (Brush.currentBrush.floatValue - instance.rotation) * strength;//TODO blend
+                                instanceSet.Instances[index] = instance;
+                            }
+                        }
+                        break;
+                }
+
+                break;
+            default:
+                break;
+        }
+
+        //TODO is this slower?
+    //    int pointsPerThread = (pointCount - 1) / threads + 1;
+    //    for (int i = 0; i < threads; ++i)
+    //    {
+    //        ThreadData threadData = threadsData[i];
+    //        threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
+    //        //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
+    //        ThreadPool.QueueUserWorkItem((d) =>
+    //        {
+    //            ThreadData td = (ThreadData)d;
+    //            //ThreadData td = threadData;
+    //            switch (brush.Mode)
+    //            {
+    //                case "Add":
+    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
+    //                    {
+    //                        Vector3 vertex = vertices[index];
+    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+    //                        if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, strength);
+    //                        else auxArray[index] = srcArray[index];
+    //                    }
+    //                    break;
+    //                case "Substract":
+    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
+    //                    {
+    //                        Vector3 vertex = vertices[index];
+    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+    //                        if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, -strength);
+    //                        else auxArray[index] = srcArray[index];
+    //                    }
+    //                    break;
+    //                case "Set":
+    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
+    //                    {
+    //                        Vector3 vertex = vertices[index];
+    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+    //                        if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], value, strength);
+    //                        else auxArray[index] = srcArray[index];
+    //                    }
+    //                    break;
+    //                case "Average":
+    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
+    //                    {
+    //                        Vector3 vertex = vertices[index];
+    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+    //                        if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], avgValue, strength);
+    //                        else auxArray[index] = srcArray[index];
+    //                    }
+    //                    break;
+    //                case "Smooth":
+    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
+    //                    {
+    //                        Vector3 vertex = vertices[index];
+    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+    //                        if (strength > 0f)
+    //                        {
+    //                            Vector2Int coords = data.IndexToGrid(index);
+    //                            int columnOffset = coords.y & 1;
+    //                            int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
+    //                            int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
+    //                            int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
+    //                            int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
+    //                            int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
+    //                            int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
+
+    //                            T neighbourAverage = mathHandler.Product(
+    //                                mathHandler.Sum(
+    //                                    mathHandler.Sum(srcArray[eastIndex], srcArray[neIndex]),
+    //                                    mathHandler.Sum(
+    //                                        mathHandler.Sum(srcArray[nwIndex], srcArray[westIndex]),
+    //                                        mathHandler.Sum(srcArray[swIndex], srcArray[seIndex]))),
+    //                                1f / 6);
+                                
+    //                            auxArray[index] = mathHandler.Blend(srcArray[index], neighbourAverage, strength * 0.5f);
+    //                        }
+    //                        else auxArray[index] = srcArray[index];
+    //                    }
+    //                    break;
+    //            }
+    //        td.mre.Set();
+    //    }, threadData);
+    //}
+    //    foreach (var threadData in threadsData)
+    //    {
+    //        threadData.mre.WaitOne();
+    //    }
+
+        //Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        
+    }
 }

@@ -9,6 +9,8 @@ public class Map : MonoBehaviour
     [SerializeField] MapData mapData;
     MeshFilter meshFilter;
 
+    [SerializeField] MeshFilter[] propsMeshFilters = new MeshFilter[0];
+
     public MapData Data { get { return mapData; } }
 
     // Use this for initialization
@@ -26,8 +28,34 @@ public class Map : MonoBehaviour
     [ContextMenu("Refresh Mesh")]
     public void Refresh()
     {
-        if (mapData != null) meshFilter.sharedMesh = mapData.RefreshMesh();
+        if (mapData != null) meshFilter.sharedMesh = mapData.RefreshTerrainMesh();
         else meshFilter.sharedMesh = null;
+    }
+
+    [ContextMenu("Refresh Props Meshes")]
+    public void RefreshProps()
+    {
+        MapData.MeshData[] meshesData = mapData.meshesData;
+        if (mapData != null)
+        {
+            mapData.RefreshPropMeshes();
+            int count = Mathf.Min(mapData.meshesData.Length, propsMeshFilters.Length);
+            for (int i = 0; i < count; ++i)
+            {
+                MeshFilter meshFilter = propsMeshFilters[i];
+                meshFilter.sharedMesh = meshesData[i].sharedMesh;
+                MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
+                meshRenderer.sharedMaterial = meshesData[i].sharedMaterial;
+            }
+        }
+        else
+        {
+            for (int i = 0; i < propsMeshFilters.Length; ++i)
+            {
+                MeshFilter meshFilter = propsMeshFilters[i];
+                meshFilter.sharedMesh = null;
+            }
+        }
     }
 
     private void OnValidate()
