@@ -19,8 +19,43 @@ public partial class MapData : ScriptableObject
     [System.Serializable]
     public class InstanceSet
     {
-        /*[HideInInspector]*/ [SerializeField] private List<PropInstance> instances = new List<PropInstance>();
-        public List<PropInstance> Instances { get { return instances; } }
+        ///*[HideInInspector]*/ [SerializeField] private List<PropInstance> instances = new List<PropInstance>();
+        //public List<PropInstance> Instances { get { return instances; } }
+        /*[HideInInspector]*/ [SerializeField] private PropInstance[] instances = new PropInstance[0];
+        /*[HideInInspector]*/ [SerializeField]private int count;
+        public PropInstance[] Instances { get { return instances; } }
+        public int Count
+        {
+            get { return count; }
+            set {
+                EnsureCapacity(value);
+                count = value;
+            }
+        }
+        public void EnsureCapacity(int capacity)
+        {
+            if (capacity > instances.Length) Resize(capacity);
+        }
+        public void Minimize()
+        {
+            Resize(count);
+        }
+        public void Resize(int newSize)
+        {
+            if (instances.Length != newSize) System.Array.Resize(ref instances, newSize);
+        }
+        public void RemoveMarked()//TODO test !!!!!
+        {
+            int index = 0;
+            while (index < count && instances[index].size >= 0) ++index;
+            for (int i = index + 1; i < count; ++i)
+            {
+                PropInstance inst = instances[i];
+                if (inst.size >= 0) instances[index++] = inst;
+            }
+            count = index;
+        }
+
         [System.NonSerialized] public Vector3[] instancePositions = new Vector3[0];//TODO mind multithreading
         [System.NonSerialized] public float[] instanceSqrDistances = new float[0];// Alt: use this array as flags for deletion if <0
     }
@@ -39,8 +74,8 @@ public partial class MapData : ScriptableObject
 
     public void RecalculateInstancePositions(int threads, InstanceSet instanceSet, MapData mapData)
     {
-        List<PropInstance> instances = instanceSet.Instances;
-        int instanceCount = instances.Count;
+        PropInstance[] instances = instanceSet.Instances;
+        int instanceCount = instanceSet.Count;
         if (instanceSet.instancePositions == null || instanceSet.instancePositions.Length != instanceCount) instanceSet.instancePositions = new Vector3[instanceCount];
 
         for (int j = 0; j < instanceCount; ++j)
@@ -58,8 +93,8 @@ public partial class MapData : ScriptableObject
 
     public void RecalculateInstanceDistances(int threads, InstanceSet instanceSet, Vector3 pov = default(Vector3), float lodScale = 1f)
     {
-        List<PropInstance> instances = instanceSet.Instances;
-        int instanceCount = instances.Count;
+        PropInstance[] instances = instanceSet.Instances;
+        int instanceCount = instanceSet.Count;
         if (instanceSet.instanceSqrDistances == null || instanceSet.instanceSqrDistances.Length != instanceCount) instanceSet.instanceSqrDistances = new float[instanceCount];
 
         for (int j = 0; j < instanceCount; ++j)
@@ -150,7 +185,6 @@ public partial class MapData : ScriptableObject
             {
                 mesh.Clear();
             }
-            Debug.Log("HERE");
             //TODO stuff get lengts, load meshes
             //int verticesLength = 0, indicesLength = 0;
             //for (int i = 0; i < meshesData.Length; ++i)
@@ -189,10 +223,9 @@ public partial class MapData : ScriptableObject
                     Variant variant = variants[v];
                     if (lod < variant.meshLODs.Length)
                     {
-                        Debug.Log("??");
                         if (variant.instanceSetIndex < 0 || variant.instanceSetIndex >= mapData.instanceSets.Length) continue;
                         InstanceSet instanceSet = mapData.instanceSets[variant.instanceSetIndex];
-                        Debug.Log("Doing variantLOD");
+                        
                         DoVariantLOD(instanceSet, variant, lod, ref vertexIndex, ref indexIndex);
                         existingLOD = true;
                     }
@@ -373,8 +406,8 @@ public partial class MapData : ScriptableObject
         {
             MeshLOD meshLOD = variant.meshLODs[lod];
             
-            List<PropInstance> instances = instanceSet.Instances;
-            int instanceCount = instances.Count;
+            PropInstance[] instances = instanceSet.Instances;
+            int instanceCount = instanceSet.Count;
             float[] sqrDistances = instanceSet.instanceSqrDistances;//Precalculated
             Vector3[] realPositions = instanceSet.instancePositions;//TODO mind multithreading
 

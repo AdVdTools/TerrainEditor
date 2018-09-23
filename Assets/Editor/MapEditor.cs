@@ -105,14 +105,35 @@ public class MapEditor : Editor {
                     break;
                 case PROPS_TARGET:
                     currentInstanceSetIndex = Mathf.Clamp(EditorGUILayout.IntField(new GUIContent("Instance Set"), currentInstanceSetIndex), 0, data.instanceSets.Length - 1);
+                    //TODO use rand value inspector separate from brush inspector, for add (all fields), set (target field/all fields with mask!) and smooth (separation)
+                    switch (Brush.currentBrush.mode)
+                    {
+                        case Brush.Mode.Set:
+                            //TODO fields mask!!
+                            instanceProperty = GUILayout.SelectionGrid(instanceProperty, instancePropertyGUIContents, 2);
+                            Brush.currentBrush.currentValueType = Brush.ValueType.Float;//TODO do others?
+                            Brush.currentBrush.DrawBrushValueInspector(true, false);
+                            if (instanceProperty == SIZE_PROPERTY && Brush.currentBrush.floatValue < 0f) Brush.currentBrush.floatValue = 0f;
+                            break;
+                        case Brush.Mode.Add:
+                            EditorGUILayout.LabelField(new GUIContent("Amount"), GUI.skin.button);
+                            Brush.currentBrush.currentValueType = Brush.ValueType.Int;//TODO do others?
+                            Brush.currentBrush.DrawBrushValueInspector(true, false);
+                            if (Brush.currentBrush.intValue <= 0) Brush.currentBrush.intValue = 1;
+                            break;
+                        case Brush.Mode.Substract:
+                            GUI.enabled = false;
+                            EditorGUILayout.LabelField(new GUIContent(""), GUI.skin.button);
+                            GUI.enabled = true;
+                            break;
+                        default:
+                            GUI.enabled = false;
+                            EditorGUILayout.LabelField(new GUIContent(""), GUI.skin.button);
+                            GUI.enabled = true;
+                            break;
+                    }
                     
-                    bool enableSetGUI = (Brush.currentBrush.mode == Brush.Mode.Set);
-                    GUI.enabled = enableSetGUI;
-                    instanceProperty = GUILayout.SelectionGrid(instanceProperty, instancePropertyGUIContents, 2);
-                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;//TODO do others?
-                    Brush.currentBrush.DrawBrushValueInspector(enableSetGUI, false);
-                    if (instanceProperty == SIZE_PROPERTY && Brush.currentBrush.floatValue < 0f) Brush.currentBrush.floatValue = 0f;
-                    
+
                     //TODO Draw warn box if mode does nothing
                     //TODO Props instance set selector
                     break;
@@ -206,7 +227,11 @@ public class MapEditor : Editor {
                     }
                     if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                     {
-                        foreach (var v in data.instanceSets[currentInstanceSetIndex].Instances) Handles.DrawLine(v.position, v.position + Vector3.up * 50);
+                        for (int i = 0; i < data.instanceSets[currentInstanceSetIndex].Count; ++i) {
+                            MapData.PropInstance inst = data.instanceSets[currentInstanceSetIndex].Instances[i];
+                            Handles.DrawLine(inst.position, inst.position + Vector3.up * 2);
+                            Handles.DrawWireDisc(inst.position, Vector3.up, inst.size);
+                        }
                     }
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
@@ -229,6 +254,9 @@ public class MapEditor : Editor {
                     // first click outside of the scene window wont work either
 
                     //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushChanged:
+                    Repaint();
                     break;
                 case BrushEvent.ValuePick:
                     if (rayHits) {
@@ -514,72 +542,81 @@ public class MapEditor : Editor {
         //TODO clear instanceSet?, calculate positions / distances?
         
         float rand, strength;
+        int instanceCount = instanceSet.Count;
         switch (brush.mode)
         {
-            case Brush.Mode.Add://TODO do properly
-                Vector3 randUV = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
-                rand = UnityEngine.Random.value;
-                strength = brush.GetStrength(randUV);
-                Debug.Log(rand+" "+strength+" "+instanceSet.Instances.Count);
-
-                //TODO force vertical projection?
-                if (rand < strength)
+            case Brush.Mode.Add:
+                instanceSet.EnsureCapacity(instanceSet.Count + Brush.currentBrush.intValue * 2);//TODO greater margin?
+                for (int i = 0; i < Brush.currentBrush.intValue; ++i)
                 {
-                    Vector3 position = intersection + randUV * brush.size;
-                    position.y = 0;//rand?
-                    //TODO Instances as array?
-                    instanceSet.Instances.Add(new MapData.PropInstance() {
-                        position = position,
-                        direction = Vector3.up,
-                        rotation = UnityEngine.Random.value * 360f,
-                        size = 1f
-                    });
-                }
+                    Vector3 randOffset = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
+                    Vector3 position = new Vector3(intersection.x + randOffset.x * brush.size, 0f, intersection.z + randOffset.z * brush.size);
+                    position.y = data.SampleHeight(position.x, position.z);
+                    rand = UnityEngine.Random.value;
+                    strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                    Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
 
+                    //TODO force vertical projection?
+                    if (rand < strength)
+                    {
+                        Debug.Log(rand + " < " + strength);
+                        position.y = 0;//random heightOff?
+                        //TODO Instances as array?
+                        int instanceIndex = instanceCount;
+                        instanceSet.Count = instanceIndex + 1;
+                        instanceSet.Instances[instanceIndex] = new MapData.PropInstance()
+                        {
+                            position = position,
+                            direction = Vector3.up,
+                            rotation = UnityEngine.Random.value * 360f,
+                            size = 1f
+                        };
+                    }
+                }
                 break;
             case Brush.Mode.Substract:
                 //TODO multithreading
-                for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                for (int index = 0; index < instanceCount; ++index)
                 {
                     Vector3 position = instanceSet.instancePositions[index];
                     rand = UnityEngine.Random.value;
                     strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
-                    if (rand < strength) instanceSet.Instances[index] = new MapData.PropInstance() { size = -1 };//TODO would an array allow .size = -1f;
+                    if (rand < strength)
+                    {
+                        instanceSet.Instances[index].size = -1;
+                    }
                 }
-
-                instanceSet.Instances.RemoveAll((inst) => {
-                    return (inst.size < 0);
-                });
+                instanceSet.RemoveMarked();
                 break;
             case Brush.Mode.Set:
 
                 switch (instanceProperty)
                 {
                     case SIZE_PROPERTY:
-                        for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                        for (int index = 0; index < instanceSet.Count; ++index)
                         {
                             Vector3 position = instanceSet.instancePositions[index];
 
                             strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
                             if (strength > 0f)
                             {
-                                var instance = instanceSet.Instances[index];
-                                instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;//TODO blend
+                                MapData.PropInstance instance = instanceSet.Instances[index];
+                                instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;
                                 instanceSet.Instances[index] = instance;
                             }
                         }
 
                         break;
                     case ROTATION_PROPERTY:
-                        for (int index = 0; index < instanceSet.Instances.Count; ++index)
+                        for (int index = 0; index < instanceSet.Count; ++index)
                         {
                             Vector3 position = instanceSet.instancePositions[index];
 
                             strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
                             if (strength > 0f)
                             {
-                                var instance = instanceSet.Instances[index];
-                                instance.rotation = (Brush.currentBrush.floatValue - instance.rotation) * strength;//TODO blend
+                                MapData.PropInstance instance = instanceSet.Instances[index];
+                                instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
                                 instanceSet.Instances[index] = instance;
                             }
                         }
