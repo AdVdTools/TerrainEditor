@@ -67,6 +67,7 @@
     <Compile Include="Assets\Editor\MapEditor.cs" />
     <Compile Include="Assets\Editor\MapGenericEditor.cs" />
     <Compile Include="Assets\Editor\MapPropsEditor.cs" />
+    <Compile Include="Assets\Editor\MapPropsInstanceValues.cs" />
     <Compile Include="Assets\Editor\MathHandlers.cs" />
     <Compile Include="Assets\Editor\MeshSpawner.cs" />
     <None Include="Assets\Editor\BrushProjector.shader" />
