@@ -110,18 +110,21 @@ public partial class MapData : ScriptableObject
     [ContextMenu("RebuildPropsMeshes")]
     public void RefreshPropMeshes()
     {
+        RefreshPropMeshes(default(Vector3), 1f);
+    }
+    
+    public void RefreshPropMeshes(Vector3 pov, float lodScale)
+    {
         for (int i = 0; i < instanceSets.Length; ++i)
         {
             RecalculateInstancePositions(1, instanceSets[i], this);
-            RecalculateInstanceDistances(1, instanceSets[i]);
+            RecalculateInstanceDistances(1, instanceSets[i], pov, lodScale);
         }
         for (int i = 0; i < meshesData.Length; ++i)
         {
             meshesData[i].RebuildParallel(1, this);//TODO Y?
         }
     }
-    
-
 
     [System.Serializable]
     public class MeshData

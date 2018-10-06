@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEditor;
 using System.Threading;
 using System;
@@ -25,16 +23,10 @@ public class MapEditor : Editor {
     {
         new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select")
     };
+    
 
-    //private int instanceProperty;
-    //private const int SIZE_PROPERTY = 0;
-    //private const int ROTATION_PROPERTY = 1;
-    //private GUIContent[] instancePropertyGUIContents = new GUIContent[]
-    //{
-    //    new GUIContent("Scale"), new GUIContent("Rotation")
-    //};
-
-        //TODO record editor values for undo?
+    //TODO record editor values for undo?
+    float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
@@ -79,8 +71,8 @@ public class MapEditor : Editor {
 
     private void OnUndoRedo()
     {
-        data.RebuildParallel(8);
-        data.RefreshPropMeshes();
+        RebuildMapTerrain();
+        RebuildPropMeshes();
 
         InvalidateSelection();
     }
@@ -90,20 +82,25 @@ public class MapEditor : Editor {
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
     readonly GUIContent amountGUIContent = new GUIContent("Amount");
+    readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
+
+        lodScale = EditorGUILayout.FloatField(lodScaleGUIContent, lodScale);
+        //lodScale = clamp?
 
         editing = GUILayout.Toggle(editing, editButtonContent, EditorStyles.miniButton);
         Tools.hidden = editing;
 
         if (editing)
         {
-            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, 4/*brushTargetGUIContents.Length*/);
+            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
 
             bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
-
+            
+            DrawHelp();
             switch (brushTarget)//TODO test vector values?
             {
                 case HEIGHT_TARGET:
@@ -116,17 +113,13 @@ public class MapEditor : Editor {
                     ColorMath.mask = Brush.currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
                     break;
                 case PROPS_TARGET:
-                    currentInstanceSetIndex = Mathf.Clamp(EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex), 0, data.instanceSets.Length - 1);
-                    //TODO use rand value inspector separate from brush inspector, for add (all fields), set (target field/all fields with mask!) and smooth (separation)
+                    DrawInstanceSetSelector();
+
+                    //TODO use rand value inspector for smooth (separation)
                     switch (Brush.currentBrush.mode)
                     {
                         case Brush.Mode.Set:
                             instanceValues.DoInstancePropertiesInspector();
-                            //TODO fields mask!!
-                            //instanceProperty = GUILayout.SelectionGrid(instanceProperty, instancePropertyGUIContents, 2);
-                            //Brush.currentBrush.currentValueType = Brush.ValueType.Float;//TODO do others?
-                            //Brush.currentBrush.DrawBrushValueInspector(true, false);
-                            //if (instanceProperty == SIZE_PROPERTY && Brush.currentBrush.floatValue < 0f) Brush.currentBrush.floatValue = 0f;
                             break;
                         case Brush.Mode.Add:
                             EditorGUILayout.LabelField(amountGUIContent, GUI.skin.button);
@@ -153,13 +146,10 @@ public class MapEditor : Editor {
                     //TODO Props instance set selector
                     break;
                 case SELECT_TARGET:
-                    int instanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);//TODO GUIContent
-                    if (instanceSetIndex != currentInstanceSetIndex) InvalidateSelection();
-                    currentInstanceSetIndex = Mathf.Clamp(instanceSetIndex, 0, data.instanceSets.Length - 1);
-                    //TODO toggle in select mode to autoapply instanceValues to selection & button for single time apply
-                    
+                    DrawInstanceSetSelector();
 
                     instanceValues.DoInstancePropertiesInspector();
+
                     if (GUI.changed && autoApplyValues) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
                     EditorGUILayout.BeginHorizontal();
                     GUI.enabled = !autoApplyValues;
@@ -172,18 +162,42 @@ public class MapEditor : Editor {
 
                     EditorGUILayout.BeginHorizontal();
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)));
+                    GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)), EditorStyles.miniLabel);
                     EditorGUILayout.EndHorizontal();
                     break;
             }
+            Brush.currentBrush.HandleBrushShortcuts();//TODO check working properly
         }
 
         if (GUI.changed) SceneView.RepaintAll();
-
-        //TODO handle brush shortcuts here too?
-        //Brush.HandleBrushShortcuts();// If not drawing it makes no sense
     }
-    
+
+    readonly GUIContent[,] helpGUIContents =
+    {
+        { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
+        { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
+        { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") },
+        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }
+    };
+
+    private void DrawHelp()
+    {
+        int brushTargetIndex = Mathf.Clamp(brushTarget, 0, brushTargetGUIContents.Length - 1);
+        int brushModeIndex = (int)Brush.currentBrush.mode;
+
+        EditorGUILayout.HelpBox(helpGUIContents[brushTargetIndex, brushModeIndex]);
+        //EditorGUILayout.LabelField(helpGUIContents[brushTargetIndex, brushModeIndex], EditorStyles.boldLabel);
+    }
+
+    private void DrawInstanceSetSelector()
+    {
+        int nextInstanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);
+        if (nextInstanceSetIndex != currentInstanceSetIndex)
+        {
+            InvalidateSelection();
+        }
+        currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
+    }
 
     #region StopWatches
     System.Diagnostics.Stopwatch raycastStopWatch = new System.Diagnostics.Stopwatch();
@@ -219,7 +233,6 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            //TODO sometimes MouseMove wont reach
             //Debug.Log(Event.current.type);
             if (Event.current.type == EventType.Repaint)
             {
@@ -303,8 +316,9 @@ public class MapEditor : Editor {
                     //Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
                 case BrushEvent.BrushPaintEnd:
-                    data.RebuildParallel(8);
-                    data.RefreshPropMeshes();//TODO do parallel method?
+                    RebuildMapTerrain();
+                    RebuildPropMeshes();//TODO do parallel method?
+
                                                 // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
                                                 // but will once some other event happens (such as right click)
                                                 // first click outside of the scene window wont work either
@@ -466,7 +480,7 @@ public class MapEditor : Editor {
                 break;
             case PROPS_TARGET:
                 //data.RefreshPropMesh(0); //quick?
-                data.RefreshPropMeshes();//
+                RebuildPropMeshes();//
                 break;
         }
         rebuildStopWatch.Stop();
@@ -626,8 +640,7 @@ public class MapEditor : Editor {
                     rand = UnityEngine.Random.value;
                     strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
                     Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
-
-                    //TODO force vertical projection?
+                    
                     if (rand < strength)
                     {
                         Debug.Log(rand + " < " + strength);
@@ -663,10 +676,7 @@ public class MapEditor : Editor {
                 instanceSet.RemoveMarked();
                 break;
             case Brush.Mode.Set:
-
-                //switch (instanceProperty)
-                //{
-                //    case SIZE_PROPERTY:
+                
                 for (int index = 0; index < instanceSet.Count; ++index)
                 {
                     Vector3 position = instanceSet.instancePositions[index];
@@ -675,36 +685,12 @@ public class MapEditor : Editor {
                     if (strength > 0f)
                     {
                         MapData.PropInstance instance = instanceSet.Instances[index];
-                        //TODO this will become a mesh, optimize!
-                        //TODO mind that properties might be disabled!
                         Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                         instance = instanceValues.ApplyValues(instance, normal, strength);
-
-                        //instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;
-                        //instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
-
-
-
+                        
                         instanceSet.Instances[index] = instance;
                     }
                 }
-
-                //        break;
-                //    case ROTATION_PROPERTY:
-                //        for (int index = 0; index < instanceSet.Count; ++index)
-                //        {
-                //            Vector3 position = instanceSet.instancePositions[index];
-
-                //            strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
-                //            if (strength > 0f)
-                //            {
-                //                MapData.PropInstance instance = instanceSet.Instances[index];
-                //                instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
-                //                instanceSet.Instances[index] = instance;
-                //            }
-                //        }
-                //        break;
-                //}
 
                 break;
             default:
@@ -802,6 +788,20 @@ public class MapEditor : Editor {
         
     }
 
+    void RebuildMapTerrain()
+    {
+        data.RebuildParallel(8);
+    }
+
+    void RebuildPropMeshes()
+    {
+        Camera povCamera = map.POVCamera;
+        if (povCamera == null) povCamera = SceneView.currentDrawingSceneView.camera;
+        Vector3 pov = povCamera != null ? povCamera.transform.position : default(Vector3);
+        pov = map.transform.InverseTransformPoint(pov);
+        data.RefreshPropMeshes(pov, lodScale);//TODO parallel?
+    }
+
     #region Selection
     void HandleSelection(MapData.InstanceSet instanceSet)
     {
@@ -844,7 +844,7 @@ public class MapEditor : Editor {
                         }
                     }
                     //data.RefreshPropMesh(0); //quick?
-                    data.RefreshPropMeshes();//This recalculates positions
+                    RebuildPropMeshes();//This recalculates positions
                 }
             }
         }
@@ -975,8 +975,6 @@ public class MapEditor : Editor {
     {
         data.RecalculateInstancePositions(1, instanceSet, data);
         
-
-        float rand, strength;
         int instanceCount = instanceSet.Count;
 
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
@@ -984,27 +982,18 @@ public class MapEditor : Editor {
 
         for (int index = 0; index < instanceSet.Count; ++index)
         {
-            Vector3 position = instanceSet.instancePositions[index];
-            
             if (instanceSelection[index])
             {
                 MapData.PropInstance instance = instanceSet.Instances[index];
-                //TODO this will become a mesh, optimize!
-                //TODO mind that properties might be disabled!
                 Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                 instance = instanceValues.ApplyValues(instance, normal, 1f);
-
-                //instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;
-                //instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
-
-
-
+                
                 instanceSet.Instances[index] = instance;
             }
         }
 
 
-        data.RefreshPropMeshes();//
+        RebuildPropMeshes();
     }
 
     #endregion
