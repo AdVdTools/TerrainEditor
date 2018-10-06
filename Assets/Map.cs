@@ -10,15 +10,15 @@ public class Map : MonoBehaviour
     MeshFilter meshFilter;
 
     [SerializeField] MeshFilter[] propsMeshFilters = new MeshFilter[0];
-    [SerializeField] Camera povCamera;
+    [SerializeField] Transform povTransform;
 
     public MapData Data { get { return mapData; } }
-    public Camera POVCamera { get { return povCamera; } }
+    public Transform POVTransform { get { return povTransform; } }
 
     // Use this for initialization
     void Start()
     {
-        //TODO get main camera if none selected?
+        //TODO get main camera as pov if none selected?
     }
 
     // Update is called once per frame
@@ -40,9 +40,9 @@ public class Map : MonoBehaviour
         MapData.MeshData[] meshesData = mapData.meshesData;
         if (mapData != null)
         {
-            Camera povCamera = this.povCamera;
-            if (povCamera == null) povCamera = Camera.main;
-            Vector3 pov = povCamera != null ? povCamera.transform.position : default(Vector3);
+            Transform povTransform = this.povTransform;
+            if (povTransform == null) povTransform = Camera.main.transform;
+            Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
             pov = transform.InverseTransformPoint(pov);
             Debug.Log(pov);
             mapData.RefreshPropMeshes(pov, 1f);

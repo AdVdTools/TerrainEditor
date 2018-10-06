@@ -24,8 +24,6 @@ public class MapEditor : Editor {
         new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select")
     };
     
-
-    //TODO record editor values for undo?
     float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
@@ -61,7 +59,6 @@ public class MapEditor : Editor {
 
     private void OnDisable()
     {
-        //if (gridMaterial != null) DestroyImmediate(gridMaterial, false);
         if (brushProjectorMaterial != null) DestroyImmediate(brushProjectorMaterial, false);
 
         Undo.undoRedoPerformed -= OnUndoRedo;
@@ -74,7 +71,7 @@ public class MapEditor : Editor {
         RebuildMapTerrain();
         RebuildPropMeshes();
 
-        InvalidateSelection();
+        //InvalidateSelection();//TODO needed?
     }
 
     readonly GUIContent editButtonContent = new GUIContent("Edit");
@@ -230,6 +227,7 @@ public class MapEditor : Editor {
         Matrix4x4 matrix = map.transform.localToWorldMatrix;
 
         Handles.matrix = matrix;
+        Handles.color = Color.red;
 
         if (editing)
         {
@@ -239,14 +237,13 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
-
-                Handles.color = Color.red;
-                Handles.DrawWireCube(new Vector3(intersection.x, data.SampleHeight(intersection.x, intersection.z), intersection.z), Vector3.one);
             }
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
             {
-                Debug.Log("Move");
+                //TODO sometimes MouseMove wont reach
+                //Debug.Log("Move");//TODO this seems to require something more than repaint for the scene to refresh always?
+                SceneView.RepaintAll();
                 Repaint();
             }
             if (Event.current.type == EventType.Repaint)
@@ -265,12 +262,12 @@ public class MapEditor : Editor {
                     shouldApplyBrush = false;
                 }
             }
-            if (brushTarget == PROPS_TARGET || brushTarget == SELECT_TARGET)
+            if (brushTarget == SELECT_TARGET)
             {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    HandleSelection(instanceSet);
+                    SelectionOnSceneHandler(instanceSet);
                 }
             }
             else
@@ -644,8 +641,7 @@ public class MapEditor : Editor {
                     if (rand < strength)
                     {
                         Debug.Log(rand + " < " + strength);
-                        position.y = 0;//random heightOff?
-                        //TODO Instances as array?
+                        position.y = 0;//TODO random heightOff?
                         int instanceIndex = instanceCount;
                         instanceSet.Count = instanceIndex + 1;
                         MapData.PropInstance instance = new MapData.PropInstance()
@@ -795,17 +791,16 @@ public class MapEditor : Editor {
 
     void RebuildPropMeshes()
     {
-        Camera povCamera = map.POVCamera;
-        if (povCamera == null) povCamera = SceneView.currentDrawingSceneView.camera;
-        Vector3 pov = povCamera != null ? povCamera.transform.position : default(Vector3);
+        Transform povTransform = map.POVTransform;
+        if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
+        Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
         pov = map.transform.InverseTransformPoint(pov);
         data.RefreshPropMeshes(pov, lodScale);//TODO parallel?
     }
 
     #region Selection
-    void HandleSelection(MapData.InstanceSet instanceSet)
+    void SelectionOnSceneHandler(MapData.InstanceSet instanceSet)
     {
-
         if (instanceSelection != null && instanceSet.instancePositions.Length != instanceSet.Count) Debug.LogWarning("Outdated positions");
         if (instanceSelection != null && instanceSelection.Length >= instanceSet.Count && instanceSet.instancePositions.Length == instanceSet.Count)
         {
@@ -815,34 +810,30 @@ public class MapEditor : Editor {
                 MapData.PropInstance inst = instanceSet.Instances[i];
                 Vector3 position = instanceSet.instancePositions[i];
                 float handleSize = HandleUtility.GetHandleSize(position) * 0.05f;
-                //Handles.DrawLine(inst.position, inst.position + Vector3.up * 2);
-                //Handles.DrawWireDisc(inst.position, Vector3.up, inst.size);
 
-                //bool click = Handles.Button(position, Quaternion.identity, handleSize, handleSize, Handles.DotHandleCap);//This should be called outside of repaint too!!!
                 if (instanceSelection[i])
                 {
-                    Handles.DotHandleCap(-1, position, Quaternion.identity, handleSize, EventType.Repaint);
                     meanPosition += inst.position;
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        Handles.DotHandleCap(-1, position, Quaternion.identity, handleSize, EventType.Repaint);
+                    }
                 }
             }
             if (selectionCount > 0) meanPosition *= 1f / selectionCount;
-            if (true/* TODO transformSelection */)
+            //TODO if (transformSelectionHandle)
             {
                 Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);//TODO use different handle?
 
                 if (newPosition != meanPosition)
                 {
                     Vector3 deltaPosition = newPosition - meanPosition;
-                    Debug.LogFormat("({0}, {1}, {2})", deltaPosition.x, deltaPosition.y, deltaPosition.z);
-                    //TODO do transform, paralelize?
                     MapData.PropInstance[] instances = instanceSet.Instances;
-                    for (int index = 0; index < instanceSet.Count; ++index)
+                    for (int index = 0; index < instanceSet.Count; ++index)//No need for parallelization here
                     {
-                        if (instanceSelection[index])
-                        {
-                            instances[index].position += deltaPosition;
-                        }
+                        if (instanceSelection[index]) instances[index].position += deltaPosition;
                     }
+
                     //data.RefreshPropMesh(0); //quick?
                     RebuildPropMeshes();//This recalculates positions
                 }
@@ -899,6 +890,7 @@ public class MapEditor : Editor {
         }
     }
 
+    //TODO improve selection handling
     bool[] instanceSelection = null;//TODO do I want an aux selection array?
     int selectionCount = 0;
 

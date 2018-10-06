@@ -424,7 +424,7 @@ public partial class MapData : ScriptableObject
 
             meshLOD.mesh.GetTriangles(auxTrianglesList, meshLOD.subMeshIndex);
             //meshLOD.mesh.GetIndices(auxIndicesList, subMesh);//TODO have many indices arrays / lists
-            Debug.Log("Checking instances "+instanceCount);
+            
             for (int j = 0; j < instanceCount; ++j)
             {
                 PropInstance instance = instances[j];
