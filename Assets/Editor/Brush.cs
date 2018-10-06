@@ -14,7 +14,7 @@ public class Brush
     public enum Mode { Set, Add, Substract, Average, Smooth }
     public enum Projection { Sphere, Vertical }
 
-    public Mode mode = Mode.Add;
+    public Mode mode = Mode.Set;
     public float opacity = 1f;
     public float size = 5f;
     public Projection projection = Projection.Sphere;

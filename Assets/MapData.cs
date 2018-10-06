@@ -61,19 +61,69 @@ public partial class MapData : ScriptableObject
         return new Vector3(position.x, heights[index], position.y);
     }
 
-    public float SampleHeight(float x, float y)
+    //public float SampleHeight(float x, float y)
+    //{
+    //    Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
+    //    int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
+    //    normalizedCoords.x += - Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
+    //    //normalizedCoords.y += 0.5f + 0.5f * ((Mathf.FloorToInt(normalizedCoords.x) + 0) & 1);
+    //    //Debug.Log(normalizedCoords.x +" "+normalizedCoords.y + " " + ((Mathf.FloorToInt(normalizedCoords.y) + 1) & 1));
+
+    //    int i = Mathf.FloorToInt(normalizedCoords.y);
+    //    int j = Mathf.FloorToInt(normalizedCoords.x);
+
+    //    if (i < 0 || i >= depth - 1) return 0;
+    //    if (j < 0 || j >= width - 1) return 0;
+    //    int index = i * width + j;
+
+    //    float dx = normalizedCoords.x - j;
+    //    float dy = normalizedCoords.y - i;
+    //    //TODO figure out which triangle we are in
+    //    //TODO optimize interpolation
+    //    if (oddToEven == 0)
+    //    {
+    //        float dXY = dx + dy;
+    //        if (dXY < 1f)
+    //        {
+    //            return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
+    //        }
+    //        else
+    //        {
+    //            return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
+    //        }
+    //    }
+    //    else
+    //    {
+    //        float dXY = 1 - dx + dy;
+    //        if (dx > dy)
+    //        {
+    //            return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
+    //        }
+    //        else
+    //        {
+    //            return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
+    //        }
+    //    }
+
+    //}
+
+    //Returns false if outside
+    private bool SampleInfo(float x, float y, out Vector3Int indices, out Vector3 barycentricCoordinate)
     {
+        indices = default(Vector3Int);
+        barycentricCoordinate = default(Vector3);
+
         Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
         int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
-        normalizedCoords.x += - Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
+        normalizedCoords.x += -Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
         //normalizedCoords.y += 0.5f + 0.5f * ((Mathf.FloorToInt(normalizedCoords.x) + 0) & 1);
         //Debug.Log(normalizedCoords.x +" "+normalizedCoords.y + " " + ((Mathf.FloorToInt(normalizedCoords.y) + 1) & 1));
 
         int i = Mathf.FloorToInt(normalizedCoords.y);
         int j = Mathf.FloorToInt(normalizedCoords.x);
 
-        if (i < 0 || i >= depth - 1) return 0;
-        if (j < 0 || j >= width - 1) return 0;
+        if (i < 0 || i >= depth - 1) return false;
+        if (j < 0 || j >= width - 1) return false;
         int index = i * width + j;
 
         float dx = normalizedCoords.x - j;
@@ -85,11 +135,15 @@ public partial class MapData : ScriptableObject
             float dXY = dx + dy;
             if (dXY < 1f)
             {
-                return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
+                indices = new Vector3Int(index, index + 1, index + width);
+                barycentricCoordinate = new Vector3(1 - dXY, dx, dy);
+                //return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
             }
             else
             {
-                return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
+                indices = new Vector3Int(index + width + 1, index + 1, index + width);
+                barycentricCoordinate = new Vector3(dXY - 1, 1 - dy, 1 - dx);
+                //return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
             }
         }
         else
@@ -97,14 +151,50 @@ public partial class MapData : ScriptableObject
             float dXY = 1 - dx + dy;
             if (dx > dy)
             {
-                return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
+                indices = new Vector3Int(index, index + 1, index + width + 1);
+                barycentricCoordinate = new Vector3(1 - dx, 1 - dXY, dy);
+                //return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
             }
             else
             {
-                return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
+                indices = new Vector3Int(index, index + width, index + width + 1);
+                barycentricCoordinate = new Vector3(1 - dy, dXY - 1, dx);
+                //return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
             }
         }
+        return true;
+    }
 
+    public float SampleHeight(float x, float y)
+    {
+        Vector3Int indices;
+        Vector3 barycentricCoordinate;
+        if (SampleInfo(x, y, out indices, out barycentricCoordinate))
+        {
+            return heights[indices.x] * barycentricCoordinate.x +
+                heights[indices.y] * barycentricCoordinate.y +
+                heights[indices.z] * barycentricCoordinate.z;
+        }
+        else
+        {
+            return 0f;
+        }
+    }
+
+    public Vector3 SampleNormals(float x, float y)
+    {
+        Vector3Int indices;
+        Vector3 barycentricCoordinate;
+        if (SampleInfo(x, y, out indices, out barycentricCoordinate))
+        {
+            return (normals[indices.x] * barycentricCoordinate.x +
+                normals[indices.y] * barycentricCoordinate.y +
+                normals[indices.z] * barycentricCoordinate.z).normalized;//TODO should be normalized?
+        }
+        else
+        {
+            return Vector3.up;
+        }
     }
 
     // There is no lighting in DrawMeshNow
@@ -118,7 +208,7 @@ public partial class MapData : ScriptableObject
     //        Graphics.DrawMeshNow(sharedTerrainMesh, matrix, 0);
     //    }
     //    //Graphics.DrawMesh(sharedTerrainMesh, matrix, TerrainMaterial, 0);//TODO vs MeshNow?
-        
+
     //    //TODO Draw props meshes
     //    for (int i = 0; i< meshesData.Length; ++i)
     //    {

@@ -131091,34 +131091,695 @@ MonoBehaviour:
   instanceLimit: 100
   instanceSets:
   - instances:
-    - position: {x: 11.401007, y: 0, z: 14.668788}
+    - position: {x: 21.33002, y: 0, z: 4.1848383}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 289.7863
+      rotation: 187.73979
       size: 1
-    - position: {x: 12.651568, y: 0, z: 8.9817705}
+    - position: {x: 18.63387, y: -0.3130989, z: 3.8530347}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 296.75137
+      rotation: 220.4725
       size: 1
-    - position: {x: 11.914301, y: 0, z: 16.25561}
+    - position: {x: 4.4962287, y: 0, z: -0.60160035}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 248.83336
+      rotation: 66.179184
       size: 1
-    - position: {x: 7.4061775, y: 0, z: 8.673964}
+    - position: {x: 9.172786, y: 0, z: 2.6195073}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 215.78932
+      rotation: 126.008064
       size: 1
-    - position: {x: 12.611944, y: 0, z: 13.467604}
+    - position: {x: 7.227225, y: 0, z: 10.991825}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 126.38321
+      rotation: 92.578514
       size: 1
-    - position: {x: 8.055664, y: 0, z: 15.566983}
+    - position: {x: 9.936649, y: 0, z: 10.252879}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 41.76968
-      size: 1
-    - position: {x: 6.68013, y: 0, z: 9.489813}
+      rotation: 66.177986
+      size: 0.99999934
+    - position: {x: 8.187289, y: 0, z: 12.575053}
       direction: {x: 0, y: 1, z: 0}
-      rotation: 30.985395
+      rotation: 65.27612
+      size: 1.0000001
+    - position: {x: 10.752562, y: 0, z: 8.62381}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 108.85339
+      size: 0.9999979
+    - position: {x: 4.051519, y: 0, z: 12.7395935}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 63.624603
       size: 1
+    - position: {x: 3.62199, y: 0, z: 9.231151}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 282.08463
+      size: 1.0000062
+    - position: {x: 2.6223145, y: 0, z: 13.188287}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 108.71795
+      size: 0.9999985
+    - position: {x: 5.3829546, y: 0, z: 13.458056}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 161.3227
+      size: 1
+    - position: {x: 9.592005, y: 0, z: 11.37665}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 65.883606
+      size: 0.9999985
+    - position: {x: 8.812351, y: 0, z: 13.01009}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 54.643047
+      size: 0.9999994
+    - position: {x: 18.589294, y: 0, z: 13.813302}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 136.78352
+      size: 1.0000004
+    - position: {x: 19.467672, y: 0, z: 14.416538}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 66.17907
+      size: 1.0000172
+    - position: {x: 12.914417, y: -0.3130989, z: 7.581484}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 66.17923
+      size: 1
+    - position: {x: 12.931961, y: 0, z: 11.568298}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 112.46485
+      size: 1.0000001
+    - position: {x: 18.652414, y: 0, z: 15.599105}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 66.17923
+      size: 1
+    - position: {x: 6.003201, y: 0, z: 6.954598}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 138.85722
+      size: 0.9999951
+    - position: {x: 4.0477433, y: 0, z: 8.124335}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 175.80943
+      size: 1.0000213
+    - position: {x: 12.579624, y: -0.3130989, z: 0.69081473}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 99.16959
+      size: 1
+    - position: {x: 16.75255, y: -0.3130989, z: 2.6659482}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 222.7085
+      size: 1.0000008
+    - position: {x: 16.76623, y: -0.3130989, z: 1.8584311}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 154.37164
+      size: 1.0000138
+    - position: {x: 15.747675, y: -0.3130989, z: 2.4281957}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 274.48056
+      size: 1.0000002
+    - position: {x: 13.766308, y: 0, z: 17.432028}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 88.105644
+      size: 1
+    - position: {x: 18.782465, y: 0, z: 17.041388}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 66.17923
+      size: 1
+    - position: {x: 16.397923, y: 0, z: 12.647465}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 107.37679
+      size: 1
+    - position: {x: 18.489025, y: 0, z: 11.70612}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 34.753696
+      size: 1
+    - position: {x: 17.335644, y: 0, z: 10.966524}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 190.35999
+      size: 1
+    - position: {x: 20.073177, y: 0, z: 13.410548}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 66.166595
+      size: 1
+    - position: {x: 16.426952, y: 0, z: 9.025686}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 267.90106
+      size: 1
+    - position: {x: 19.03996, y: -0.3130989, z: 4.1599627}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 213.80959
+      size: 1
+    - position: {x: 15.270136, y: -0.3130989, z: 4.5106983}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 152.1824
+      size: 1
+    - position: {x: 20.76271, y: 0, z: 7.1140847}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 139.58212
+      size: 1
+    - position: {x: 20.019821, y: -0.3130989, z: 6.145029}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 127.59446
+      size: 1
+    - position: {x: 20.585869, y: 0, z: 8.025451}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 105.64592
+      size: 1
+    - position: {x: 19.411232, y: 0, z: 9.015287}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 175.07603
+      size: 1
+    - position: {x: 16.149822, y: 0, z: 9.26779}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 85.37518
+      size: 1
+    - position: {x: 19.115715, y: 0, z: 8.284079}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 205.54453
+      size: 1
+    - position: {x: 17.25277, y: -0.3130989, z: 6.04401}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 155.89238
+      size: 1
+    - position: {x: 16.109121, y: -0.3130989, z: 2.3541372}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 170.57542
+      size: 1
+    - position: {x: 17.80685, y: -0.3130989, z: 1.9031656}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 206.81343
+      size: 1
+    - position: {x: 13.34965, y: -0.3130989, z: 2.5417821}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 103.57274
+      size: 1
+    - position: {x: 14.661743, y: -0.3130989, z: 5.140442}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 115.522385
+      size: 1
+    - position: {x: 15.43082, y: -0.3130989, z: 3.4241145}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 283.2469
+      size: 1
+    - position: {x: 16.490711, y: -0.3130989, z: 1.2406919}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 143.08205
+      size: 1
+    - position: {x: 15.066601, y: -0.3130989, z: 3.2878487}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 230.78888
+      size: 1
+    - position: {x: 17.979372, y: -0.3130989, z: 2.4745615}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 179.29979
+      size: 1
+    - position: {x: 17.692455, y: -0.3130989, z: 5.7618656}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 111.39908
+      size: 1
+    - position: {x: 13.272163, y: -0.3130989, z: 0.8904984}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 139.59514
+      size: 1
+    - position: {x: 15.847042, y: -0.3130989, z: 0.19772792}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 187.36308
+      size: 1
+    - position: {x: 16.290045, y: -0.3130989, z: 0.28094506}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 151.35988
+      size: 1
+    - position: {x: 20.119665, y: -0.3130989, z: 2.2610395}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 133.32309
+      size: 1
+    - position: {x: 17.262146, y: -0.3130989, z: 4.053051}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 154.23615
+      size: 1
+    - position: {x: 11.710646, y: -0.3130989, z: 5.1683083}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 113.80852
+      size: 1
+    - position: {x: 8.331096, y: 0, z: 5.010371}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 45.623753
+      size: 1
+    - position: {x: 10.051577, y: 0, z: 6.4344645}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 306.68408
+      size: 1
+    - position: {x: 18.650394, y: -0.3130989, z: 7.343419}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 118.41517
+      size: 1
+    - position: {x: 20.094727, y: 0, z: 9.260698}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 109.18559
+      size: 1
+    - position: {x: 15.598482, y: 0, z: 9.216169}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 270.36795
+      size: 1
+    - position: {x: 16.727013, y: -0.3130989, z: 7.0021353}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 211.88931
+      size: 1
+    - position: {x: 21.665138, y: 0, z: 6.8719187}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 104.40576
+      size: 1
+    - position: {x: 12.453512, y: 0, z: 8.596817}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 266.5759
+      size: 1
+    - position: {x: 26.774076, y: 0, z: 4.9814696}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 70.975006
+      size: 1
+    - position: {x: 22.32052, y: 0, z: 5.839319}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 337.67487
+      size: 1
+    - position: {x: 30.156822, y: 0, z: 3.5391135}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 199.41943
+      size: 1
+    - position: {x: 29.629665, y: 0, z: 0.005296111}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 357.30753
+      size: 1
+    - position: {x: 28.549847, y: 0, z: 0.48115513}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 37.433945
+      size: 1
+    - position: {x: 26.059608, y: 0, z: -0.21697131}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 213.38512
+      size: 1
+    - position: {x: 27.27207, y: 0, z: 3.2009287}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 200.38808
+      size: 1
+    - position: {x: 26.760302, y: 0, z: 2.343627}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 213.14458
+      size: 1
+    - position: {x: 26.525549, y: 0, z: 1.7270985}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 317.9441
+      size: 1
+    - position: {x: 31.029612, y: 0, z: 0.21804115}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 195.95277
+      size: 1
+    - position: {x: 29.884682, y: 0, z: -0.3745749}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 232.91408
+      size: 1
+    - position: {x: 28.969723, y: 0, z: 3.6429636}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 132.56302
+      size: 1
+    - position: {x: 27.402725, y: 0, z: 2.6304655}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 140.9174
+      size: 1
+    - position: {x: 28.99886, y: 0, z: -0.07191542}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 358.7282
+      size: 1
+    - position: {x: 27.192358, y: 0, z: 1.0772905}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 119.79699
+      size: 1
+    - position: {x: 25.05452, y: 0, z: 2.314714}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 282.40134
+      size: 1
+    - position: {x: 28.359238, y: 0, z: 0.6021776}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 90.56791
+      size: 1
+    - position: {x: 8.729774, y: 0, z: 18.558512}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 109.18167
+      size: 1
+    - position: {x: 7.1824436, y: 0, z: 20.332228}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 274.38574
+      size: 1
+    - position: {x: 4.808354, y: 0, z: 21.7431}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 288.18234
+      size: 1
+    - position: {x: 9.485072, y: 0, z: 22.610964}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 21.658003
+      size: 1
+    - position: {x: 11.743412, y: 0, z: 23.656971}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 89.46661
+      size: 1
+    - position: {x: 9.383782, y: 0, z: 16.501215}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 131.81303
+      size: 1
+    - position: {x: 13.602812, y: 0, z: 21.609175}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 340.9946
+      size: 1
+    - position: {x: 9.420004, y: 0, z: 14.439177}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 342.44873
+      size: 1
+    - position: {x: 12.112566, y: 0, z: 18.580708}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 37.46952
+      size: 1
+    - position: {x: 13.118929, y: 0, z: 22.129488}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 53.810783
+      size: 1
+    - position: {x: 14.183257, y: 0, z: 16.314974}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 38.36525
+      size: 1
+    - position: {x: 14.269756, y: 0, z: 11.596687}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 21.715897
+      size: 1
+    - position: {x: 12.828344, y: 0, z: 9.759113}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 17.210085
+      size: 1
+    - position: {x: 14.330045, y: 0, z: 19.148602}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 46.35351
+      size: 1
+    - position: {x: 18.951788, y: 0, z: 18.999155}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 262.3622
+      size: 1
+    - position: {x: 11.570876, y: 0, z: 18.498905}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 83.39676
+      size: 1
+    - position: {x: 3.7163637, y: 0, z: 20.085056}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 73.83496
+      size: 1
+    - position: {x: 11.257361, y: 0, z: 15.941005}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 239.0472
+      size: 1
+    - position: {x: 2.5099597, y: 0, z: 17.353022}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 110.24979
+      size: 1
+    - position: {x: 10.894418, y: 0, z: 15.412075}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 51.089348
+      size: 1
+    - position: {x: 6.062699, y: 0, z: 18.890978}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 146.32443
+      size: 1
+    - position: {x: 2.2717788, y: 0, z: 20.684294}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 218.79918
+      size: 1
+    - position: {x: 3.9498196, y: 0, z: 17.8044}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 356.2164
+      size: 1
+    - position: {x: 5.271577, y: 0, z: 16.21602}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 10.600649
+      size: 1
+    - position: {x: 6.317349, y: 0, z: 24.441858}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 7.1239047
+      size: 1
+    - position: {x: 10.037369, y: 0, z: 16.572441}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 239.49283
+      size: 1
+    - position: {x: 7.5685925, y: 0, z: 22.006762}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 315.75693
+      size: 1
+    - position: {x: 8.79085, y: 0, z: 12.009394}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 286.09363
+      size: 1
+    - position: {x: 7.733817, y: 0, z: 22.524454}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 105.05364
+      size: 1
+    - position: {x: 7.051327, y: 0, z: 24.162853}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 9.423824
+      size: 1
+    - position: {x: 16.62211, y: 0, z: 21.826553}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 134.42468
+      size: 1
+    - position: {x: 11.012611, y: 0, z: 22.226858}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 68.51225
+      size: 1
+    - position: {x: 23.608438, y: 0, z: 5.4193115}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 181.41104
+      size: 1
+    - position: {x: 21.496105, y: 0, z: 17.096498}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 76.36632
+      size: 1
+    - position: {x: 27.226723, y: 0, z: 8.879628}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 278.75262
+      size: 1
+    - position: {x: 25.04496, y: 0, z: 7.9522147}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 3.3410456
+      size: 1
+    - position: {x: 20.935038, y: 0, z: 13.268629}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 173.80803
+      size: 1
+    - position: {x: 21.05416, y: 0, z: 17.316454}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 2.0692065
+      size: 1
+    - position: {x: 19.93046, y: 0, z: 18.314018}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 248.38692
+      size: 1
+    - position: {x: 24.18632, y: 0, z: 11.4769535}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 226.24855
+      size: 1
+    - position: {x: 26.79261, y: 0, z: 9.414956}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 201.13986
+      size: 1
+    - position: {x: 20.726297, y: 0, z: 13.104355}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 166.56624
+      size: 1
+    - position: {x: 22.438625, y: 0, z: 13.309529}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 106.24265
+      size: 1
+    - position: {x: 21.148956, y: 0, z: 12.609414}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 301.0068
+      size: 1
+    - position: {x: 26.160349, y: 0, z: 9.286172}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 38.54734
+      size: 1
+    - position: {x: 26.823183, y: 0, z: 7.6774454}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 192.06918
+      size: 1
+    - position: {x: 26.963348, y: 0, z: 9.514889}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 4.6724086
+      size: 1
+    - position: {x: 25.91273, y: 0, z: 9.544191}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 110.22996
+      size: 1
+    - position: {x: 25.200178, y: 0, z: 8.498639}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 252.11273
+      size: 1
+    - position: {x: 26.797745, y: 0, z: 10.215871}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 221.8596
+      size: 1
+    - position: {x: 26.553413, y: 0, z: 3.9905872}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 342.7578
+      size: 1
+    - position: {x: 26.605139, y: 0, z: 8.267035}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 41.355076
+      size: 1
+    - position: {x: 0.1385706, y: 0, z: 27.92701}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 151.6323
+      size: 1
+    - position: {x: 6.0015445, y: 0, z: 37.01521}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 36.081425
+      size: 1
+    - position: {x: 4.1487756, y: 0, z: 25.90952}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 107.17868
+      size: 1
+    - position: {x: 8.088745, y: 0, z: 29.68435}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 235.2186
+      size: 1
+    - position: {x: 12.021605, y: 0, z: 26.539978}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 37.85576
+      size: 1
+    - position: {x: 9.34491, y: 0, z: 27.815441}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 0.33070567
+      size: 1
+    - position: {x: 2.8128877, y: 0, z: 36.53772}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 78.9748
+      size: 1
+    - position: {x: 6.9029326, y: 0, z: 25.96072}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 93.22948
+      size: 1
+    - position: {x: 3.266954, y: 0, z: 23.75593}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 20.427578
+      size: 1
+    - position: {x: 8.353276, y: 0, z: 28.859076}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 195.35732
+      size: 1
+    - position: {x: 9.34152, y: 0, z: 25.361319}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 151.32184
+      size: 1
+    - position: {x: 9.685601, y: 0, z: 28.92014}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 105.48374
+      size: 1
+    - position: {x: 8.73486, y: 0, z: 32.31701}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 33.31879
+      size: 1
+    - position: {x: 34.303204, y: 0, z: 18.596827}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 285.72537
+      size: 1
+    - position: {x: 32.33779, y: 0, z: 16.401194}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 31.277134
+      size: 1
+    - position: {x: 36.204334, y: 0, z: 19.36368}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 171.25967
+      size: 1
+    - position: {x: 35.02621, y: 0, z: 19.91524}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 267.7244
+      size: 1
+    - position: {x: 32.977337, y: 0, z: 17.433538}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 105.806076
+      size: 1
+    - position: {x: 33.981518, y: 0, z: 20.46693}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 41.03845
+      size: 1
+    - position: {x: 36.95638, y: 0, z: 19.00918}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 139.11484
+      size: 1
+    - position: {x: 29.45428, y: 0, z: 18.072195}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 128.42792
+      size: 1
+    - position: {x: 34.77699, y: 0, z: 22.091444}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 20.65563
+      size: 1
+    - position: {x: 34.10497, y: 0, z: 20.102922}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 222.49127
+      size: 1
+    - position: {x: 33.226284, y: 0, z: 14.604921}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 283.61258
+      size: 1
+    - position: {x: 35.576183, y: 0, z: 18.302279}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 349.914
+      size: 1
+    - position: {x: 36.749744, y: 0, z: 15.458408}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 164.8516
+      size: 1
+    - position: {x: 32.936745, y: 0, z: 18.013868}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 59.69804
+      size: 1
+    - position: {x: 32.057415, y: 0, z: 18.023012}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 16.684801
+      size: 1
+    - position: {x: 23.359789, y: 0, z: 74.50803}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 191.24054
+      size: 1
+    - position: {x: 28.938131, y: 0, z: 47.466183}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 336.50867
+      size: 1
+    - position: {x: 29.306826, y: 0, z: 22.339237}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 333.6134
+      size: 1
+    - position: {x: 30.882565, y: 0, z: 19.322222}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 88.025345
+      size: 1
+    - position: {x: 32.06474, y: 0, z: 48.312813}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 130.00424
+      size: 1
+    - position: {x: 34.168804, y: 0, z: 21.4418}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 215.4768
+      size: 1
+    - position: {x: 30.19165, y: 0, z: 20.287836}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 256.50778
+      size: 1
+    - position: {x: 34.231907, y: 0, z: 22.312948}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 273.23615
+      size: 1
+    - position: {x: 33.703667, y: 0, z: 21.769138}
+      direction: {x: 0, y: 1, z: 0}
+      rotation: 124.55575
+      size: 1
+    - position: {x: 0, y: 0, z: 0}
+      direction: {x: 0, y: 0, z: 0}
+      rotation: 0
+      size: 0
+    - position: {x: 0, y: 0, z: 0}
+      direction: {x: 0, y: 0, z: 0}
+      rotation: 0
+      size: 0
+    count: 170
   meshesData:
   - variants:
     - meshLODs:

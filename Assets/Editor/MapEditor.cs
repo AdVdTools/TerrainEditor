@@ -34,7 +34,9 @@ public class MapEditor : Editor {
     //    new GUIContent("Scale"), new GUIContent("Rotation")
     //};
 
+        //TODO record editor values for undo?
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
+    private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
 
 
@@ -61,6 +63,8 @@ public class MapEditor : Editor {
         {
             threadsData[i] = new ThreadData();
         }
+
+        InvalidateSelection();
     }
 
     private void OnDisable()
@@ -77,9 +81,15 @@ public class MapEditor : Editor {
     {
         data.RebuildParallel(8);
         data.RefreshPropMeshes();
+
+        InvalidateSelection();
     }
 
     readonly GUIContent editButtonContent = new GUIContent("Edit");
+    readonly GUIContent applyGUIContent = new GUIContent("Apply To Selection");
+    readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
+    readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
+    readonly GUIContent amountGUIContent = new GUIContent("Amount");
 
     public override void OnInspectorGUI()
     {
@@ -106,7 +116,7 @@ public class MapEditor : Editor {
                     ColorMath.mask = Brush.currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
                     break;
                 case PROPS_TARGET:
-                    currentInstanceSetIndex = Mathf.Clamp(EditorGUILayout.IntField(new GUIContent("Instance Set"), currentInstanceSetIndex), 0, data.instanceSets.Length - 1);
+                    currentInstanceSetIndex = Mathf.Clamp(EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex), 0, data.instanceSets.Length - 1);
                     //TODO use rand value inspector separate from brush inspector, for add (all fields), set (target field/all fields with mask!) and smooth (separation)
                     switch (Brush.currentBrush.mode)
                     {
@@ -119,7 +129,7 @@ public class MapEditor : Editor {
                             //if (instanceProperty == SIZE_PROPERTY && Brush.currentBrush.floatValue < 0f) Brush.currentBrush.floatValue = 0f;
                             break;
                         case Brush.Mode.Add:
-                            EditorGUILayout.LabelField(new GUIContent("Amount"), GUI.skin.button);
+                            EditorGUILayout.LabelField(amountGUIContent, GUI.skin.button);
                             Brush.currentBrush.currentValueType = Brush.ValueType.Int;//TODO do others?
                             Brush.currentBrush.DrawBrushValueInspector(true, false);
                             if (Brush.currentBrush.intValue <= 0) Brush.currentBrush.intValue = 1;
@@ -128,12 +138,12 @@ public class MapEditor : Editor {
                             break;
                         case Brush.Mode.Substract:
                             GUI.enabled = false;
-                            EditorGUILayout.LabelField(new GUIContent(""), GUI.skin.button);
+                            EditorGUILayout.LabelField(GUIContent.none, GUI.skin.button);
                             GUI.enabled = true;
                             break;
                         default:
                             GUI.enabled = false;
-                            EditorGUILayout.LabelField(new GUIContent(""), GUI.skin.button);
+                            EditorGUILayout.LabelField(GUIContent.none, GUI.skin.button);
                             GUI.enabled = true;
                             break;
                     }
@@ -142,7 +152,29 @@ public class MapEditor : Editor {
                     //TODO Draw warn box if mode does nothing
                     //TODO Props instance set selector
                     break;
+                case SELECT_TARGET:
+                    int instanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);//TODO GUIContent
+                    if (instanceSetIndex != currentInstanceSetIndex) InvalidateSelection();
+                    currentInstanceSetIndex = Mathf.Clamp(instanceSetIndex, 0, data.instanceSets.Length - 1);
                     //TODO toggle in select mode to autoapply instanceValues to selection & button for single time apply
+                    
+
+                    instanceValues.DoInstancePropertiesInspector();
+                    if (GUI.changed && autoApplyValues) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
+                    EditorGUILayout.BeginHorizontal();
+                    GUI.enabled = !autoApplyValues;
+                    bool applyToSelection = GUILayout.Button(applyGUIContent, EditorStyles.miniButton);
+                    if (applyToSelection) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
+                    GUI.enabled = true;
+                    autoApplyValues = EditorGUILayout.ToggleLeft(autoApplyGUIContent, autoApplyValues);
+                    EditorGUILayout.EndHorizontal();
+
+
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)));
+                    EditorGUILayout.EndHorizontal();
+                    break;
             }
         }
 
@@ -187,8 +219,6 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            bool editingCursorHandles = instanceValues.DoCursorHandles();
-
             //TODO sometimes MouseMove wont reach
             //Debug.Log(Event.current.type);
             if (Event.current.type == EventType.Repaint)
@@ -203,6 +233,7 @@ public class MapEditor : Editor {
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
             {
+                Debug.Log("Move");
                 Repaint();
             }
             if (Event.current.type == EventType.Repaint)
@@ -221,75 +252,86 @@ public class MapEditor : Editor {
                     shouldApplyBrush = false;
                 }
             }
-
-            if (!editingCursorHandles) { 
-                switch (Brush.currentBrush.CheckBrushEvent())
+            if (brushTarget == PROPS_TARGET || brushTarget == SELECT_TARGET)
+            {
+                if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
-                    case BrushEvent.BrushDraw:
-                        Mesh mesh = data.sharedTerrainMesh;
-                        if (mesh != null)
-                        {
-                            Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
+                    MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+                    HandleSelection(instanceSet);
+                }
+            }
+            else
+            {
+                InvalidateSelection();
+            }
 
-                            brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+            switch (Brush.currentBrush.CheckBrushEvent())
+            {
+                case BrushEvent.BrushDraw:
+                    Mesh mesh = data.sharedTerrainMesh;
+                    if (mesh != null)
+                    {
+                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
+
+                        brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+                        if (brushTarget != SELECT_TARGET)
+                        {
                             brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
                             brushProjectorMaterial.SetTexture(mainTexID, Brush.currentBrush.currentTexture);
                             brushProjectorMaterial.SetPass(0);
                             //TODO move material to brush class?
-                            Graphics.DrawMeshNow(data.sharedTerrainMesh, matrix, 0);
                         }
-                        if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+                        else
                         {
-                            for (int i = 0; i < data.instanceSets[currentInstanceSetIndex].Count; ++i)
-                            {
-                                MapData.PropInstance inst = data.instanceSets[currentInstanceSetIndex].Instances[i];
-                                Handles.DrawLine(inst.position, inst.position + Vector3.up * 2);
-                                Handles.DrawWireDisc(inst.position, Vector3.up, inst.size);
-                            }
+                            brushProjectorMaterial.SetFloat(opacityID, 0f);
+                            brushProjectorMaterial.SetPass(1);
                         }
-                        //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaintStart:
-                        shouldApplyBrush = true;
+                        Graphics.DrawMeshNow(data.sharedTerrainMesh, matrix, 0);
+                    }
+                    
+                    //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaintStart:
+                    shouldApplyBrush = true;
 
-                        Undo.RegisterCompleteObjectUndo(data, "Map Paint");
-                        //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaint:
-                        // BrushApply moved to Repaint since Raycast is too expensive to be used on MouseDrag
-                        shouldApplyBrush = true;
-                        //Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushPaintEnd:
-                        data.RebuildParallel(8);
-                        data.RefreshPropMeshes();//TODO do parallel method?
-                                                 // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
-                                                 // but will once some other event happens (such as right click)
-                                                 // first click outside of the scene window wont work either
+                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");
+                    //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaint:
+                    // BrushApply moved to Repaint since Raycast is too expensive to be used on MouseDrag
+                    shouldApplyBrush = true;
+                    //Debug.LogWarningFormat("Paint {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushPaintEnd:
+                    data.RebuildParallel(8);
+                    data.RefreshPropMeshes();//TODO do parallel method?
+                                                // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
+                                                // but will once some other event happens (such as right click)
+                                                // first click outside of the scene window wont work either
 
-                        //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
-                        break;
-                    case BrushEvent.BrushChanged:
+                    //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
+                    break;
+                case BrushEvent.BrushChanged:
+                    Repaint();
+                    break;
+                case BrushEvent.ValuePick:
+                    if (rayHits)
+                    {
+                        switch (brushTarget)
+                        {
+                            case HEIGHT_TARGET:
+                                Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
+                                break;
+                            case COLOR_TARGET:
+                                Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
+                                break;
+                        }
+                        Brush.currentBrush.AcceptPeekValue();
                         Repaint();
-                        break;
-                    case BrushEvent.ValuePick:
-                        if (rayHits)
-                        {
-                            switch (brushTarget)
-                            {
-                                case HEIGHT_TARGET:
-                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
-                                    break;
-                                case COLOR_TARGET:
-                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
-                                    break;
-                            }
-                            Brush.currentBrush.AcceptPeekValue();
-                            Repaint();
-                        }
-                        break;
-                }
+                    }
+                    break;
             }
+            
 
             Handles.BeginGUI();
             if (Event.current.type == EventType.Repaint || Event.current.type == EventType.Layout)
@@ -388,6 +430,20 @@ public class MapEditor : Editor {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
                     data.RecalculateInstancePositions(1, instanceSet, data);
                     ApplyBrush(data.Vertices, instanceSet, auxInstanceSet);
+                    data.RecalculateInstancePositions(1, instanceSet, data);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
+                }
+                break;
+            case SELECT_TARGET:
+                if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+                {
+                    MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+                    data.RecalculateInstancePositions(1, instanceSet, data);
+                    ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);
+                    if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
                 }
                 else
                 {
@@ -551,7 +607,6 @@ public class MapEditor : Editor {
         Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
-        int pointCount = vertices.Length;
         //TODO check null vertices?
 
         //if (auxInstanceSet == null) auxInstanceSet = new MapData.InstanceSet();
@@ -580,13 +635,16 @@ public class MapEditor : Editor {
                         //TODO Instances as array?
                         int instanceIndex = instanceCount;
                         instanceSet.Count = instanceIndex + 1;
-                        instanceSet.Instances[instanceIndex] = new MapData.PropInstance()
+                        MapData.PropInstance instance = new MapData.PropInstance()
                         {
                             position = position,
                             direction = Vector3.up,
                             rotation = UnityEngine.Random.value * 360f,
                             size = 1f
                         };
+                        Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
+                        instance = instanceValues.ApplyValues(instance, normal, strength);
+                        instanceSet.Instances[instanceIndex] = instance;
                     }
                 }
                 break;
@@ -619,7 +677,8 @@ public class MapEditor : Editor {
                         MapData.PropInstance instance = instanceSet.Instances[index];
                         //TODO this will become a mesh, optimize!
                         //TODO mind that properties might be disabled!
-                        instance = instanceValues.ApplyValues(instance, strength);
+                        Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
+                        instance = instanceValues.ApplyValues(instance, normal, strength);
 
                         //instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;
                         //instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
@@ -742,4 +801,211 @@ public class MapEditor : Editor {
         //Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
         
     }
+
+    #region Selection
+    void HandleSelection(MapData.InstanceSet instanceSet)
+    {
+
+        if (instanceSelection != null && instanceSet.instancePositions.Length != instanceSet.Count) Debug.LogWarning("Outdated positions");
+        if (instanceSelection != null && instanceSelection.Length >= instanceSet.Count && instanceSet.instancePositions.Length == instanceSet.Count)
+        {
+            Vector3 meanPosition = default(Vector3);
+            for (int i = 0; i < instanceSet.Count; ++i)
+            {
+                MapData.PropInstance inst = instanceSet.Instances[i];
+                Vector3 position = instanceSet.instancePositions[i];
+                float handleSize = HandleUtility.GetHandleSize(position) * 0.05f;
+                //Handles.DrawLine(inst.position, inst.position + Vector3.up * 2);
+                //Handles.DrawWireDisc(inst.position, Vector3.up, inst.size);
+
+                //bool click = Handles.Button(position, Quaternion.identity, handleSize, handleSize, Handles.DotHandleCap);//This should be called outside of repaint too!!!
+                if (instanceSelection[i])
+                {
+                    Handles.DotHandleCap(-1, position, Quaternion.identity, handleSize, EventType.Repaint);
+                    meanPosition += inst.position;
+                }
+            }
+            if (selectionCount > 0) meanPosition *= 1f / selectionCount;
+            if (true/* TODO transformSelection */)
+            {
+                Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);//TODO use different handle?
+
+                if (newPosition != meanPosition)
+                {
+                    Vector3 deltaPosition = newPosition - meanPosition;
+                    Debug.LogFormat("({0}, {1}, {2})", deltaPosition.x, deltaPosition.y, deltaPosition.z);
+                    //TODO do transform, paralelize?
+                    MapData.PropInstance[] instances = instanceSet.Instances;
+                    for (int index = 0; index < instanceSet.Count; ++index)
+                    {
+                        if (instanceSelection[index])
+                        {
+                            instances[index].position += deltaPosition;
+                        }
+                    }
+                    //data.RefreshPropMesh(0); //quick?
+                    data.RefreshPropMeshes();//This recalculates positions
+                }
+            }
+        }
+        if (Event.current.type == EventType.KeyDown && Event.current.shift && Event.current.keyCode == KeyCode.A)
+        {
+            if (instanceSelection != null && Array.TrueForAll(instanceSelection, selected => selected))// All selected
+            {
+                ResetSelection();
+            }
+            else
+            {
+                SelectAll();
+            }
+            Repaint();
+            Event.current.Use();
+        }
+    }
+
+    void InvalidateSelection()
+    {
+        instanceSelection = null;
+        selectionCount = 0;
+    }
+
+    void ResetSelection()
+    {
+        if (instanceSelection == null) InitializeSelection();
+        for (int i = 0; i < instanceSelection.Length; ++i) instanceSelection[i] = false;
+        selectionCount = 0;
+    }
+
+    void SelectAll()
+    {
+        if (instanceSelection == null) InitializeSelection();
+        for (int i = 0; i < instanceSelection.Length; ++i) instanceSelection[i] = true;
+        selectionCount = instanceSelection.Length;
+    }
+
+    void InitializeSelection()
+    {
+        if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+        {
+            MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+
+            int instanceCount = instanceSet.Count;
+            instanceSelection = new bool[instanceCount];
+            selectionCount = 0;
+        }
+        else
+        {
+            InvalidateSelection();
+        }
+    }
+
+    bool[] instanceSelection = null;//TODO do I want an aux selection array?
+    int selectionCount = 0;
+
+    void ApplySelectionBrush(MapData.InstanceSet instanceSet)
+    {
+        Brush brush = Brush.currentBrush;
+        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
+        Vector3[] instancePositions = instanceSet.instancePositions;
+        int instanceCount = instanceSet.Count;
+
+        //TODO check null instances?
+
+        if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
+        if (instanceSelection == null) return;//Could not initialize
+
+        //TODO is this slower?
+        int instancesPerThread = (instanceCount - 1) / threads + 1;
+        for (int i = 0; i < threads; ++i)
+        {
+            ThreadData threadData = threadsData[i];
+            threadData.Reset(i * instancesPerThread, Mathf.Min((i + 1) * instancesPerThread, instanceCount));
+            //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
+            ThreadPool.QueueUserWorkItem((d) =>
+            {
+                ThreadData td = (ThreadData)d;
+                //ThreadData td = threadData;
+                switch (brush.mode)
+                {
+                    case Brush.Mode.Add:
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = instancePositions[index];
+                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                            float sqrDist = projOffset.sqrMagnitude;
+                            if (sqrDist <= 1f) instanceSelection[index] = true;
+                            //else auxArray[index] = srcArray[index];
+                        }
+                        break;
+                    case Brush.Mode.Substract:
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = instancePositions[index];
+                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                            float sqrDist = projOffset.sqrMagnitude;
+                            if (sqrDist <= 1f) instanceSelection[index] = false;
+                            //else auxArray[index] = srcArray[index];
+                        }
+                        break;
+                    case Brush.Mode.Set:
+                        for (int index = td.startIndex; index < td.endIndex; ++index)
+                        {
+                            Vector3 vertex = instancePositions[index];
+                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                            float sqrDist = projOffset.sqrMagnitude;
+                            if (sqrDist <= 1f) instanceSelection[index] = true;
+                            else instanceSelection[index] = false;
+                        }
+                        break;
+                }
+                td.mre.Set();
+            }, threadData);
+        }
+        foreach (var threadData in threadsData)
+        {
+            threadData.mre.WaitOne();
+        }
+
+        //Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        selectionCount = 0;
+        for (int i = 0; i < instanceSelection.Length; ++i) if (instanceSelection[i]) selectionCount++;
+    }
+
+    void ApplyPropertiesToSelection(MapData.InstanceSet instanceSet)
+    {
+        data.RecalculateInstancePositions(1, instanceSet, data);
+        
+
+        float rand, strength;
+        int instanceCount = instanceSet.Count;
+
+        if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
+        if (instanceSelection == null) return;//Could not initialize
+
+        for (int index = 0; index < instanceSet.Count; ++index)
+        {
+            Vector3 position = instanceSet.instancePositions[index];
+            
+            if (instanceSelection[index])
+            {
+                MapData.PropInstance instance = instanceSet.Instances[index];
+                //TODO this will become a mesh, optimize!
+                //TODO mind that properties might be disabled!
+                Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
+                instance = instanceValues.ApplyValues(instance, normal, 1f);
+
+                //instance.size += (Brush.currentBrush.floatValue - instance.size) * strength;
+                //instance.rotation += (Brush.currentBrush.floatValue - instance.rotation) * strength;
+
+
+
+                instanceSet.Instances[index] = instance;
+            }
+        }
+
+
+        data.RefreshPropMeshes();//
+    }
+
+    #endregion
 }
