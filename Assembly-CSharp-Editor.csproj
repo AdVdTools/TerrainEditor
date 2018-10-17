@@ -70,6 +70,8 @@
     <Compile Include="Assets\Editor\MapPropsInstanceValues.cs" />
     <Compile Include="Assets\Editor\MathHandlers.cs" />
     <Compile Include="Assets\Editor\MeshSpawner.cs" />
+    <Compile Include="Assets\Editor\PropDitherPatternEditor.cs" />
+    <None Include="Assets\Editor\GridShader.shader" />
     <None Include="Assets\Editor\BrushProjector.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>

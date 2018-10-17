@@ -19,6 +19,9 @@ public class MapPropsInstanceValues {
     public int scaleState;
     public float minScale = 1f, maxScale = 1.2f;
 
+    public int yOffsetState;
+    public float minYOffset = 0f, maxYOffset = 0;
+
     public int rotationState;
     public float minRotation = 0f, maxRotation = 360f;
 
@@ -39,6 +42,7 @@ public class MapPropsInstanceValues {
     //private readonly static Color alignColor = new Color(0.5f, 0.9f, 0.5f);
 
     private static readonly GUIContent scaleGUIContent = new GUIContent("Scale");
+    private static readonly GUIContent yOffsetGUIContent = new GUIContent("Y Offset");
     private static readonly GUIContent rotationGUIContent = new GUIContent("Rotation");
     private static readonly GUIContent alignmentGUIContent = new GUIContent("Normal Aligned");
     private static readonly GUIContent directionGUIContent = new GUIContent("Direction");
@@ -60,11 +64,14 @@ public class MapPropsInstanceValues {
         EditorGUILayout.LabelField(scaleGUIContent, EditorStyles.boldLabel);
         InstancePropertyInspector(ref scaleState, ref minScale, ref maxScale, 0f, float.MaxValue);
 
+        //Y Offset
+        EditorGUILayout.LabelField(yOffsetGUIContent, EditorStyles.boldLabel);
+        InstancePropertyInspector(ref yOffsetState, ref minYOffset, ref maxYOffset, float.MinValue, float.MaxValue);
+        
         //Rotation
         EditorGUILayout.LabelField(rotationGUIContent, EditorStyles.boldLabel);
         InstancePropertyInspector(ref rotationState, ref minRotation, ref maxRotation, -360f, 360);
         
-
         //Vertical vs Normal aligned
         EditorGUILayout.LabelField(alignmentGUIContent, EditorStyles.boldLabel);
         InstancePropertyInspector(ref alignmentState, ref minAlignment, ref maxAlignment, 0f, 1f);
@@ -231,6 +238,17 @@ public class MapPropsInstanceValues {
                 targetScale += (maxScale - minScale) * Random.value;
             }
             instance.size += (targetScale - instance.size) * strength;
+        }
+
+
+        if (yOffsetState != DISABLED_STATE)
+        {
+            float targetYOffset = minYOffset;//TODO rename to size or rename size
+            if (yOffsetState == RANGE_STATE)
+            {
+                targetYOffset += (maxYOffset - minYOffset) * Random.value;
+            }
+            instance.position.y += (targetYOffset - instance.position.y) * strength;
         }
 
 

@@ -612,6 +612,7 @@ public class MapEditor : Editor {
     //}
 
 
+        //TODO individual prop brush vs density props brush!!!!
 
     void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)
     {
@@ -627,7 +628,7 @@ public class MapEditor : Editor {
         int instanceCount = instanceSet.Count;
         switch (brush.mode)
         {
-            case Brush.Mode.Add:
+            case Brush.Mode.Add://TODO min separation/size variable instead of amount, along with brush density
                 instanceSet.EnsureCapacity(instanceSet.Count + Brush.currentBrush.intValue * 2);//TODO greater margin?
                 for (int i = 0; i < Brush.currentBrush.intValue; ++i)
                 {
@@ -636,14 +637,12 @@ public class MapEditor : Editor {
                     position.y = data.SampleHeight(position.x, position.z);
                     rand = UnityEngine.Random.value;
                     strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
-                    Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
+                    //Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
                     
                     if (rand < strength)
                     {
-                        Debug.Log(rand + " < " + strength);
-                        position.y = 0;//TODO random heightOff?
-                        int instanceIndex = instanceCount;
-                        instanceSet.Count = instanceIndex + 1;
+                        //Debug.Log(rand + " < " + strength);
+                        position.y = 0;
                         MapData.PropInstance instance = new MapData.PropInstance()
                         {
                             position = position,
@@ -653,7 +652,8 @@ public class MapEditor : Editor {
                         };
                         Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                         instance = instanceValues.ApplyValues(instance, normal, strength);
-                        instanceSet.Instances[instanceIndex] = instance;
+                        instanceSet.Instances[instanceCount] = instance;
+                        instanceSet.Count = instanceCount = instanceCount + 1;
                     }
                 }
                 break;
@@ -793,8 +793,7 @@ public class MapEditor : Editor {
     {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
-        Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
-        pov = map.transform.InverseTransformPoint(pov);
+        Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
         data.RefreshPropMeshes(pov, lodScale);//TODO parallel?
     }
 

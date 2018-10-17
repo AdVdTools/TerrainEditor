@@ -41,7 +41,7 @@ public class Map : MonoBehaviour
         if (mapData != null)
         {
             Transform povTransform = this.povTransform;
-            if (povTransform == null) povTransform = Camera.main.transform;
+            if (povTransform == null) { Camera mainCam = Camera.main; povTransform = mainCam != null ? mainCam.transform : null; }
             Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
             pov = transform.InverseTransformPoint(pov);
             Debug.Log(pov);

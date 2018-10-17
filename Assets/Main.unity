@@ -412,7 +412,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!81 &1525946399
 AudioListener:
   m_ObjectHideFlags: 0
@@ -512,6 +512,7 @@ MonoBehaviour:
   mapData: {fileID: 11400000, guid: 9304adef6d6d9cf4fbf9b93dbc9677aa, type: 2}
   propsMeshFilters:
   - {fileID: 2010797474}
+  povTransform: {fileID: 0}
 --- !u!33 &1536647478
 MeshFilter:
   m_ObjectHideFlags: 0
