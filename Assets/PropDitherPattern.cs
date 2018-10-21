@@ -5,6 +5,8 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "Dither Pattern")]
 public class PropDitherPattern : ScriptableObject
 {
+    public const float CellSize = 32f;
+
     public int amount = 255;
 
     public float minR = 1f, maxR = 1.5f;

@@ -10,6 +10,7 @@ public class Map : MonoBehaviour
     MeshFilter meshFilter;
 
     [SerializeField] MeshFilter[] propsMeshFilters = new MeshFilter[0];
+    [SerializeField] MeshFilter[] densityPropsMeshFilters = new MeshFilter[0];
     [SerializeField] Transform povTransform;
 
     public MapData Data { get { return mapData; } }
@@ -38,6 +39,7 @@ public class Map : MonoBehaviour
     public void RefreshProps()
     {
         MapData.MeshData[] meshesData = mapData.meshesData;
+        MapData.DensityPropsMeshData[] densityPropsMeshData = mapData.densityPropsMeshData;
         if (mapData != null)
         {
             Transform povTransform = this.povTransform;
@@ -46,7 +48,7 @@ public class Map : MonoBehaviour
             pov = transform.InverseTransformPoint(pov);
             Debug.Log(pov);
             mapData.RefreshPropMeshes(pov, 1f);
-            int count = Mathf.Min(mapData.meshesData.Length, propsMeshFilters.Length);
+            int count = Mathf.Min(meshesData.Length, propsMeshFilters.Length);
             for (int i = 0; i < count; ++i)
             {
                 MeshFilter meshFilter = propsMeshFilters[i];
@@ -54,12 +56,27 @@ public class Map : MonoBehaviour
                 MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
                 meshRenderer.sharedMaterial = meshesData[i].sharedMaterial;
             }
+
+            mapData.BkgRefreshDensityPropMeshes(pov, 1f);
+            count = Mathf.Min(densityPropsMeshData.Length, densityPropsMeshFilters.Length);
+            for (int i = 0; i < count; ++i)
+            {
+                MeshFilter meshFilter = densityPropsMeshFilters[i];
+                meshFilter.sharedMesh = densityPropsMeshData[i].sharedMesh;
+                MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
+                meshRenderer.sharedMaterial = densityPropsMeshData[i].sharedMaterial;
+            }
         }
         else
         {
             for (int i = 0; i < propsMeshFilters.Length; ++i)
             {
                 MeshFilter meshFilter = propsMeshFilters[i];
+                meshFilter.sharedMesh = null;
+            }
+            for (int i = 0; i < densityPropsMeshFilters.Length; ++i)
+            {
+                MeshFilter meshFilter = densityPropsMeshFilters[i];
                 meshFilter.sharedMesh = null;
             }
         }

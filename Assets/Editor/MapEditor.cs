@@ -19,15 +19,17 @@ public class MapEditor : Editor {
     private const int COLOR_TARGET = 1;
     private const int PROPS_TARGET = 2;
     private const int SELECT_TARGET = 3;
+    private const int DENSITY_PROPS_TARGET = 4;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select")
+        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Props")
     };
     
     float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
+    private static int currentDensityMapIndex;
 
 
     private void OnEnable()
@@ -78,6 +80,7 @@ public class MapEditor : Editor {
     readonly GUIContent applyGUIContent = new GUIContent("Apply To Selection");
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
+    readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
     readonly GUIContent amountGUIContent = new GUIContent("Amount");
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
@@ -162,6 +165,14 @@ public class MapEditor : Editor {
                     GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)), EditorStyles.miniLabel);
                     EditorGUILayout.EndHorizontal();
                     break;
+
+                case DENSITY_PROPS_TARGET:
+                    DrawDensityMapSelector();
+                    //TODO inspector for prop randomness
+
+                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;
+                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    break;
             }
             Brush.currentBrush.HandleBrushShortcuts();//TODO check working properly
         }
@@ -174,7 +185,8 @@ public class MapEditor : Editor {
         { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
         { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
         { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") },
-        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }
+        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") },
+        { new GUIContent("Set Density"), new GUIContent("Increase Density"), new GUIContent("Reduce Density"), new GUIContent("Average Density"), new GUIContent("Smooth Density") }
     };
 
     private void DrawHelp()
@@ -194,6 +206,12 @@ public class MapEditor : Editor {
             InvalidateSelection();
         }
         currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
+    }
+
+    private void DrawDensityMapSelector()
+    {
+        int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
+        currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityPropsMeshData.Length - 1);
     }
 
     #region StopWatches
@@ -237,6 +255,8 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
+
+                RebuildDensityPropMeshes();
             }
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
@@ -336,6 +356,17 @@ public class MapEditor : Editor {
                             case COLOR_TARGET:
                                 Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
                                 break;
+                            case DENSITY_PROPS_TARGET:
+                                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityPropsMeshData.Length)
+                                {
+                                    MapData.DensityPropsMeshData dpMeshData = data.densityPropsMeshData[currentDensityMapIndex];
+                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(dpMeshData.densityMap, data.Indices, FloatMath.sharedHandler));
+                                }
+                                else
+                                {
+                                    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
+                                }
+                                break;
                         }
                         Brush.currentBrush.AcceptPeekValue();
                         Repaint();
@@ -421,6 +452,7 @@ public class MapEditor : Editor {
 
     float[] auxHeights = null;
     Color[] auxColors = null;
+    float[] auxDensityMap = null;
     MapData.InstanceSet auxInstanceSet = null;
 
     void ApplyBrush()
@@ -461,6 +493,18 @@ public class MapEditor : Editor {
                     Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
                 }
                 break;
+
+            case DENSITY_PROPS_TARGET:
+                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityPropsMeshData.Length)
+                {
+                    MapData.DensityPropsMeshData dpMeshData = data.densityPropsMeshData[currentDensityMapIndex];
+                    ApplyBrush<float>(data.Vertices, dpMeshData.densityMap, auxDensityMap/*TODO reuse auxHeights?*/, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
+                }
+                break;
         }
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
@@ -479,6 +523,9 @@ public class MapEditor : Editor {
                 //data.RefreshPropMesh(0); //quick?
                 RebuildPropMeshes();//
                 break;
+            case DENSITY_PROPS_TARGET:
+                RebuildDensityPropMeshes();//TODO set dirty, despite pov change?
+                break;
         }
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
@@ -494,7 +541,7 @@ public class MapEditor : Editor {
         int pointCount = vertices.Length;
         //TODO check null vertices?
 
-        if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];
+        if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];//TODO actually cache this array, pass by reference!
 
         T avgValue = default(T);
         if (brush.mode == Brush.Mode.Average)
@@ -795,6 +842,14 @@ public class MapEditor : Editor {
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
         data.RefreshPropMeshes(pov, lodScale);//TODO parallel?
+    }
+
+    void RebuildDensityPropMeshes()
+    {
+        Transform povTransform = map.POVTransform;
+        if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
+        Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
+        data.BkgRefreshDensityPropMeshes(pov, lodScale);
     }
 
     #region Selection

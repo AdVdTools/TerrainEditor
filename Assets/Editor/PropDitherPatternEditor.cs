@@ -7,7 +7,6 @@ using UnityEditor;
 public class PropDitherPatternEditor : Editor {
 
     PropDitherPattern targetPDP;
-    //RenderTexture preview;
 
     Material drawMaterial;
     Mesh circleMesh;
@@ -15,25 +14,13 @@ public class PropDitherPatternEditor : Editor {
     private void OnEnable()
     {
         targetPDP = target as PropDitherPattern;
-
-        //preview = new RenderTexture(256, 256, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
-        //preview.name = "PreviewTexture";
-        //preview.wrapMode = TextureWrapMode.Repeat;
-        //preview.filterMode = FilterMode.Bilinear;
-        //preview.hideFlags = HideFlags.HideAndDontSave;
-
-
+        
         drawMaterial = new Material(Shader.Find("Hidden/AdVd/GridShader"));
         drawMaterial.hideFlags = HideFlags.HideAndDontSave;
 
         circleMesh = BuildCircleMesh();
 
         CameraInit();
-        //previewCamera.targetTexture = preview;
-
-        //GenerateInstances();
-        //RebuildTexture();//Must be done when Event.current is not null!
-
         ResetPreview();
 
         Undo.undoRedoPerformed += OnUndoRedo;
@@ -62,7 +49,7 @@ public class PropDitherPatternEditor : Editor {
             areaIndices[indexIndex++] = i;
             areaIndices[indexIndex++] = i - 1;
         }
-        //for (int i = 0; i < 8; ++i) areaIndices[i] = (i - (i & 4) / 4) % 6;//TODO unwrap, you silly
+
         mesh.subMeshCount = 2;
         mesh.vertices = vertices;
         mesh.SetIndices(lineIndices, MeshTopology.LineStrip, 0);
@@ -73,8 +60,7 @@ public class PropDitherPatternEditor : Editor {
     private void OnDisable()
     {
         if (previewCamera != null) DestroyImmediate(previewCamera.gameObject, true);
-        //if (preview != null) DestroyImmediate(preview, false);
-
+        
         if (drawMaterial != null) DestroyImmediate(drawMaterial, false);
         if (circleMesh != null) DestroyImmediate(circleMesh, false);
 
@@ -83,37 +69,24 @@ public class PropDitherPatternEditor : Editor {
 
     private void OnUndoRedo()
     {
-        //RebuildTexture();
         ResetPreview();
     }
 
 
-    private int threshold = 0;
+    private int threshold = -1;
 
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
-
-        threshold = EditorGUILayout.IntSlider(new GUIContent("Threshold"), threshold, -1, targetPDP.amount);
-        //if (GUI.changed) RebuildTexture();
-
-        //if (preview != null)
-        //{
-        //    Rect previewRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.currentViewWidth);
-        //    EditorGUI.DrawTextureAlpha(previewRect, preview);
-        //}
 
         Rect previewRect = GUILayoutUtility.GetAspectRect(1f);
 
         if (GUILayout.Button("Generate"))
         {
             GenerateInstances();
-
-            //Selection.activeGameObject = previewCamera.gameObject;
-            //RebuildTexture();
         }
-
-        timeScale = EditorGUILayout.Slider("Time Scale", timeScale, 0f, 10f);
+        threshold = EditorGUILayout.IntSlider(new GUIContent("Threshold"), threshold, -1, targetPDP.amount);
+        
         if (GUILayout.Button(simulating ? "Stop Simulation" : "Simulate"))
         {
             simulating = !simulating;
@@ -127,6 +100,7 @@ public class PropDitherPatternEditor : Editor {
                 EditorApplication.delayCall -= FixedSimulate;
             }
         }
+        timeScale = EditorGUILayout.Slider("Time Scale", timeScale, 0f, 10f);
 
         if (GUILayout.Button("Calculate"))
         {
@@ -148,20 +122,18 @@ public class PropDitherPatternEditor : Editor {
         DrawTexture(previewRect);
     }
 
-    float timeScale = 1f;
-    bool simulating = false;
+    static bool simulating = false;
+    static float timeScale = 1f;
     void FixedSimulate()
     {
         int steps = (int) (timeScale * 5);// 0.2 * 5 = 10fps
         for (int i = 0; i < steps; ++i) Simulate(0.02f);
-
-        //Debug.Log("Step");
+        
         Repaint();
         if (simulating) EditorApplication.delayCall += FixedSimulate;
     }
 
     #region Simulation
-    const float cellSize = 32f;
 
     public struct Instance
     {
@@ -243,12 +215,12 @@ public class PropDitherPatternEditor : Editor {
 
         public static Vector2 Wrap(Vector2 p)
         {
-            float min = -0.5f * cellSize, max = 0.5f * cellSize;
+            float min = -0.5f * PropDitherPattern.CellSize, max = 0.5f * PropDitherPattern.CellSize;
 
-            if (p.x > max) p.x -= cellSize;
-            else if (p.x <= min) p.x += cellSize;
-            if (p.y > max) p.y -= cellSize;
-            else if (p.y <= min) p.y += cellSize;
+            if (p.x > max) p.x -= PropDitherPattern.CellSize;
+            else if (p.x <= min) p.x += PropDitherPattern.CellSize;
+            if (p.y > max) p.y -= PropDitherPattern.CellSize;
+            else if (p.y <= min) p.y += PropDitherPattern.CellSize;
 
             return p;
         }
@@ -299,8 +271,8 @@ public class PropDitherPatternEditor : Editor {
 
         for (int i = 0; i < instances.Length; ++i)
         {
-            float x = (Random.value - 0.5f) * cellSize;
-            float y = (Random.value - 0.5f) * cellSize;
+            float x = (Random.value - 0.5f) * PropDitherPattern.CellSize;
+            float y = (Random.value - 0.5f) * PropDitherPattern.CellSize;
             float r = targetPDP.minR + Random.value * (targetPDP.maxR - targetPDP.minR);
 
             instances[i] = new Instance(x, y, r);
@@ -337,8 +309,7 @@ public class PropDitherPatternEditor : Editor {
         for (int i = 0; i < instances.Length; ++i)
         {
             Instance ins = instances[i];
-            //Handles.DrawWireDisc(ins.pos, Vector3.forward, ins.r);
-            //TODO try draw mesh?
+
             Matrix4x4 matrix = Matrix4x4.TRS(ins.pos, Quaternion.identity, new Vector3(ins.r, ins.r, ins.r));
             Graphics.DrawMeshNow(circleMesh, matrix * baseMatrix, 0);
         }
@@ -346,8 +317,7 @@ public class PropDitherPatternEditor : Editor {
         for (int i = 0; i < instances.Length; ++i)
         {
             Instance ins = instances[i];
-            //Handles.DrawWireDisc(ins.pos, Vector3.forward, ins.r);
-            //TODO try draw mesh?
+
             Matrix4x4 matrix = Matrix4x4.TRS(ins.pos, Quaternion.identity, new Vector3(ins.r, ins.r, ins.r));
 
             float value;
@@ -355,6 +325,7 @@ public class PropDitherPatternEditor : Editor {
             else value = threshold >= ins.order ? 1f : 0f;
             drawMaterial.color = new Color(1f, 0.5f, 1f, value);
             drawMaterial.SetPass(1);
+
             Graphics.DrawMeshNow(circleMesh, matrix * baseMatrix, 1);
         }
     }
@@ -370,7 +341,7 @@ public class PropDitherPatternEditor : Editor {
 
         previewCamera.orthographic = true;
         previewCamera.aspect = 1f;
-        previewCamera.orthographicSize = cellSize * 0.5f;
+        previewCamera.orthographicSize = PropDitherPattern.CellSize * 0.5f;
         previewCamera.backgroundColor = new Color(0, 0, 0);
         previewCamera.cullingMask = 0;
         previewCamera.clearFlags = CameraClearFlags.Depth;
@@ -388,82 +359,14 @@ public class PropDitherPatternEditor : Editor {
         
         EditorGUI.DrawRect(previewRect, Color.black);
         Handles.SetCamera(previewRect, previewCamera);
-        //Handles.matrix = baseMatrix;
-        //Handles.color = new Color(1f, 0.5f, 1f);
-
-
           
         DrawInstances();
 
-        Handles.DrawCamera(previewRect, previewCamera,
-                            DrawCameraMode.Normal);//Other than normal draws light/cam gizmos
+        //Handles.DrawCamera(previewRect, previewCamera,
+        //                    DrawCameraMode.Normal);//Other than normal draws light/cam gizmos
                            
-
-        //Graphics.SetRenderTarget(preview);
-        //RenderTexture currentRT = RenderTexture.active;
-        //Graphics.SetRenderTarget(preview);
-        //preview.DiscardContents(true, true);
-        //GL.PushMatrix();
-        //GL.LoadOrtho();
-        //float halfCellSize = cellSize * 0.5f;
-        //GL.LoadProjectionMatrix(Matrix4x4.Ortho(min.x, max.x, min.y, max.y, 0.0f, 100f));
-        //GL.LoadPixelMatrix(-cellSize, cellSize, -cellSize, cellSize);
-        //GL.LoadPixelMatrix();
-        //GL.LoadProjectionMatrix(Matrix4x4.Ortho(-halfCellSize, halfCellSize, -halfCellSize, halfCellSize, 0.0f, 100f));
-        //GL.Viewport(new Rect(0, 0, preview.width / 2, preview.height / 2));
-        //GL.LoadPixelMatrix(min.x, max.x, min.y, max.y);
-        //GL.LoadPixelMatrix(-halfCellSize, halfCellSize, -halfCellSize, halfCellSize);
-
-
-        //GL.Begin(GL.QUADS);
-        //GL.Color(new Color(0,1,0,1));
-        //GL.Vertex3(halfCellSize, halfCellSize, 0);
-        //GL.Vertex3(-halfCellSize, halfCellSize, 0);
-        //GL.Vertex3(-halfCellSize, -halfCellSize, 0);
-        //GL.Vertex3(halfCellSize, -halfCellSize, 0);
-
-        //GL.Vertex3(5, 5, 0);
-        //GL.Vertex3(-0, 5, 0);
-        //GL.Vertex3(-0, -0, 0);
-        //GL.Vertex3(5, -5, 0);
-        //GL.End();
-
-
-        //GL.Clear(true, true, Color.black);
-        //drawMaterial.color = new Color(1f, 0.5f, 1f);
-        //drawMaterial.SetPass(0);
-        //drawMaterial.color = new Color(1f, 0.5f, 0f);
-        //GL.Color(new Color(1, 0.5f, 1));
-
-        //Vector3 position = new Vector3(0, 0, 1);
-        //Graphics.DrawMeshNow(circleMesh, position, Quaternion.identity, 0);
-        //Vector3 position2 = new Vector3(1, 0, 1);
-        //Graphics.DrawMeshNow(circleMesh, position2, Quaternion.identity, 0);
-
-        //DrawInstances();
-
-        //GL.PopMatrix();
-        //RenderTexture.active = currentRT; // Restore render texture
-
-        //Repaint();
     }
-
-    //private bool ValidatePattern()
-    //{
-    //    //if (targetPDP.Pattern == null) targetPDP.GeneratePattern();
-    //    //byte[] pattern = targetPDP.Pattern;
-
-    //    //bool[] used = new bool[256];
-
-    //    //for (int i = 0; i < pattern.Length; ++i)
-    //    //{
-    //    //    int index = pattern[i];
-    //    //    if (used[index]) return false;
-    //    //    used[index] = true;
-    //    //}
-    //    return true;
-    //}
-
+    
     void ApplyPreview()
     {
         Undo.RecordObject(targetPDP, "Pattern Preview Applied");
@@ -476,8 +379,11 @@ public class PropDitherPatternEditor : Editor {
             targetPDP.elements[i] = new PropDitherPattern.PatternElement()
             {
                 pos = instance.pos,
-                r = instance.r
-                //TODO set rands
+                r = instance.r,
+
+                rand0 = Random.value,
+                rand1 = Random.value,
+                rand2 = Random.value
             };
         }
     }

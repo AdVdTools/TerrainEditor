@@ -242,12 +242,29 @@ public partial class MapData : ScriptableObject
         return RebuildParallel(1);//TODO Y?
     }
 
+    private void OnEnable()
+    {
+        PropsDataOnEnable();
+    }
+
+
+    private void OnDisable()
+    {
+        int targetLength = width * depth;
+        if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
+        if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+
+        PropsDataOnDisable();
+    }
+
+
     private void OnValidate()
     {
         int targetLength = width * depth;
         if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
         if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
 
+        PropsDataOnValidate();
     }
 
     public struct RaycastHit {
