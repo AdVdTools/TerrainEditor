@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeshSculpting", "Assembly-CSharp.csproj", "{9B7A0374-793C-B93C-CA4D-A4E6D81CF74E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{9B7A0374-793C-B93C-CA4D-A4E6D81CF74E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeshSculpting", "Assembly-CSharp-Editor.csproj", "{B00B3696-FDCF-4D44-6BC7-7C64D6982694}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp-Editor", "Assembly-CSharp-Editor.csproj", "{B00B3696-FDCF-4D44-6BC7-7C64D6982694}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

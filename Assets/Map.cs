@@ -64,7 +64,7 @@ public class Map : MonoBehaviour
                 MeshFilter meshFilter = densityPropsMeshFilters[i];
                 meshFilter.sharedMesh = densityPropsMeshData[i].sharedMesh;
                 MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
-                meshRenderer.sharedMaterial = densityPropsMeshData[i].sharedMaterial;
+                meshRenderer.sharedMaterials = densityPropsMeshData[i].sharedMaterials;
             }
         }
         else

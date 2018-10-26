@@ -84,8 +84,7 @@ public partial class MapData : ScriptableObject
 
             Vector3 relativePosition = instance.position;
             float height = mapData.SampleHeight(relativePosition.x, relativePosition.z);
-            Vector3 realPosition = new Vector3(relativePosition.x, height, relativePosition.z);//TODO get realPosition from instance.position
-            realPosition += instance.direction * relativePosition.y;
+            Vector3 realPosition = new Vector3(relativePosition.x, relativePosition.y + height, relativePosition.z);
 
             instanceSet.instancePositions[j] = realPosition;
         }
@@ -135,7 +134,7 @@ public partial class MapData : ScriptableObject
     {
         for (int i = 0; i < densityPropsMeshData.Length; ++i)
         {
-            densityPropsMeshData[i].CheckDensityPropsUpdate(pov, lodScale, this);//TODO Y?
+            densityPropsMeshData[i].CheckDensityPropsUpdate(pov, lodScale, this);
         }
     }
 
@@ -201,15 +200,6 @@ public partial class MapData : ScriptableObject
             {
                 mesh.Clear();
             }
-            //TODO stuff get lengts, load meshes
-            //int verticesLength = 0, indicesLength = 0;
-            //for (int i = 0; i < meshesData.Length; ++i)
-            //{
-            //    MeshData meshData = meshesData[i];
-            //    verticesLength += meshData.verticesLimit;// meshData.Instances.Count * meshData.mesh.vertexCount;
-            //    indicesLength += meshData.trianglesLimit * 3;// meshData.Instances.Count * (int) meshData.mesh.GetIndexCount(0);
-            //                                                 // TODO support multiple submeshes?
-            //}
 
             //TODO use native pointer to speed up copying?
             //TODO optimize lists capacity on creation & ensure capacity if existing
@@ -498,22 +488,36 @@ public partial class MapData : ScriptableObject
     [System.Serializable]
     public class DensityPropsMeshData
     {
+        const int maxCellsFromCenter = 12;
+
         [SerializeField]
         private PropDitherPattern pattern;
         [SerializeField]
         private float patternScale = 1f;
-        [SerializeField]
-        private float elemScale = 1f;
-
 
         private enum UpdateState { Idle, Updating, Ready }
         private Vector3 currPOV;
-        private float redrawThreshold = 5f;
-        private UpdateState currentUpdateState = UpdateState.Idle;//TODO per mesh?
+        private float redrawThreshold = 5f;//TODO serialize?
+        private UpdateState currentUpdateState = UpdateState.Idle;
 
+        //TODO variants, with probability, decided by pattern rand
         
-        public MeshLOD[] meshLODs = new MeshLOD[1];
+        public Variant[] variants = new Variant[1];
         public float[] densityMap;
+
+        [System.Serializable]
+        public class Variant//TODO move data to a different scriptable object?
+        {
+            public MeshLOD[] meshLODs = new MeshLOD[1];
+            public float probability;
+
+            public float propsScale = 1f;
+            public Vector3 propsDirection = Vector3.up;
+
+            public float minAlignment = 0.2f, maxAlignment = 0.5f;//TODO better inspector?
+            public float minRotation = -180f, maxRotation = 180f;
+            public float minYOffset = 0f, maxYOffset = 0f;
+        }
 
         [System.Serializable]
         public class MeshLOD
@@ -521,6 +525,7 @@ public partial class MapData : ScriptableObject
             public Mesh mesh;
             public int subMeshIndex;
             public float maxSqrDistance;//TODO minDist, transition, billboarding?
+            public float minSqrDistance;
             //TODO im probably using lod distances wrong in the other class, since they can go to different meshes?
             //Combine Instance Sets with density maps in the same mesh?
             public int targetSubMesh;//TODO store lods in submeshes if they require a different material?
@@ -582,8 +587,8 @@ public partial class MapData : ScriptableObject
         public int verticesLengthLimit = 900;
         public int trianglesLengthLimit = 900;//indices actually
 
-        public Material sharedMaterial { get { return material; } }
-        [SerializeField] Material material;
+        public Material[] sharedMaterials { get { return materials; } }
+        [SerializeField] Material[] materials;
 
         public Mesh sharedMesh { get { return mesh; } }
 
@@ -591,7 +596,7 @@ public partial class MapData : ScriptableObject
         List<Vector3> vertices;
         List<Vector3> normals;
         List<Vector2> uvs;
-        List<int> triangles;
+        List<int>[] triangleLists;
 
         MapData mapData;
         Vector3 pov;
@@ -599,7 +604,7 @@ public partial class MapData : ScriptableObject
 
         public void CheckDensityPropsUpdate(Vector3 pov, float lodScale, MapData mapData)
         {
-            Debug.Log(currentUpdateState);
+            if (currentUpdateState != UpdateState.Idle) Debug.Log(currentUpdateState);
 
             if (currentUpdateState == UpdateState.Ready)
             {
@@ -617,10 +622,7 @@ public partial class MapData : ScriptableObject
                     this.mapData = mapData;
                     this.pov = pov;
                     this.lodScale = lodScale;
-                    for (int lod = 0; lod < meshLODs.Length; ++lod)
-                    {
-                        if (!meshLODs[lod].MeshListsLoaded()) meshLODs[lod].LoadMeshLists();
-                    }
+                    LoadMeshLists();
                     BeginDensityPropsUpdate();
 
                     currPOV = pov;
@@ -657,121 +659,267 @@ public partial class MapData : ScriptableObject
                         mre.Reset();
                         mre.WaitOne();//Is this safe? can it exit? TODO call Set after setting shouldThreadsRun to false
                     }
-                    //TODO set thread to null? Dispose?
+
+                    rebuildThread = null;//Allows the creation of newer threads if requested
                     Debug.LogWarning("Stopped Thread");
                 });
                 rebuildThread.IsBackground = true;//End when main thread ends
                 shouldThreadsRun = true;
                 rebuildThread.Start();
+                Debug.LogWarning("Started Thread");
             }
 
             mre.Set();
         }
 
+        void LoadMeshLists()//TODO meshes should refresh on validate
+        {
+            for (var v = 0; v < variants.Length; ++v)
+            {
+                MeshLOD[] meshLODs = variants[v].meshLODs;
+                for (int lod = 0; lod < meshLODs.Length; ++lod)
+                {
+                    if (!meshLODs[lod].MeshListsLoaded()) meshLODs[lod].LoadMeshLists();
+                }
+            }
+        }
+
+        void FreeMeshLists()//TODO meshes should refresh on validate, test
+        {
+            for (var v = 0; v < variants.Length; ++v)
+            {
+                MeshLOD[] meshLODs = variants[v].meshLODs;
+                for (int lod = 0; lod < meshLODs.Length; ++lod)
+                {
+                    if (meshLODs[lod].MeshListsLoaded()) meshLODs[lod].FreeMeshLists();
+                }
+            }
+        }
+
         void DensityPropsUpdate()
         {
             //TODO ensure threads don't accumulate somehow
+            //TODO measure times
 
             if (vertices == null) vertices = new List<Vector3>();
             if (normals == null) normals = new List<Vector3>();
             if (uvs == null) uvs = new List<Vector2>();
-
-            if (triangles == null) triangles = new List<int>();
             
+            int subMeshCount = materials.Length;
+
+            Debug.Log("Hi why is this null?");//TODO
+            if (triangleLists == null || triangleLists.Length != subMeshCount) {
+                triangleLists = new List<int>[subMeshCount];
+                for (int i = 0; i < subMeshCount; ++i) triangleLists[i] = new List<int>();
+            }
+
+            // Clear lists
             vertices.Clear();
             normals.Clear();
             uvs.Clear();
-            triangles.Clear();
+            for (int i = 0; i < subMeshCount; ++i) triangleLists[i].Clear();
+
             int vertexIndex = 0;
             int indexIndex = 0;
 
             if (pattern == null) return;
             PropDitherPattern.PatternElement[] elements = pattern.elements;
-            float patternLocal2WorldScale = patternScale / PropDitherPattern.CellSize;
-
-            int prevOffset = 0;
-            for (int lod = 0; lod < meshLODs.Length; ++lod)//prioritize first lods
+            
+            int povCellX = Mathf.RoundToInt(pov.x / patternScale);
+            int povCellY = Mathf.RoundToInt(pov.z / patternScale);
+            
+            DoPatternCell(povCellX, povCellY, ref vertexIndex, ref indexIndex);
+            for (int offset = 1; offset <= maxCellsFromCenter; ++offset)
             {
-                MeshLOD meshLOD = meshLODs[lod];
-                if (!meshLOD.MeshListsLoaded()) continue;
-
-                //DoVariantLOD(instanceSet, variant, lod, ref vertexIndex, ref indexIndex);
-                int povCellX = Mathf.RoundToInt(pov.x / patternScale);
-                int povCellY = Mathf.RoundToInt(pov.z / patternScale);
-                int maxOffset = Mathf.Min(100/*TODO avoid magic number*/, Mathf.RoundToInt(Mathf.Sqrt(meshLOD.maxSqrDistance) / patternScale));
-                int minOffset = prevOffset;
-
-                if (lod == 0) Debug.Log(povCellX + "," + povCellY + "+-" + maxOffset);
-
-                int minCellX = povCellX - maxOffset, maxCellX = povCellX + maxOffset;
-                int minCellY = povCellY - maxOffset, maxCellY = povCellY + maxOffset;
-
-                for (int x = minCellX; x <= maxCellX; ++x)
+                //int sideLength = offset * 2;
+                for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
                 {
-                    for (int y = minCellY; y <= maxCellY; ++y)
-                    {
-                        //TODO check actual lod distances here, or by element?
-                        for (int e = 0; e < elements.Length; ++e)
-                        {
-                            if (vertexIndex + meshLOD.verticesCount > verticesLengthLimit) break;
-                            if (indexIndex + meshLOD.indicesCount > trianglesLengthLimit) break;
-
-                            PropDitherPattern.PatternElement element = elements[e];
-
-                            Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
-                            Vector3 pos3D = new Vector3(elemPosition.x, 0f/*TODO another rand?*/, elemPosition.y);
-
-                            float density = SampleDensity(pos3D.x, pos3D.z, mapData);
-                            if (density <= (e + 1) || (pos3D - pov).sqrMagnitude > meshLOD.maxSqrDistance) continue;
-
-                            PropInstance instance = new PropInstance()
-                            {
-                                position = pos3D,
-                                direction = Vector3.up,//TODO rand align, sample normal
-                                rotation = element.rand0 * 360f,//TODO rand range, billboard?
-                                size = element.r * elemScale
-                            };
-
-                            float height = mapData.SampleHeight(pos3D.x, pos3D.z);
-                            Vector3 realPosition = new Vector3(pos3D.x, height + pos3D.y, pos3D.z);//TODO get realPosition from instance.position
-                            
-                            Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, instance.direction) * Quaternion.Euler(0, instance.rotation, 0), new Vector3(instance.size, instance.size, instance.size));//TODO Optimize?
-                            for (int i = 0; i < meshLOD.verticesCount; ++i)
-                            {
-                                Vector3 vertex = matrix.MultiplyPoint3x4(meshLOD.verticesList[i]);
-                                vertices.Add(vertex);
-                            }
-                            //auxNormalsList.CopyTo(normals, vertexIndex);
-                            for (int i = 0; i < meshLOD.verticesCount; ++i)
-                            {
-                                Vector3 normal = matrix.MultiplyVector(meshLOD.normalsList[i]);
-                                normals.Add(normal);//TODO normalize?
-                            }
-                            //auxUVsList.CopyTo(uvs, vertexIndex);
-                            for (int i = 0; i < meshLOD.verticesCount; ++i)
-                            {
-                                Vector2 uv = meshLOD.uvsList[i];//TODO atlas?
-                                uvs.Add(uv);
-                            }
-
-                            //Debug.Log(vertexIndex + " " + indexIndex + " " + verticesInMesh + " " + indicesInMesh + " " + vertices.Count + " " + triangles.Count);
-                            //auxTrianglesList.CopyTo(triangles, indexIndex);
-                            for (int i = 0; i < meshLOD.indicesCount; ++i)
-                            {
-                                int index = vertexIndex + meshLOD.trianglesList[i];
-                                triangles.Add(index);
-                            }
-
-                            vertexIndex += meshLOD.verticesCount;
-                            indexIndex += meshLOD.indicesCount;
-                        }
-                    }
+                    DoPatternCell(povCellX + offset, povCellY + offset2, ref vertexIndex, ref indexIndex);
+                    DoPatternCell(povCellX - offset2, povCellY + offset, ref vertexIndex, ref indexIndex);
+                    DoPatternCell(povCellX - offset, povCellY - offset2, ref vertexIndex, ref indexIndex);
+                    DoPatternCell(povCellX + offset2, povCellY - offset, ref vertexIndex, ref indexIndex);
                 }
-
-
-                prevOffset = maxOffset;
+                //TODO break if no lods? might be too complex to detect
             }
 
+            //int prevOffset = 0;
+            //for (int lod = 0; lod < meshLODs.Length; ++lod)//prioritize first lods
+            //{
+            //    MeshLOD meshLOD = meshLODs[lod];
+            //    if (!meshLOD.MeshListsLoaded()) continue;
+
+            //    int povCellX = Mathf.RoundToInt(pov.x / patternScale);
+            //    int povCellY = Mathf.RoundToInt(pov.z / patternScale);
+            //    int maxOffset = Mathf.Min(maxCellsFromCenter, Mathf.RoundToInt(Mathf.Sqrt(meshLOD.maxSqrDistance) / patternScale));
+            //    int minOffset = prevOffset;
+
+            //    //if (lod == 0) Debug.Log(povCellX + "," + povCellY + "+-" + maxOffset);
+
+            //    int minCellX = povCellX - maxOffset, maxCellX = povCellX + maxOffset;
+            //    int minCellY = povCellY - maxOffset, maxCellY = povCellY + maxOffset;
+
+            //    for (int x = minCellX; x <= maxCellX; ++x)
+            //    {
+            //        for (int y = minCellY; y <= maxCellY; ++y)
+            //        {
+            //            //TODO check actual lod distances here, or by element?
+            //            for (int e = 0; e < elements.Length; ++e)
+            //            {
+            //                if (vertexIndex + meshLOD.verticesCount > verticesLengthLimit) break;
+            //                if (indexIndex + meshLOD.indicesCount > trianglesLengthLimit) break;
+
+            //                PropDitherPattern.PatternElement element = elements[e];
+
+            //                Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
+            //                Vector3 pos3D = new Vector3(elemPosition.x, minYOffset + element.rand2 * (maxYOffset - minYOffset), elemPosition.y);
+
+            //                float density = SampleDensity(pos3D.x, pos3D.z, mapData);
+            //                if (density <= (e + 1) || (pos3D - pov).sqrMagnitude > meshLOD.maxSqrDistance) continue;
+
+            //                Vector3 terrainNormal = mapData.SampleNormals(pos3D.x, pos3D.z);
+
+
+            //                PropInstance instance = new PropInstance()
+            //                {
+            //                    position = pos3D,
+            //                    direction = Vector3.Slerp(propsDirection, terrainNormal, minAlignment + element.rand0 * (maxAlignment - minAlignment)),
+            //                    rotation = minRotation + element.rand1 * (maxRotation - minRotation),//TODO billboard?
+            //                    size = element.r * propsScale
+            //                    //TODO variant (float 0..1)
+            //                };
+
+            //                if (e == 0) Debug.Log(instance.rotation);
+
+            //                float height = mapData.SampleHeight(pos3D.x, pos3D.z);
+            //                Vector3 realPosition = new Vector3(pos3D.x, height + pos3D.y, pos3D.z);
+
+            //                Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, instance.direction) * Quaternion.Euler(0, instance.rotation, 0), new Vector3(instance.size, instance.size, instance.size));//TODO Optimize?
+            //                for (int i = 0; i < meshLOD.verticesCount; ++i)
+            //                {
+            //                    Vector3 vertex = matrix.MultiplyPoint3x4(meshLOD.verticesList[i]);
+            //                    vertices.Add(vertex);
+            //                }
+            //                for (int i = 0; i < meshLOD.verticesCount; ++i)
+            //                {
+            //                    Vector3 normal = matrix.MultiplyVector(meshLOD.normalsList[i]);
+            //                    normals.Add(normal);//TODO normalize?
+            //                }
+            //                for (int i = 0; i < meshLOD.verticesCount; ++i)
+            //                {
+            //                    Vector2 uv = meshLOD.uvsList[i];
+            //                    uvs.Add(uv);
+            //                }
+
+            //                if (meshLOD.targetSubMesh >= 0 && meshLOD.targetSubMesh < subMeshCount) {
+            //                    List<int> triangles = triangleLists[meshLOD.targetSubMesh];
+            //                    for (int i = 0; i < meshLOD.indicesCount; ++i)
+            //                    {
+            //                        int index = vertexIndex + meshLOD.trianglesList[i];
+            //                        triangles.Add(index);
+            //                    }
+            //                }
+
+            //                vertexIndex += meshLOD.verticesCount;
+            //                indexIndex += meshLOD.indicesCount;//TODO Split by submesh?
+            //            }
+            //        }
+            //    }
+
+
+            //    prevOffset = maxOffset;
+            //}
+
+        }
+
+        Variant SelectVariant(float rand)
+        {
+            float probSum = 0;
+            for (int v = 0; v < variants.Length; ++v) probSum += variants[v].probability;
+            rand *= probSum;
+            float probAccum = 0;
+            for (int v = 0; v < variants.Length; ++v)
+            {
+                probAccum += variants[v].probability;
+                if (rand <= probAccum) return variants[v];//TODO test
+            }
+            return null;
+        }
+
+        void DoPatternCell(int x, int y, ref int vertexIndex, ref int indexIndex)
+        {
+            float patternLocal2WorldScale = patternScale / PropDitherPattern.CellSize;
+            int subMeshCount = materials.Length;
+            PropDitherPattern.PatternElement[] elements = pattern.elements;
+            for (int e = 0; e < elements.Length; ++e)
+            {
+                PropDitherPattern.PatternElement element = elements[e];
+
+                float variantRand = element.rand3;
+                Variant variant = SelectVariant(variantRand);
+                if (variant == null) return;
+
+                for (int lod = 0; lod < variant.meshLODs.Length; ++lod)
+                {
+                    MeshLOD meshLOD = variant.meshLODs[lod];
+                    if (!meshLOD.MeshListsLoaded()) continue;
+
+                    if (vertexIndex + meshLOD.verticesCount > verticesLengthLimit) break;
+                    if (indexIndex + meshLOD.indicesCount > trianglesLengthLimit) break;
+                    
+                    Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
+                    Vector3 pos3D = new Vector3(elemPosition.x, variant.minYOffset + element.rand2 * (variant.maxYOffset - variant.minYOffset), elemPosition.y);
+
+                    float density = SampleDensity(pos3D.x, pos3D.z, mapData);
+                    float sqrDist = (pos3D - pov).sqrMagnitude;
+                    if (density <= (e + 1) || sqrDist > meshLOD.maxSqrDistance || sqrDist < meshLOD.minSqrDistance) continue;
+
+                    Vector3 terrainNormal = mapData.SampleNormals(pos3D.x, pos3D.z);
+
+
+                    PropInstance instance = new PropInstance()
+                    {
+                        position = pos3D,
+                        direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.minAlignment + element.rand0 * (variant.maxAlignment - variant.minAlignment)),
+                        rotation = variant.minRotation + element.rand1 * (variant.maxRotation - variant.minRotation),//TODO billboard?
+                        size = element.r * variant.propsScale
+                        //TODO variant? (float 0..1)
+                    };
+
+                    float height = mapData.SampleHeight(pos3D.x, pos3D.z);
+                    Vector3 realPosition = new Vector3(pos3D.x, height + pos3D.y, pos3D.z);
+
+                    Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, instance.direction) * Quaternion.Euler(0, instance.rotation, 0), new Vector3(instance.size, instance.size, instance.size));//TODO Optimize?
+                    for (int i = 0; i < meshLOD.verticesCount; ++i)
+                    {
+                        Vector3 vertex = matrix.MultiplyPoint3x4(meshLOD.verticesList[i]);
+                        vertices.Add(vertex);
+                    }
+                    for (int i = 0; i < meshLOD.verticesCount; ++i)
+                    {
+                        Vector3 normal = matrix.MultiplyVector(meshLOD.normalsList[i]);
+                        normals.Add(normal);//TODO normalize?
+                    }
+                    for (int i = 0; i < meshLOD.verticesCount; ++i)
+                    {
+                        Vector2 uv = meshLOD.uvsList[i];
+                        uvs.Add(uv);
+                    }
+
+                    if (e < 10 && vertexIndex < 300) Debug.Log(meshLOD.targetSubMesh + " asdffasd fas ");
+                    if (meshLOD.targetSubMesh >= 0 && meshLOD.targetSubMesh < subMeshCount)
+                    {
+                        List<int> triangles = triangleLists[meshLOD.targetSubMesh];
+                        for (int i = 0; i < meshLOD.indicesCount; ++i)
+                        {
+                            int index = vertexIndex + meshLOD.trianglesList[i];
+                            triangles.Add(index);
+                        }
+                    }
+
+                    vertexIndex += meshLOD.verticesCount;
+                    indexIndex += meshLOD.indicesCount;//TODO Split by submesh?
+                }
+            }
         }
 
         void UpdateMesh()
@@ -794,7 +942,13 @@ public partial class MapData : ScriptableObject
             mesh.SetNormals(normals);//mesh.normals = normals;
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
             //mesh.colors = colors;
-            mesh.SetTriangles(triangles, 0);//mesh.triangles = indices; //TODO extra parameters?
+            Debug.Log("WTF: "+triangleLists);//TODO avoid null exception
+            mesh.subMeshCount = triangleLists.Length;
+            for (int sm = 0; sm < triangleLists.Length; ++sm)
+            {
+                mesh.SetTriangles(triangleLists[sm], sm, false);//mesh.triangles = indices; //TODO extra parameters? calculate bounds later?
+            }
+            //mesh.RecalculateBounds();
         }
 
     }
@@ -803,7 +957,8 @@ public partial class MapData : ScriptableObject
 
     void PropsDataOnEnable()
     {
-
+        for (int i = 0; i < densityPropsMeshData.Length; ++i) densityPropsMeshData[i].StopThread();
+        //Things should at least start idle
     }
 
     void PropsDataOnDisable()
@@ -819,6 +974,7 @@ public partial class MapData : ScriptableObject
             DensityPropsMeshData dpMeshData = densityPropsMeshData[i];
             if (dpMeshData == null) { Debug.LogError("WTF"); continue; }//TODO what? 
             if (dpMeshData.densityMap == null || dpMeshData.densityMap.Length != targetLength) dpMeshData.densityMap = new float[targetLength];//TODO properly rescale
+            //dpMeshData.FreeMeshLists();//TODO this seems to block update, maybe crashes the thread
         }
     }
 }

@@ -238,7 +238,7 @@ public class MapEditor : Editor {
     {
         //SceneView sceneView = SceneView.currentDrawingSceneView;
 
-        EventType currentType = Event.current.type;//TODO use when posible
+        EventType currentType = Event.current.type;
         eventsStopWatch.Reset();
         eventsStopWatch.Start();
 

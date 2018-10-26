@@ -18,7 +18,22 @@ public class PropDitherPattern : ScriptableObject
         public float r;
 
         //TODO other data, rands (for z, rotation, alignment)
-        public float rand0, rand1, rand2;
+        /// <summary>
+        /// Alignment
+        /// </summary>
+        public float rand0;
+        /// <summary>
+        /// Rotation
+        /// </summary>
+        public float rand1;
+        /// <summary>
+        /// YOffset
+        /// </summary>
+        public float rand2;
+        /// <summary>
+        /// Variant
+        /// </summary>
+        public float rand3;
     }
     [HideInInspector]
     public PatternElement[] elements = new PatternElement[0];
