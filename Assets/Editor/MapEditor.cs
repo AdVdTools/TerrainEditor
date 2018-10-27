@@ -19,10 +19,10 @@ public class MapEditor : Editor {
     private const int COLOR_TARGET = 1;
     private const int PROPS_TARGET = 2;
     private const int SELECT_TARGET = 3;
-    private const int DENSITY_PROPS_TARGET = 4;
+    private const int DENSITY_MAPS_TARGET = 4;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Props")
+        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Maps")
     };
     
     float lodScale = 1f;
@@ -71,7 +71,7 @@ public class MapEditor : Editor {
     private void OnUndoRedo()
     {
         RebuildMapTerrain();
-        RebuildPropMeshes();
+        RebuildPropMeshesSync();
 
         //InvalidateSelection();//TODO needed?
     }
@@ -166,7 +166,7 @@ public class MapEditor : Editor {
                     EditorGUILayout.EndHorizontal();
                     break;
 
-                case DENSITY_PROPS_TARGET:
+                case DENSITY_MAPS_TARGET:
                     DrawDensityMapSelector();
                     //TODO inspector for prop randomness
 
@@ -211,7 +211,7 @@ public class MapEditor : Editor {
     private void DrawDensityMapSelector()
     {
         int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
-        currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityPropsMeshData.Length - 1);
+        currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
     }
 
     #region StopWatches
@@ -256,7 +256,7 @@ public class MapEditor : Editor {
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
 
-                RebuildDensityPropMeshes();
+                RebuildPropMeshesAsync();
             }
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
@@ -334,7 +334,7 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintEnd:
                     RebuildMapTerrain();
-                    RebuildPropMeshes();//TODO do parallel method?
+                    RebuildPropMeshesAsync();//TODO do parallel method?
 
                                                 // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
                                                 // but will once some other event happens (such as right click)
@@ -356,11 +356,11 @@ public class MapEditor : Editor {
                             case COLOR_TARGET:
                                 Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
                                 break;
-                            case DENSITY_PROPS_TARGET:
-                                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityPropsMeshData.Length)
+                            case DENSITY_MAPS_TARGET:
+                                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                                 {
-                                    MapData.DensityPropsMeshData dpMeshData = data.densityPropsMeshData[currentDensityMapIndex];
-                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(dpMeshData.densityMap, data.Indices, FloatMath.sharedHandler));
+                                    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
+                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(densityMap.map, data.Indices, FloatMath.sharedHandler));
                                 }
                                 else
                                 {
@@ -494,11 +494,11 @@ public class MapEditor : Editor {
                 }
                 break;
 
-            case DENSITY_PROPS_TARGET:
-                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityPropsMeshData.Length)
+            case DENSITY_MAPS_TARGET:
+                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                 {
-                    MapData.DensityPropsMeshData dpMeshData = data.densityPropsMeshData[currentDensityMapIndex];
-                    ApplyBrush<float>(data.Vertices, dpMeshData.densityMap, auxDensityMap/*TODO reuse auxHeights?*/, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
+                    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
+                    ApplyBrush<float>(data.Vertices, densityMap.map, auxDensityMap/*TODO reuse auxHeights?*/, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
                 }
                 else
                 {
@@ -521,10 +521,10 @@ public class MapEditor : Editor {
                 break;
             case PROPS_TARGET:
                 //data.RefreshPropMesh(0); //quick?
-                RebuildPropMeshes();//
+                RebuildPropMeshesAsync();//
                 break;
-            case DENSITY_PROPS_TARGET:
-                RebuildDensityPropMeshes();//TODO set dirty, despite pov change?
+            case DENSITY_MAPS_TARGET:
+                RebuildPropMeshesAsync();//TODO set dirty, despite pov change?
                 break;
         }
         rebuildStopWatch.Stop();
@@ -836,20 +836,20 @@ public class MapEditor : Editor {
         data.RebuildParallel(8);
     }
 
-    void RebuildPropMeshes()
+    void RebuildPropMeshesSync()
     {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshes(pov, lodScale);//TODO parallel?
+        data.RefreshPropMeshes(pov, lodScale);//TODO inspector button
     }
 
-    void RebuildDensityPropMeshes()
+    void RebuildPropMeshesAsync()
     {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.BkgRefreshDensityPropMeshes(pov, lodScale);
+        data.BkgRefreshPropMeshes(pov, lodScale);//TODO set dirty, update on repaint & repaint while updating
     }
 
     #region Selection
@@ -889,7 +889,8 @@ public class MapEditor : Editor {
                     }
 
                     //data.RefreshPropMesh(0); //quick?
-                    RebuildPropMeshes();//This recalculates positions
+                    RebuildPropMeshesAsync();//This recalculates positions//UPDATE: No more
+                    //TODO set props dirty, update on repaints (repaint while updating)
                 }
             }
         }
@@ -1039,7 +1040,7 @@ public class MapEditor : Editor {
         }
 
 
-        RebuildPropMeshes();
+        RebuildPropMeshesAsync();
     }
 
     #endregion

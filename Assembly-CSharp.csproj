@@ -66,6 +66,7 @@
     <Compile Include="Assets\MapData.cs" />
     <Compile Include="Assets\MapData.PropsData.cs" />
     <Compile Include="Assets\MapProps.cs" />
+    <Compile Include="Assets\MeshResourceData.cs" />
     <Compile Include="Assets\PropDitherPattern.cs" />
     <None Include="Assets\TerrainShader.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">

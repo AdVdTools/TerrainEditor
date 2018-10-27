@@ -13,6 +13,11 @@ public struct FloatRange
         this.max = max;
     }
 
+    public bool CheckInRange(float value)
+    {
+        return value >= min && value <= max;
+    }
+
     public float GetValue(float rand)
     {
         return min + rand * (max - min);
