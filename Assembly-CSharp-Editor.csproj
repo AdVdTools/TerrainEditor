@@ -62,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Editor\Brush.cs" />
+    <Compile Include="Assets\Editor\FloatRangeEditor.cs" />
     <Compile Include="Assets\Editor\MapDataEditor.cs" />
     <Compile Include="Assets\Editor\MapDataEditorWindow.cs" />
     <Compile Include="Assets\Editor\MapEditor.cs" />

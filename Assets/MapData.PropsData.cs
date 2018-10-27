@@ -499,8 +499,6 @@ public partial class MapData : ScriptableObject
         private Vector3 currPOV;
         private float redrawThreshold = 5f;//TODO serialize?
         private UpdateState currentUpdateState = UpdateState.Idle;
-
-        //TODO variants, with probability, decided by pattern rand
         
         public Variant[] variants = new Variant[1];
         public float[] densityMap;
@@ -513,10 +511,10 @@ public partial class MapData : ScriptableObject
 
             public float propsScale = 1f;
             public Vector3 propsDirection = Vector3.up;
-
-            public float minAlignment = 0.2f, maxAlignment = 0.5f;//TODO better inspector?
-            public float minRotation = -180f, maxRotation = 180f;
-            public float minYOffset = 0f, maxYOffset = 0f;
+            
+            public FloatRange alignmentRange = new FloatRange(0.2f, 0.5f);
+            public FloatRange rotationRange = new FloatRange(-180f, 180f);
+            public FloatRange yOffsetRange = new FloatRange(0f, 0f);
         }
 
         [System.Serializable]
@@ -529,6 +527,7 @@ public partial class MapData : ScriptableObject
             //TODO im probably using lod distances wrong in the other class, since they can go to different meshes?
             //Combine Instance Sets with density maps in the same mesh?
             public int targetSubMesh;//TODO store lods in submeshes if they require a different material?
+            //public bool billboard;//TODO billboard from shader?
 
             [System.NonSerialized] public int verticesCount;
             [System.NonSerialized] public int indicesCount;
@@ -867,7 +866,7 @@ public partial class MapData : ScriptableObject
                     if (indexIndex + meshLOD.indicesCount > trianglesLengthLimit) break;
                     
                     Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
-                    Vector3 pos3D = new Vector3(elemPosition.x, variant.minYOffset + element.rand2 * (variant.maxYOffset - variant.minYOffset), elemPosition.y);
+                    Vector3 pos3D = new Vector3(elemPosition.x, variant.yOffsetRange.GetValue(element.rand2), elemPosition.y);
 
                     float density = SampleDensity(pos3D.x, pos3D.z, mapData);
                     float sqrDist = (pos3D - pov).sqrMagnitude;
@@ -875,20 +874,14 @@ public partial class MapData : ScriptableObject
 
                     Vector3 terrainNormal = mapData.SampleNormals(pos3D.x, pos3D.z);
 
-
-                    PropInstance instance = new PropInstance()
-                    {
-                        position = pos3D,
-                        direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.minAlignment + element.rand0 * (variant.maxAlignment - variant.minAlignment)),
-                        rotation = variant.minRotation + element.rand1 * (variant.maxRotation - variant.minRotation),//TODO billboard?
-                        size = element.r * variant.propsScale
-                        //TODO variant? (float 0..1)
-                    };
+                    Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.alignmentRange.GetValue(element.rand0));
+                    float rotation = variant.rotationRange.GetValue(element.rand1);
+                    float size = element.r * variant.propsScale;
 
                     float height = mapData.SampleHeight(pos3D.x, pos3D.z);
                     Vector3 realPosition = new Vector3(pos3D.x, height + pos3D.y, pos3D.z);
 
-                    Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, instance.direction) * Quaternion.Euler(0, instance.rotation, 0), new Vector3(instance.size, instance.size, instance.size));//TODO Optimize?
+                    Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
                     for (int i = 0; i < meshLOD.verticesCount; ++i)
                     {
                         Vector3 vertex = matrix.MultiplyPoint3x4(meshLOD.verticesList[i]);
