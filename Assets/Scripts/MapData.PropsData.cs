@@ -68,7 +68,7 @@ public partial class MapData : ScriptableObject
     [System.Serializable]
     public class DensityMap
     {
-        public float[] map;
+        public float[] map;//TODO limit to 0..1?
         
         public float SampleDensity(float x, float y, MapData mapData)
         {
@@ -166,9 +166,27 @@ public partial class MapData : ScriptableObject
     {
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
-            propsMeshesData[i].CheckDensityPropsUpdate(pov, lodScale, this);
+            propsMeshesData[i].CheckPropsUpdate(pov, lodScale, this);
         }
     }
+
+    public void PropMeshesSetDirty()
+    {
+        for (int i = 0; i < propsMeshesData.Length; ++i)
+        {
+            propsMeshesData[i].SetDirty();
+        }
+    }
+
+    public bool PropMeshesRebuildOngoing()
+    {
+        for (int i = 0; i < propsMeshesData.Length; ++i)
+        {
+            if (propsMeshesData[i].RebuildOngoing()) return true;
+        }
+        return false;
+    }
+
     /*
     [System.Serializable]
     public class MeshData
@@ -533,7 +551,9 @@ public partial class MapData : ScriptableObject
         private Vector3 currPOV;
         private float redrawThreshold = 5f;//TODO serialize?
         private UpdateState currentUpdateState = UpdateState.Idle;
-        
+        private bool shouldThreadRun = false;
+        private bool dirty = false;
+
         public Variant[] variants = new Variant[1];
 
         [System.Serializable]
@@ -592,9 +612,19 @@ public partial class MapData : ScriptableObject
         Vector3 pov;
         float lodScale = 1f;
 
+        public void SetDirty()
+        {
+            dirty = true;
+        }
+
+        public bool RebuildOngoing()
+        {
+            return currentUpdateState != UpdateState.Idle;
+        }
+
         public void TrySyncRebuild(Vector3 pov, float lodScale, MapData mapData)
         {
-            if (currentUpdateState == UpdateState.Idle)
+            if (!RebuildOngoing())
             {
                 //Begin Vertices/Indices update
                 this.mapData = mapData;
@@ -610,8 +640,8 @@ public partial class MapData : ScriptableObject
                 currPOV = pov;
             }
         }
-
-        public void CheckDensityPropsUpdate(Vector3 pov, float lodScale, MapData mapData)
+        
+        public void CheckPropsUpdate(Vector3 pov, float lodScale, MapData mapData)
         {
             if (currentUpdateState != UpdateState.Idle) Debug.Log(currentUpdateState);
 
@@ -622,29 +652,31 @@ public partial class MapData : ScriptableObject
 
                 currentUpdateState = UpdateState.Idle;
             }
-
+            
             if (currentUpdateState == UpdateState.Idle)
             {
-                if (Vector3.SqrMagnitude(pov - currPOV) > redrawThreshold * redrawThreshold)
+                if (Vector3.SqrMagnitude(pov - this.pov) > redrawThreshold * redrawThreshold)
                 {
-                    //Begin Vertices/Indices update
+                    dirty = true;
+                }
+                if (dirty) {
+                    currentUpdateState = UpdateState.Updating;//TODO sync variable?
                     this.mapData = mapData;
                     this.pov = pov;
                     this.lodScale = lodScale;
                     LoadMeshLists();
-                    BeginPropsUpdate();
 
-                    currPOV = pov;
-                    currentUpdateState = UpdateState.Updating;
+                    dirty = false;//Allow dirtying while updating
+                    //Begin Vertices/Indices update
+                    BeginPropsUpdate();
                 }
             }
         }
 
-        bool shouldThreadsRun = false;
         public void StopThread()
         {
             Debug.LogWarning("Stop Thread");
-            shouldThreadsRun = false;
+            shouldThreadRun = false;
             mre.Set();
             currentUpdateState = UpdateState.Idle;
         }
@@ -658,12 +690,12 @@ public partial class MapData : ScriptableObject
                 PropsMeshData thisPMeshData = this;
                 rebuildThread = new Thread(delegate ()
                 {
-                    while (shouldThreadsRun)
+                    while (shouldThreadRun)
                     {
                         PropsUpdate();
                         currentUpdateState = UpdateState.Ready;
 
-                        if (!shouldThreadsRun) break;
+                        if (!shouldThreadRun) break;
 
                         mre.Reset();
                         mre.WaitOne();//Is this safe? can it exit? TODO call Set after setting shouldThreadsRun to false
@@ -673,7 +705,7 @@ public partial class MapData : ScriptableObject
                     Debug.LogWarning("Stopped Thread");
                 });
                 rebuildThread.IsBackground = true;//End when main thread ends
-                shouldThreadsRun = true;
+                shouldThreadRun = true;
                 rebuildThread.Start();
                 Debug.LogWarning("Started Thread");
             }
@@ -844,7 +876,7 @@ public partial class MapData : ScriptableObject
 
             Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.alignmentRange.GetValue(element.rand0));
             float rotation = variant.rotationRange.GetValue(element.rand1);
-            float size = element.r * variant.propsScale;
+            float size = element.r * variant.propsScale;//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
             
             for (int r = 0; r < variant.meshResources.Length; ++r)
             {

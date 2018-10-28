@@ -71,7 +71,7 @@ public class MapEditor : Editor {
     private void OnUndoRedo()
     {
         RebuildMapTerrain();
-        RebuildPropMeshesSync();
+        data.PropMeshesSetDirty();//Just set dirty since pov would be unavailable
 
         //InvalidateSelection();//TODO needed?
     }
@@ -256,7 +256,7 @@ public class MapEditor : Editor {
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
 
-                RebuildPropMeshesAsync();
+                RebuildPropMeshesAsync(false);
             }
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
@@ -335,7 +335,7 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintEnd:
                     RebuildMapTerrain();
-                    RebuildPropMeshesAsync();//TODO do parallel method?
+                    RebuildPropMeshesAsync(true);//TODO do parallel method?
 
                                                 // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
                                                 // but will once some other event happens (such as right click)
@@ -519,10 +519,10 @@ public class MapEditor : Editor {
                 break;
             case PROPS_TARGET:
                 //data.RefreshPropMesh(0); //quick?
-                RebuildPropMeshesAsync();//
+                RebuildPropMeshesAsync(true);//
                 break;
             case DENSITY_MAPS_TARGET:
-                RebuildPropMeshesAsync();//TODO set dirty, despite pov change?
+                RebuildPropMeshesAsync(true);//TODO set dirty, despite pov change?
                 break;
         }
         rebuildStopWatch.Stop();
@@ -844,12 +844,16 @@ public class MapEditor : Editor {
         data.RefreshPropMeshes(pov, lodScale);//TODO inspector button
     }
 
-    void RebuildPropMeshesAsync()
+    void RebuildPropMeshesAsync(bool forceDirtying)
     {
+        if (forceDirtying) data.PropMeshesSetDirty();
+
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
         data.BkgRefreshPropMeshes(pov, lodScale);//TODO set dirty, update on repaint & repaint while updating
+
+        if (data.PropMeshesRebuildOngoing()) Repaint();
     }
 
     #region Selection
@@ -888,7 +892,7 @@ public class MapEditor : Editor {
                     }
 
                     //data.RefreshPropMesh(0); //quick?
-                    RebuildPropMeshesAsync();//This recalculates positions//UPDATE: No more
+                    RebuildPropMeshesAsync(true);//This recalculates positions//UPDATE: No more
                     //TODO set props dirty, update on repaints (repaint while updating)
                 }
             }
@@ -1036,9 +1040,8 @@ public class MapEditor : Editor {
                 instanceSet.Instances[index] = instance;
             }
         }
-
-
-        RebuildPropMeshesAsync();
+        
+        RebuildPropMeshesAsync(true);
     }
 
     #endregion
