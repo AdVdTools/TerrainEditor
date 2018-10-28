@@ -11,48 +11,37 @@ public class MapPropsInstanceValues {
     public const int DISABLED_STATE = 0;
     public const int SINGLE_STATE = 1;
     public const int RANGE_STATE = 2;
+    
 
-    //public const int DISABLED_CURSOR = 0;
-    //public const int AIM_CURSOR = 1;
-    //public const int MATCH_CURSOR = 2;
-
-    public int scaleState;
-    public float minScale = 1f, maxScale = 1.2f;
+    public int sizeState;
+    public float minSize = 1f, maxSize = 1.2f;
 
     public int yOffsetState;
     public float minYOffset = 0f, maxYOffset = 0;
 
     public int rotationState;
     public float minRotation = 0f, maxRotation = 360f;
-
-    //private bool rotationCursor = false;
-    //private int rotationCursorState;
-    //private Vector3 rotationCursorPosition;
-    //private Vector3 rotationCursorDirection = Vector3.forward;
-    //private readonly static Color rotationColor = new Color(0.5f, 0.5f, 0.9f);
-
+    
     public int alignmentState;
     public float minAlignment = 0.0f, maxAlignment = 1f;
     public Vector3 alignDirection = Vector3.up;
 
-    //private bool alignCursor = false;
-    //private int alignCursorState;
-    //private Vector3 alignCursorPosition;
-    //private Vector3 alignCursorDirection = Vector3.up;
-    //private readonly static Color alignColor = new Color(0.5f, 0.9f, 0.5f);
-
-    private static readonly GUIContent scaleGUIContent = new GUIContent("Scale");
+    public int variantState;
+    public int variantIndex = 0;
+    public int variantCount = 1;
+    
+    private static readonly GUIContent sizeGUIContent = new GUIContent("Size");
     private static readonly GUIContent yOffsetGUIContent = new GUIContent("Y Offset");
     private static readonly GUIContent rotationGUIContent = new GUIContent("Rotation");
     private static readonly GUIContent alignmentGUIContent = new GUIContent("Normal Aligned");
     private static readonly GUIContent directionGUIContent = new GUIContent("Direction");
+    private static readonly GUIContent variantGUIContent = new GUIContent("Variant");
 
     private static readonly GUIContent singleGUIContent = new GUIContent("Single");
     private static readonly GUIContent rangeGUIContent = new GUIContent("Range");
     private static readonly GUIContent disabledGUIContent = new GUIContent("Disabled");
-    //private static readonly GUIContent aimGUIContent = new GUIContent("Aim");
-    //private static readonly GUIContent matchGUIContent = new GUIContent("Match");
-    //private static readonly GUIContent useCursorGUIContent = new GUIContent("Use Cursor");
+
+    private static readonly GUIContent randomGUIContent = new GUIContent("Random");
 
     private static readonly GUIContent valueGUIContent = new GUIContent("Value");
     private static readonly GUIContent minGUIContent = new GUIContent("Min");
@@ -61,8 +50,8 @@ public class MapPropsInstanceValues {
     public void DoInstancePropertiesInspector()
     {
         //Scale
-        EditorGUILayout.LabelField(scaleGUIContent, EditorStyles.boldLabel);
-        InstancePropertyInspector(ref scaleState, ref minScale, ref maxScale, 0f, float.MaxValue);
+        EditorGUILayout.LabelField(sizeGUIContent, EditorStyles.boldLabel);
+        InstancePropertyInspector(ref sizeState, ref minSize, ref maxSize, 0f, float.MaxValue);
 
         //Y Offset
         EditorGUILayout.LabelField(yOffsetGUIContent, EditorStyles.boldLabel);
@@ -79,6 +68,10 @@ public class MapPropsInstanceValues {
             Vector3Inspector(directionGUIContent, ref alignDirection);//  alignDirecton = EditorGUILayout.Vector3Field(directionGUIContent, alignDirection);
             alignDirection = alignDirection.normalized;
         }
+
+        //Variant
+        EditorGUILayout.LabelField(variantGUIContent, EditorStyles.boldLabel);
+        SpecialVariantInspector(ref variantState, ref variantIndex);
     }
 
     private void InstancePropertyInspector(ref int propertyState, ref float minValue, ref float maxValue, float minLimit, float maxLimit)
@@ -101,7 +94,7 @@ public class MapPropsInstanceValues {
                 break;
             case RANGE_STATE:
                 minValue = EditorGUILayout.FloatField(minGUIContent, minValue);
-                if (maxScale < minScale) maxScale = minScale;
+                if (maxValue < minValue) maxValue = minValue;
                 maxValue = EditorGUILayout.FloatField(maxGUIContent, maxValue);
                 if (minValue > maxValue) minValue = maxValue;
                 minValue = Mathf.Clamp(minValue, minLimit, maxLimit);
@@ -118,37 +111,6 @@ public class MapPropsInstanceValues {
         EditorGUIUtility.labelWidth = labelWidth;
     }
 
-    //private void CursorInspector(ref int cursorState, ref Vector3 position, ref Vector3 direction, Color color)
-    //{
-    //    float labelWidth = EditorGUIUtility.labelWidth;
-    //    EditorGUILayout.BeginHorizontal();
-    //    bool boolState = cursorState != DISABLED_CURSOR;
-    //    GUIContent guiContent = boolState ? (cursorState == AIM_CURSOR ? aimGUIContent : matchGUIContent) : disabledGUIContent;
-    //    bool newState = GUILayout.Toggle(boolState, guiContent, EditorStyles.miniButton, GUILayout.Width(labelWidth * 0.5f));
-    //    if (boolState != newState)
-    //    {
-    //        cursorState = (cursorState + 1) % 3;
-    //    }
-    //    EditorGUIUtility.labelWidth = 40f;
-    //    switch (cursorState)
-    //    {
-    //        case AIM_CURSOR:
-    //            position = EditorGUILayout.Vector3Field(GUIContent.none, position);
-    //            break;
-    //        case MATCH_CURSOR:
-    //            direction = EditorGUILayout.Vector3Field(GUIContent.none, direction);
-    //            direction = direction.normalized;
-    //            break;
-    //        default:
-    //            bool guiEnabled = GUI.enabled;
-    //            GUI.enabled = false;
-    //            EditorGUILayout.LabelField(new GUIContent(""), EditorStyles.textField);
-    //            GUI.enabled = guiEnabled;
-    //            break;
-    //    }
-    //    EditorGUILayout.EndHorizontal();
-    //    EditorGUIUtility.labelWidth = labelWidth;
-    //}
 
     private void Vector3Inspector(GUIContent content, ref Vector3 value)
     {
@@ -164,86 +126,58 @@ public class MapPropsInstanceValues {
         EditorGUILayout.EndHorizontal();
         EditorGUIUtility.labelWidth = labelWidth;
     }
-
-    //TODO dont draw brush if cursor is being edited? return if busy
-    //public bool DoCursorHandles()
-    //{
-    //    if (rotationCursor) DoCursorHandle(ref rotationCursorPosition, ref rotationCursorDirection, rotationColor);
-    //    if (alignCursor) DoCursorHandle(ref alignCursorPosition, ref alignCursorDirection, alignColor);
-    //    if (currentCursorId != -1)
-    //    {
-    //        if (Event.current.type == EventType.Layout)
-    //        {//This will allow clicks to be eaten
-    //            HandleUtility.AddDefaultControl(currentCursorId);
-    //        }
-
-    //        if (Event.current.type == EventType.MouseUp && Event.current.button == 0) currentCursorId = -1;
-    //        else return true;
-    //    }
-    //    return false;
-    //}
     
-    //TODO place/aim cursor with raycast
-    //int currentCursorId;
-    //Quaternion deltaRotation = Quaternion.identity;
-    //private void DoCursorHandle(ref Vector3 position, ref Vector3 direction, Color cursorColor)
-    //{
-    //    int controlId = GUIUtility.GetControlID(GUIContent.none, FocusType.Passive);
-    //    Handles.color = cursorColor;
-
-    //    float handleSize = HandleUtility.GetHandleSize(position);
-    //    Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, direction);
-    //    Handles.ArrowHandleCap(0, position, deltaRotation * rotation, handleSize * 0.8f, Event.current.type);
-    //    bool click = Handles.Button(position, Quaternion.identity, handleSize * 0.05f, handleSize * 0.05f, Handles.DotHandleCap);
-
-    //    if (controlId != currentCursorId)
-    //    {
-    //        if (click) currentCursorId = controlId;
-    //    }
-    //    else
-    //    {
-    //        switch (Tools.current)
-    //        {
-    //            case Tool.Move:
-    //                position = Handles.DoPositionHandle(position, Quaternion.identity);
-    //                break;
-    //            case Tool.Rotate:
-    //                bool mouseUp = Event.current.type == EventType.MouseUp;
-    //                deltaRotation = Handles.RotationHandle(deltaRotation, position);
-                    
-    //                if (mouseUp)
-    //                {
-    //                    direction = deltaRotation * direction;
-    //                    direction = direction.normalized;
-
-    //                    deltaRotation = Quaternion.identity;
-    //                }
-    //                break;
-    //            default:
-    //                //Handles.Button(position, Quaternion.identity, handleSize * 0.05f, handleSize * 0.05f, Handles.DotHandleCap);
-    //                break;
-    //        }
-    //    }
-    //}
+    private void SpecialVariantInspector(ref int variantState, ref int variantIndex)
+    {
+        float labelWidth = EditorGUIUtility.labelWidth;
+        EditorGUILayout.BeginHorizontal();
+        bool boolState = variantState != DISABLED_STATE;
+        GUIContent guiContent = boolState ? (variantState == SINGLE_STATE ? singleGUIContent : randomGUIContent) : disabledGUIContent;
+        bool newState = GUILayout.Toggle(boolState, guiContent, EditorStyles.miniButton, GUILayout.Width(labelWidth * 0.5f));
+        if (boolState != newState)
+        {
+            variantState = (variantState + 1) % 3;
+        }
+        EditorGUIUtility.labelWidth = 40f;
+        switch (variantState)
+        {
+            case SINGLE_STATE:
+                variantIndex = EditorGUILayout.IntField(valueGUIContent, variantIndex);
+                variantIndex = Mathf.Max(0, variantIndex);
+                break;
+            case RANGE_STATE:
+                variantCount = EditorGUILayout.IntField(rangeGUIContent, variantCount);
+                variantCount = Mathf.Max(1, variantCount);
+                break;
+            default:
+                bool guiEnabled = GUI.enabled;
+                GUI.enabled = false;
+                EditorGUILayout.LabelField(GUIContent.none, EditorStyles.textField);
+                GUI.enabled = guiEnabled;
+                break;
+        }
+        EditorGUILayout.EndHorizontal();
+        EditorGUIUtility.labelWidth = labelWidth;
+    }
 
 
     //TODO fixes
     public MapData.PropInstance ApplyValues(MapData.PropInstance instance, Vector3 normal, float strength)
     {
-        if (scaleState != DISABLED_STATE)
+        if (sizeState != DISABLED_STATE)
         {
-            float targetScale = minScale;//TODO rename to size or rename size
-            if (scaleState == RANGE_STATE)
+            float targetSize = minSize;
+            if (sizeState == RANGE_STATE)
             {
-                targetScale += (maxScale - minScale) * Random.value;
+                targetSize += (maxSize - minSize) * Random.value;
             }
-            instance.size += (targetScale - instance.size) * strength;
+            instance.size += (targetSize - instance.size) * strength;
         }
 
 
         if (yOffsetState != DISABLED_STATE)
         {
-            float targetYOffset = minYOffset;//TODO rename to size or rename size
+            float targetYOffset = minYOffset;
             if (yOffsetState == RANGE_STATE)
             {
                 targetYOffset += (maxYOffset - minYOffset) * Random.value;
@@ -254,7 +188,7 @@ public class MapPropsInstanceValues {
 
         if (rotationState != DISABLED_STATE)
         {
-            float targetRotation = minRotation;//TODO rename to size or rename size
+            float targetRotation = minRotation;
             if (rotationState == RANGE_STATE)
             {
                 targetRotation += (maxRotation - minRotation) * Random.value;
@@ -273,6 +207,16 @@ public class MapPropsInstanceValues {
             Vector3 targetDirection = Vector3.Slerp(alignDirection, normal, targetAlign);
 
             instance.direction += (targetDirection - instance.direction) * strength;
+        }
+
+        if (variantState != DISABLED_STATE)
+        {
+            int targetIndex = variantIndex;
+            if (variantState == RANGE_STATE)// Random
+            {
+                targetIndex = Random.Range(0, variantCount);
+            }
+            instance.variantIndex = targetIndex;
         }
 
         return instance;

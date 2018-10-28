@@ -49,18 +49,18 @@ public partial class MapData : ScriptableObject
         public void RemoveMarked()//TODO test !!!!! //TODO use variant index < 0 instead!!
         {
             int index = 0;
-            while (index < count && instances[index].size >= 0) ++index;
+            while (index < count && instances[index].variantIndex >= 0) ++index;
             for (int i = index + 1; i < count; ++i)
             {
                 PropInstance inst = instances[i];
-                if (inst.size >= 0) instances[index++] = inst;
+                if (inst.variantIndex >= 0) instances[index++] = inst;
             }
             count = index;
         }
 
-        //TODO remove precalculations?
-        [System.NonSerialized] public Vector3[] instancePositions = new Vector3[0];//TODO mind multithreading
-        [System.NonSerialized] public float[] instanceSqrDistances = new float[0];// Alt: use this array as flags for deletion if <0
+        ////TODO remove precalculations? these where useful when instance set would be iterated more than once on rebuild
+        //[System.NonSerialized] public Vector3[] instancePositions = new Vector3[0];//TODO mind multithreading
+        //[System.NonSerialized] public float[] instanceSqrDistances = new float[0];// Alt: use this array as flags for deletion if <0
     }
     
     public int instanceLimit = 100;//TODO Limit for the sum of meshdata.instances.count's?
@@ -90,49 +90,55 @@ public partial class MapData : ScriptableObject
     public InstanceSet[] instanceSets = new InstanceSet[0];
     public DensityMap[] densityMaps = new DensityMap[0];
     //public MeshData[] meshesData = new MeshData[0];//TODO wrap in more config?
-                                                   //
+    //
 
-        //TODO
-        // InstanceSets and DensityMaps
-        // PropsMeshData pointers to instance set and/or density map
-        // Variants in PropsMeshData (selected with probability from density map, and with index from instance set)
-        // MeshResourceData with MeshResource (reusable object), and distance range
-        // MeshResourceData can represent LODs or components (such as leaves/trunk)
-        // PropsMeshData instances can point to the same instanceSets and densityMaps!
+    //TODO
+    // InstanceSets and DensityMaps
+    // PropsMeshData pointers to instance set and/or density map
+    // Variants in PropsMeshData (selected with probability from density map, and with index from instance set)
+    // MeshResourceData with MeshResource (reusable object), and distance range
+    // MeshResourceData can represent LODs or components (such as leaves/trunk)
+    // PropsMeshData instances can point to the same instanceSets and densityMaps!
 
-    public void RecalculateInstancePositions(int threads, InstanceSet instanceSet, MapData mapData)
+    public Vector3 GetRealInstancePosition(Vector3 instancePosition)
     {
-        PropInstance[] instances = instanceSet.Instances;
-        int instanceCount = instanceSet.Count;
-        if (instanceSet.instancePositions == null || instanceSet.instancePositions.Length != instanceCount) instanceSet.instancePositions = new Vector3[instanceCount];
-
-        for (int j = 0; j < instanceCount; ++j)
-        {
-            PropInstance instance = instances[j];
-
-            Vector3 relativePosition = instance.position;
-            float height = mapData.SampleHeight(relativePosition.x, relativePosition.z);
-            Vector3 realPosition = new Vector3(relativePosition.x, relativePosition.y + height, relativePosition.z);
-
-            instanceSet.instancePositions[j] = realPosition;
-        }
+        instancePosition.y += SampleHeight(instancePosition.x, instancePosition.z);
+        return instancePosition;
     }
 
-    public void RecalculateInstanceDistances(int threads, InstanceSet instanceSet, Vector3 pov = default(Vector3), float lodScale = 1f)
-    {
-        PropInstance[] instances = instanceSet.Instances;
-        int instanceCount = instanceSet.Count;
-        if (instanceSet.instanceSqrDistances == null || instanceSet.instanceSqrDistances.Length != instanceCount) instanceSet.instanceSqrDistances = new float[instanceCount];
+    //public void RecalculateInstancePositions(int threads, InstanceSet instanceSet, MapData mapData)
+    //{
+    //    PropInstance[] instances = instanceSet.Instances;
+    //    int instanceCount = instanceSet.Count;
+    //    if (instanceSet.instancePositions == null || instanceSet.instancePositions.Length != instanceCount) instanceSet.instancePositions = new Vector3[instanceCount];
 
-        for (int j = 0; j < instanceCount; ++j)
-        {
-            PropInstance instance = instances[j];
+    //    for (int j = 0; j < instanceCount; ++j)
+    //    {
+    //        PropInstance instance = instances[j];
 
-            float sqrDist = Vector3.SqrMagnitude(instanceSet.instancePositions[j] - pov);
+    //        Vector3 relativePosition = instance.position;
+    //        float height = mapData.SampleHeight(relativePosition.x, relativePosition.z);
+    //        Vector3 realPosition = new Vector3(relativePosition.x, relativePosition.y + height, relativePosition.z);
 
-            instanceSet.instanceSqrDistances[j] = sqrDist * lodScale;
-        }
-    }
+    //        instanceSet.instancePositions[j] = realPosition;
+    //    }
+    //}
+
+    //public void RecalculateInstanceDistances(int threads, InstanceSet instanceSet, Vector3 pov = default(Vector3), float lodScale = 1f)
+    //{
+    //    PropInstance[] instances = instanceSet.Instances;
+    //    int instanceCount = instanceSet.Count;
+    //    if (instanceSet.instanceSqrDistances == null || instanceSet.instanceSqrDistances.Length != instanceCount) instanceSet.instanceSqrDistances = new float[instanceCount];
+
+    //    for (int j = 0; j < instanceCount; ++j)
+    //    {
+    //        PropInstance instance = instances[j];
+
+    //        float sqrDist = Vector3.SqrMagnitude(instanceSet.instancePositions[j] - pov);
+
+    //        instanceSet.instanceSqrDistances[j] = sqrDist * lodScale;
+    //    }
+    //}
 
     //TODO make not threaded, single time build for prop meshes
 
@@ -529,15 +535,15 @@ public partial class MapData : ScriptableObject
         private UpdateState currentUpdateState = UpdateState.Idle;
         
         public Variant[] variants = new Variant[1];
-        //public float[] densityMap;//TODO density map optional? mesh groups wont need it
 
         [System.Serializable]
         public class Variant
         {
             public MeshResource[] meshResources = new MeshResource[1];// For both LODs and instance components
 
-            //TODO only mesh resources are useful to prop instances!
+
             //For density maps only
+            //InstanceSet PropInstances ignore the following fields
             public float probability = 1f;
 
             public float propsScale = 1f;
@@ -558,15 +564,12 @@ public partial class MapData : ScriptableObject
         //}
 
         [System.Serializable]
-        public class MeshResource//TODO move to serialized object to reuse lists
+        public class MeshResource
         {
-            public MeshResourceData data;//TODO move data to a different scriptable object?
+            public MeshResourceData data;
             public FloatRange sqrDistanceRange = new FloatRange(0, 500);//TODO transition? use shader for that?
            
-            //TODO im probably using lod distances wrong in the other class, since they can go to different meshes?
-            
-            //TODO Combine Instance Sets with density maps in the same mesh?
-            public int targetSubMesh;//TODO store lods in submeshes if they require a different material?
+            public int targetSubMesh;
             //public bool billboard;//TODO billboard from shader?
 
         }
@@ -641,7 +644,7 @@ public partial class MapData : ScriptableObject
         public void StopThread()
         {
             Debug.LogWarning("Stop Thread");
-            shouldThreadsRun = true;
+            shouldThreadsRun = false;
             mre.Set();
             currentUpdateState = UpdateState.Idle;
         }
@@ -708,7 +711,7 @@ public partial class MapData : ScriptableObject
             }
         }
 
-        void PropsUpdate()//TODO is run in the main thread too!
+        void PropsUpdate()//TODO this is run in the main thread too!
         {
             //TODO ensure threads don't accumulate somehow
             //TODO measure times
@@ -744,7 +747,7 @@ public partial class MapData : ScriptableObject
                 {
                     PropInstance instance = instances[i];
                     
-                    DoDensityInstance(instance, ref vertexIndex, ref indexIndex);
+                    DoInstance(instance, ref vertexIndex, ref indexIndex);
                 }
             }
 
@@ -833,9 +836,8 @@ public partial class MapData : ScriptableObject
             Variant variant = variants[variantIndex];
 
             Vector3 position = new Vector3(elemPosition.x, variant.yOffsetRange.GetValue(element.rand2), elemPosition.y);
-            float height = mapData.SampleHeight(position.x, position.z);
 
-            Vector3 realPosition = new Vector3(position.x, height + position.y, position.z);
+            Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDist = (realPosition - pov).sqrMagnitude;
 
             Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
@@ -888,7 +890,7 @@ public partial class MapData : ScriptableObject
             }
         }
 
-        void DoDensityInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
+        void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
             int subMeshCount = materials.Length;
 
@@ -896,9 +898,8 @@ public partial class MapData : ScriptableObject
             Variant variant = variants[instance.variantIndex];
 
             Vector3 position = instance.position;
-            float height = mapData.SampleHeight(position.x, position.z);
 
-            Vector3 realPosition = new Vector3(position.x, height + position.y, position.z);
+            Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDist = (realPosition - pov).sqrMagnitude;
 
             Vector3 direction = instance.direction;

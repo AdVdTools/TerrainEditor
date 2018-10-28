@@ -45,6 +45,11 @@ public class MeshResourceData : ScriptableObject
         uvsList = new List<Vector2>();
         trianglesList = new List<int>();
     }
+
+    void OnValidate()
+    {
+        //if (MeshListsLoaded()) LoadMeshLists();//Reload TODO mind multithreading!! lock somehow?
+    }
 }
 
 

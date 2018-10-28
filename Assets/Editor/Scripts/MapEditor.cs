@@ -299,6 +299,7 @@ public class MapEditor : Editor {
             {
                 case BrushEvent.BrushDraw:
                     Mesh mesh = data.sharedTerrainMesh;
+
                     if (mesh != null)
                     {
                         Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
@@ -316,7 +317,7 @@ public class MapEditor : Editor {
                             brushProjectorMaterial.SetFloat(opacityID, 0f);
                             brushProjectorMaterial.SetPass(1);
                         }
-                        Graphics.DrawMeshNow(data.sharedTerrainMesh, matrix, 0);
+                        Graphics.DrawMeshNow(mesh, matrix, 0);
                     }
                     
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
@@ -471,9 +472,7 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    data.RecalculateInstancePositions(1, instanceSet, data);
                     ApplyBrush(data.Vertices, instanceSet, auxInstanceSet);
-                    data.RecalculateInstancePositions(1, instanceSet, data);
                 }
                 else
                 {
@@ -484,7 +483,6 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    data.RecalculateInstancePositions(1, instanceSet, data);
                     ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);
                     if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
                 }
@@ -673,6 +671,7 @@ public class MapEditor : Editor {
         
         float rand, strength;
         int instanceCount = instanceSet.Count;
+        MapData.PropInstance[] instances = instanceSet.Instances;
         switch (brush.mode)
         {
             case Brush.Mode.Add://TODO min separation/size variable instead of amount, along with brush density
@@ -695,7 +694,8 @@ public class MapEditor : Editor {
                             position = position,
                             direction = Vector3.up,
                             rotation = UnityEngine.Random.value * 360f,
-                            size = 1f
+                            size = 1f,
+                            variantIndex = 0
                         };
                         Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                         instance = instanceValues.ApplyValues(instance, normal, strength);
@@ -708,12 +708,12 @@ public class MapEditor : Editor {
                 //TODO multithreading
                 for (int index = 0; index < instanceCount; ++index)
                 {
-                    Vector3 position = instanceSet.instancePositions[index];
+                    Vector3 position = data.GetRealInstancePosition(instances[index].position);
                     rand = UnityEngine.Random.value;
                     strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
                     if (rand < strength)
                     {
-                        instanceSet.Instances[index].size = -1;
+                        instances[index].variantIndex = -1;
                     }
                 }
                 instanceSet.RemoveMarked();
@@ -722,16 +722,16 @@ public class MapEditor : Editor {
                 
                 for (int index = 0; index < instanceSet.Count; ++index)
                 {
-                    Vector3 position = instanceSet.instancePositions[index];
+                    Vector3 position = data.GetRealInstancePosition(instances[index].position);
 
                     strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
                     if (strength > 0f)
                     {
-                        MapData.PropInstance instance = instanceSet.Instances[index];
+                        MapData.PropInstance instance = instances[index];
                         Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                         instance = instanceValues.ApplyValues(instance, normal, strength);
                         
-                        instanceSet.Instances[index] = instance;
+                        instances[index] = instance;
                     }
                 }
 
@@ -855,14 +855,13 @@ public class MapEditor : Editor {
     #region Selection
     void SelectionOnSceneHandler(MapData.InstanceSet instanceSet)
     {
-        if (instanceSelection != null && instanceSet.instancePositions.Length != instanceSet.Count) Debug.LogWarning("Outdated positions");
-        if (instanceSelection != null && instanceSelection.Length >= instanceSet.Count && instanceSet.instancePositions.Length == instanceSet.Count)
+        if (instanceSelection != null && instanceSelection.Length >= instanceSet.Count)
         {
             Vector3 meanPosition = default(Vector3);
             for (int i = 0; i < instanceSet.Count; ++i)
             {
                 MapData.PropInstance inst = instanceSet.Instances[i];
-                Vector3 position = instanceSet.instancePositions[i];
+                Vector3 position = data.GetRealInstancePosition(inst.position);
                 float handleSize = HandleUtility.GetHandleSize(position) * 0.05f;
 
                 if (instanceSelection[i])
@@ -953,9 +952,10 @@ public class MapEditor : Editor {
     {
         Brush brush = Brush.currentBrush;
         Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
-        Vector3[] instancePositions = instanceSet.instancePositions;
         int instanceCount = instanceSet.Count;
-
+        MapData.PropInstance[] instances = instanceSet.Instances;
+        //TODO have personal references for threads (like instances, data would be missing) to prevent null exceptions
+        
         //TODO check null instances?
 
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
@@ -977,7 +977,7 @@ public class MapEditor : Editor {
                     case Brush.Mode.Add:
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
-                            Vector3 vertex = instancePositions[index];
+                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
                             Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
                             float sqrDist = projOffset.sqrMagnitude;
                             if (sqrDist <= 1f) instanceSelection[index] = true;
@@ -987,7 +987,7 @@ public class MapEditor : Editor {
                     case Brush.Mode.Substract:
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
-                            Vector3 vertex = instancePositions[index];
+                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
                             Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
                             float sqrDist = projOffset.sqrMagnitude;
                             if (sqrDist <= 1f) instanceSelection[index] = false;
@@ -997,7 +997,7 @@ public class MapEditor : Editor {
                     case Brush.Mode.Set:
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
-                            Vector3 vertex = instancePositions[index];
+                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
                             Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
                             float sqrDist = projOffset.sqrMagnitude;
                             if (sqrDist <= 1f) instanceSelection[index] = true;
@@ -1020,8 +1020,6 @@ public class MapEditor : Editor {
 
     void ApplyPropertiesToSelection(MapData.InstanceSet instanceSet)
     {
-        data.RecalculateInstancePositions(1, instanceSet, data);
-        
         int instanceCount = instanceSet.Count;
 
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
