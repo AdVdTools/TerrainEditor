@@ -61,14 +61,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\FloatRange.cs" />
-    <Compile Include="Assets\Map.cs" />
-    <Compile Include="Assets\MapData.cs" />
-    <Compile Include="Assets\MapData.PropsData.cs" />
-    <Compile Include="Assets\MapProps.cs" />
-    <Compile Include="Assets\MeshResourceData.cs" />
-    <Compile Include="Assets\PropDitherPattern.cs" />
-    <None Include="Assets\TerrainShader.shader" />
+    <Compile Include="Assets\Scripts\FloatRange.cs" />
+    <Compile Include="Assets\Scripts\Map.cs" />
+    <Compile Include="Assets\Scripts\MapData.cs" />
+    <Compile Include="Assets\Scripts\MapData.PropsData.cs" />
+    <Compile Include="Assets\Scripts\MapProps.cs" />
+    <Compile Include="Assets\Scripts\MeshResourceData.cs" />
+    <Compile Include="Assets\Scripts\PropDitherPattern.cs" />
+    <None Include="Assets\MapAssets\TerrainShader.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
     </Reference>

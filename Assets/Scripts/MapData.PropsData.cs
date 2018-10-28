@@ -13,7 +13,7 @@ public partial class MapData : ScriptableObject
         public float rotation;//Around Y
         public float size;//All axis
         public int variantIndex;//<0 to prepare for deletion! TODO
-        //TODO variante editor!
+        //TODO variant inspector!
 
         //[System.NonSerialized] public float sqrtDist;//Alt: use this field for deletion if <0
     }

@@ -61,19 +61,19 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Editor\Brush.cs" />
-    <Compile Include="Assets\Editor\FloatRangeEditor.cs" />
-    <Compile Include="Assets\Editor\MapDataEditor.cs" />
-    <Compile Include="Assets\Editor\MapDataEditorWindow.cs" />
-    <Compile Include="Assets\Editor\MapEditor.cs" />
-    <Compile Include="Assets\Editor\MapGenericEditor.cs" />
-    <Compile Include="Assets\Editor\MapPropsEditor.cs" />
-    <Compile Include="Assets\Editor\MapPropsInstanceValues.cs" />
-    <Compile Include="Assets\Editor\MathHandlers.cs" />
-    <Compile Include="Assets\Editor\MeshSpawner.cs" />
-    <Compile Include="Assets\Editor\PropDitherPatternEditor.cs" />
-    <None Include="Assets\Editor\GridShader.shader" />
-    <None Include="Assets\Editor\BrushProjector.shader" />
+    <Compile Include="Assets\Scripts\Editor\Brush.cs" />
+    <Compile Include="Assets\Scripts\Editor\FloatRangeEditor.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapDataEditor.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapDataEditorWindow.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapEditor.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapGenericEditor.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapPropsEditor.cs" />
+    <Compile Include="Assets\Scripts\Editor\MapPropsInstanceValues.cs" />
+    <Compile Include="Assets\Scripts\Editor\MathHandlers.cs" />
+    <Compile Include="Assets\Scripts\Editor\MeshSpawner.cs" />
+    <Compile Include="Assets\Scripts\Editor\PropDitherPatternEditor.cs" />
+    <None Include="Assets\Scripts\Editor\GridShader.shader" />
+    <None Include="Assets\Scripts\Editor\BrushProjector.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
     </Reference>
