@@ -34,6 +34,36 @@ public class FloatMath : IMathHandler<float>
 }
 
 
+public class Vector4Math : IMathHandler<Vector4>
+{
+    public static Vector4 mask = new Vector4(1f, 1f, 1f, 0f);
+    public static Vector4Math sharedHandler = new Vector4Math();
+    public Vector4 Product(Vector4 value1, float value2)
+    {
+        return value1 * value2;
+    }
+
+    public Vector4 Product(Vector4 value1, Vector4 value2)
+    {
+        return Vector4.Scale(value1, value2);
+    }
+
+    public Vector4 Sum(Vector4 value1, Vector4 value2)
+    {
+        return value1 + value2;
+    }
+
+    public Vector4 WeightedSum(Vector4 value1, Vector4 value2, float weight2)
+    {
+        return value1 + Vector4.Scale(value2, (mask * weight2));
+    }
+
+    public Vector4 Blend(Vector4 value1, Vector4 value2, float t)
+    {
+        return value1 + Vector4.Scale(value2 - value1, mask * t);
+    }
+}
+
 public class ColorMath : IMathHandler<Color>
 {
     public static Color mask = new Color(1f, 1f, 1f, 0f);

@@ -24,7 +24,6 @@ public class MapPropsInstanceValues {
     
     public int alignmentState;
     public float minAlignment = 0.0f, maxAlignment = 1f;
-    public Vector3 alignDirection = Vector3.up;
 
     public int variantState;
     public int variantIndex = 0;
@@ -34,7 +33,6 @@ public class MapPropsInstanceValues {
     private static readonly GUIContent yOffsetGUIContent = new GUIContent("Y Offset");
     private static readonly GUIContent rotationGUIContent = new GUIContent("Rotation");
     private static readonly GUIContent alignmentGUIContent = new GUIContent("Normal Aligned");
-    private static readonly GUIContent directionGUIContent = new GUIContent("Direction");
     private static readonly GUIContent variantGUIContent = new GUIContent("Variant");
 
     private static readonly GUIContent singleGUIContent = new GUIContent("Single");
@@ -64,10 +62,10 @@ public class MapPropsInstanceValues {
         //Vertical vs Normal aligned
         EditorGUILayout.LabelField(alignmentGUIContent, EditorStyles.boldLabel);
         InstancePropertyInspector(ref alignmentState, ref minAlignment, ref maxAlignment, 0f, 1f);
-        if (alignmentState != DISABLED_STATE) {
-            Vector3Inspector(directionGUIContent, ref alignDirection);//  alignDirecton = EditorGUILayout.Vector3Field(directionGUIContent, alignDirection);
-            alignDirection = alignDirection.normalized;
-        }
+        //if (alignmentState != DISABLED_STATE) {
+        //    Vector3Inspector(directionGUIContent, ref alignDirection);//  alignDirecton = EditorGUILayout.Vector3Field(directionGUIContent, alignDirection);
+        //    alignDirection = alignDirection.normalized;
+        //}
 
         //Variant
         EditorGUILayout.LabelField(variantGUIContent, EditorStyles.boldLabel);
@@ -112,20 +110,20 @@ public class MapPropsInstanceValues {
     }
 
 
-    private void Vector3Inspector(GUIContent content, ref Vector3 value)
-    {
-        float labelWidth = EditorGUIUtility.labelWidth;
-        EditorGUILayout.BeginHorizontal();
+    //private void Vector3Inspector(GUIContent content, ref Vector3 value)
+    //{
+    //    float labelWidth = EditorGUIUtility.labelWidth;
+    //    EditorGUILayout.BeginHorizontal();
 
-        EditorGUILayout.LabelField(content, GUILayout.Width(labelWidth * 0.5f));
+    //    EditorGUILayout.LabelField(content, GUILayout.Width(labelWidth * 0.5f));
         
-        EditorGUIUtility.labelWidth = 40f;
+    //    EditorGUIUtility.labelWidth = 40f;
 
-        value = EditorGUILayout.Vector3Field(GUIContent.none, value);
+    //    value = EditorGUILayout.Vector3Field(GUIContent.none, value);
                 
-        EditorGUILayout.EndHorizontal();
-        EditorGUIUtility.labelWidth = labelWidth;
-    }
+    //    EditorGUILayout.EndHorizontal();
+    //    EditorGUIUtility.labelWidth = labelWidth;
+    //}
     
     private void SpecialVariantInspector(ref int variantState, ref int variantIndex)
     {
@@ -204,9 +202,7 @@ public class MapPropsInstanceValues {
             {
                 targetAlign += (maxAlignment - minAlignment) * Random.value;
             }
-            Vector3 targetDirection = Vector3.Slerp(alignDirection, normal, targetAlign);
-
-            instance.direction += (targetDirection - instance.direction) * strength;
+            instance.alignment += (targetAlign - instance.alignment) * strength;
         }
 
         if (variantState != DISABLED_STATE)

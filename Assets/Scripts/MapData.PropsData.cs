@@ -9,7 +9,7 @@ public partial class MapData : ScriptableObject
     public struct PropInstance
     {
         public Vector3 position;//Y is a offset from terrain height
-        public Vector3 direction;//Length scales Y
+        public float alignment;//Normal aligned
         public float rotation;//Around Y
         public float size;//All axis
         public int variantIndex;//<0 to prepare for deletion! TODO
@@ -68,9 +68,9 @@ public partial class MapData : ScriptableObject
     [System.Serializable]
     public class DensityMap
     {
-        public float[] map;//TODO limit to 0..1?
+        public Vector4[] map;//TODO limit to 0..1?
         
-        public float SampleDensity(float x, float y, MapData mapData)
+        public Vector4 SampleDensity(float x, float y, MapData mapData)
         {
             Vector3Int indices;
             Vector3 barycentricCoordinate;
@@ -82,7 +82,7 @@ public partial class MapData : ScriptableObject
             }
             else
             {
-                return 0f;
+                return default(Vector4);
             }
         }
     }
@@ -556,33 +556,16 @@ public partial class MapData : ScriptableObject
 
         public Variant[] variants = new Variant[1];
 
+        public DensityPropsLogic propsLogic;
+
         [System.Serializable]
         public class Variant
         {
             public MeshResource[] meshResources = new MeshResource[1];// For both LODs and instance components
 
-
-            //For density maps only
-            //InstanceSet PropInstances ignore the following fields
-            public float probability = 1f;
-
-            public float propsScale = 1f;
             public Vector3 propsDirection = Vector3.up;
-            
-            public FloatRange alignmentRange = new FloatRange(0.2f, 0.5f);
-            public FloatRange rotationRange = new FloatRange(-180f, 180f);
-            public FloatRange yOffsetRange = new FloatRange(0f, 0f);
         }
         
-        //public MeshGroup[] meshGroups = new MeshGroup[1];
-
-        //[System.Serializable]
-        //public class MeshGroup
-        //{
-        //    public MeshLOD[] meshLODs = new MeshLOD[1];
-        //    public int instanceSetIndex;
-        //}
-
         [System.Serializable]
         public class MeshResource
         {
@@ -593,6 +576,14 @@ public partial class MapData : ScriptableObject
             //public bool billboard;//TODO billboard from shader?
 
         }
+        
+        public abstract class DensityPropsLogic : ScriptableObject
+        {
+            public abstract bool BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues, ref MapData.PropInstance instanceData);
+
+            public abstract string GetDefinitions();
+        }
+
 
         public int verticesLengthLimit = 900;
         public int trianglesLengthLimit = 900;//indices actually
@@ -784,20 +775,30 @@ public partial class MapData : ScriptableObject
             }
 
 
-            if (pattern != null && densityMapIndex >= 0 && densityMapIndex < mapData.densityMaps.Length)
+            if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.densityMaps.Length)
             {
                 PropDitherPattern.PatternElement[] elements = pattern.elements;
-                DensityMap densityMap = mapData.densityMaps[densityMapIndex];//TODO null checks in all classes?
+                int elementsLength = elements.Length;
 
                 int povCellX = Mathf.RoundToInt(pov.x / patternScale);
                 int povCellY = Mathf.RoundToInt(pov.z / patternScale);
 
+                DensityMap densityMap = mapData.densityMaps[densityMapIndex];//TODO null checks in all classes?
+                
+                DensityPropsLogic currentPropsLogic = propsLogic;//TODO sealed override vs delegate
+                
+                PropInstance instanceData = default(PropInstance);
                 Vector2 elementPosition;
+                Vector4 densityValues;
                 for (int e = 0; e < elements.Length; ++e)
                 {
+                    float elementRand = (float)(e + 1) / elementsLength;
+
                     elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
+                    densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
                     //if (e == 0) Debug.Log("HERE: " + elementPosition+" "+ DensityTest(elementPosition, e + 1, densityMap));
-                    if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                    //if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                    if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);
                 }
                 //DoPatternCell(povCellX, povCellY, ref vertexIndex, ref indexIndex);
                 for (int offset = 1; offset <= maxCellsFromCenter; ++offset)//TODO configurable maxCellsFromCenter?
@@ -807,14 +808,30 @@ public partial class MapData : ScriptableObject
                     {
                         for (int e = 0; e < elements.Length; ++e)
                         {
+                            float elementRand = (float)(e + 1) / elementsLength;
+
                             elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
-                            if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
+                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
-                            if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
+                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
-                            if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
+                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
-                            if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
+                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+
+
+                            //elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
+                            //if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            //elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
+                            //if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            //elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
+                            //if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            //elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
+                            //if (DensityTest(elementPosition, e + 1, densityMap)) DoDensityInstance(elementPosition, elements[e], ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                         }
                         //DoPatternCell(povCellX + offset, povCellY + offset2, ref vertexIndex, ref indexIndex);
                         //DoPatternCell(povCellX - offset2, povCellY + offset, ref vertexIndex, ref indexIndex);
@@ -829,98 +846,98 @@ public partial class MapData : ScriptableObject
 
         Vector2 GetElementPosition(int cellX, int cellY, PropDitherPattern.PatternElement element)
         {
-            return (new Vector2(cellX, cellY)  + element.pos / PropDitherPattern.CellSize) * patternScale;
+            return (new Vector2(cellX, cellY) + element.pos / PropDitherPattern.CellSize) * patternScale;
         }
 
-        bool DensityTest(Vector2 elemPosition, float minDensity, DensityMap densityMap)
-        {
-            float density = densityMap.SampleDensity(elemPosition.x, elemPosition.y, mapData);
-            return density > minDensity;
-        }
+        //bool DensityTest(Vector2 elemPosition, float minDensity, DensityMap densityMap)
+        //{
+        //    float density = densityMap.SampleDensity(elemPosition.x, elemPosition.y, mapData);
+        //    return density > minDensity;
+        //}
 
-        int SelectVariant(float rand)
-        {
-            float probSum = 0;
-            for (int v = 0; v < variants.Length; ++v) probSum += variants[v].probability;
-            rand *= probSum;
-            float probAccum = 0;
-            for (int v = 0; v < variants.Length; ++v)
-            {
-                probAccum += variants[v].probability;
-                if (rand <= probAccum) return v;//TODO test
-            }
-            return -1;
-        }
+        //int SelectVariant(float rand)
+        //{
+        //    float probSum = 0;
+        //    for (int v = 0; v < variants.Length; ++v) probSum += variants[v].probability;
+        //    rand *= probSum;
+        //    float probAccum = 0;
+        //    for (int v = 0; v < variants.Length; ++v)
+        //    {
+        //        probAccum += variants[v].probability;
+        //        if (rand <= probAccum) return v;//TODO test
+        //    }
+        //    return -1;
+        //}
 
-        void DoDensityInstance(Vector2 elemPosition, PropDitherPattern.PatternElement element, ref int vertexIndex, ref int indexIndex)
-        {
-            //float patternLocal2WorldScale = patternScale / PropDitherPattern.CellSize;
-            int subMeshCount = materials.Length;
+        //void DoDensityInstance(Vector2 elemPosition, PropDitherPattern.PatternElement element, ref int vertexIndex, ref int indexIndex)
+        //{
+        //    //float patternLocal2WorldScale = patternScale / PropDitherPattern.CellSize;
+        //    int subMeshCount = materials.Length;
 
-            //Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
-            //float density = densityMap.SampleDensity(elemPosition.x, elemPosition.y, mapData);
-            //if (density <= (e + 1)) return;
+        //    //Vector2 elemPosition = new Vector2(x, y) * patternScale + element.pos * patternLocal2WorldScale;
+        //    //float density = densityMap.SampleDensity(elemPosition.x, elemPosition.y, mapData);
+        //    //if (density <= (e + 1)) return;
             
-            float variantRand = element.rand3;
-            int variantIndex = SelectVariant(variantRand);
-            if (variantIndex == -1) return;
+        //    float variantRand = element.rand3;
+        //    int variantIndex = SelectVariant(variantRand);
+        //    if (variantIndex == -1) return;
 
-            Variant variant = variants[variantIndex];
+        //    Variant variant = variants[variantIndex];
 
-            Vector3 position = new Vector3(elemPosition.x, variant.yOffsetRange.GetValue(element.rand2), elemPosition.y);
+        //    Vector3 position = new Vector3(elemPosition.x, variant.yOffsetRange.GetValue(element.rand2), elemPosition.y);
 
-            Vector3 realPosition = mapData.GetRealInstancePosition(position);
-            float sqrDist = (realPosition - pov).sqrMagnitude;
+        //    Vector3 realPosition = mapData.GetRealInstancePosition(position);
+        //    float sqrDist = (realPosition - pov).sqrMagnitude;
 
-            Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
+        //    Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
 
-            Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.alignmentRange.GetValue(element.rand0));
-            float rotation = variant.rotationRange.GetValue(element.rand1);
-            float size = element.r * variant.propsScale;//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
+        //    Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, variant.alignmentRange.GetValue(element.rand0));
+        //    float rotation = variant.rotationRange.GetValue(element.rand1);
+        //    float size = element.r * variant.propsScale;//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
             
-            for (int r = 0; r < variant.meshResources.Length; ++r)
-            {
-                MeshResource meshResource = variant.meshResources[r];
-                MeshResourceData meshData = meshResource.data;
-                if (!meshData.MeshListsLoaded()) continue;
+        //    for (int r = 0; r < variant.meshResources.Length; ++r)
+        //    {
+        //        MeshResource meshResource = variant.meshResources[r];
+        //        MeshResourceData meshData = meshResource.data;
+        //        if (!meshData.MeshListsLoaded()) continue;
 
-                if (vertexIndex + meshData.verticesCount > verticesLengthLimit) break;
-                if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
+        //        if (vertexIndex + meshData.verticesCount > verticesLengthLimit) break;
+        //        if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
 
-                if (!meshResource.sqrDistanceRange.CheckInRange(sqrDist)) continue;
+        //        if (!meshResource.sqrDistanceRange.CheckInRange(sqrDist)) continue;
                 
-                Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
-                for (int i = 0; i < meshData.verticesCount; ++i)
-                {
-                    Vector3 vertex = matrix.MultiplyPoint3x4(meshData.verticesList[i]);
-                    vertices.Add(vertex);
-                }
-                for (int i = 0; i < meshData.verticesCount; ++i)
-                {
-                    Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]);
-                    normals.Add(normal);//TODO normalize?
-                }
-                for (int i = 0; i < meshData.verticesCount; ++i)
-                {
-                    Vector2 uv = meshData.uvsList[i];
-                    uvs.Add(uv);
-                }
+        //        Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
+        //        for (int i = 0; i < meshData.verticesCount; ++i)
+        //        {
+        //            Vector3 vertex = matrix.MultiplyPoint3x4(meshData.verticesList[i]);
+        //            vertices.Add(vertex);
+        //        }
+        //        for (int i = 0; i < meshData.verticesCount; ++i)
+        //        {
+        //            Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]);
+        //            normals.Add(normal);//TODO normalize?
+        //        }
+        //        for (int i = 0; i < meshData.verticesCount; ++i)
+        //        {
+        //            Vector2 uv = meshData.uvsList[i];
+        //            uvs.Add(uv);
+        //        }
 
-                //if (vertexIndex < 300) Debug.Log(meshResource.targetSubMesh + " asdffasd fas ");
-                if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
-                {
-                    List<int> triangles = triangleLists[meshResource.targetSubMesh];
-                    for (int i = 0; i < meshData.indicesCount; ++i)
-                    {
-                        int index = vertexIndex + meshData.trianglesList[i];
-                        triangles.Add(index);
-                    }
-                }
+        //        //if (vertexIndex < 300) Debug.Log(meshResource.targetSubMesh + " asdffasd fas ");
+        //        if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
+        //        {
+        //            List<int> triangles = triangleLists[meshResource.targetSubMesh];
+        //            for (int i = 0; i < meshData.indicesCount; ++i)
+        //            {
+        //                int index = vertexIndex + meshData.trianglesList[i];
+        //                triangles.Add(index);
+        //            }
+        //        }
 
-                vertexIndex += meshData.verticesCount;
-                indexIndex += meshData.indicesCount;//TODO Split by submesh?
-            }
-        }
+        //        vertexIndex += meshData.verticesCount;
+        //        indexIndex += meshData.indicesCount;//TODO Split by submesh?
+        //    }
+        //}
 
         void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
@@ -934,7 +951,9 @@ public partial class MapData : ScriptableObject
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDist = (realPosition - pov).sqrMagnitude;
 
-            Vector3 direction = instance.direction;
+            Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
+
+            Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, instance.alignment);
             float rotation = instance.rotation;
             float size = instance.size;
 
@@ -1103,7 +1122,7 @@ public partial class MapData : ScriptableObject
         for (int i = 0; i < densityMaps.Length; ++i)
         {
             DensityMap densityMap = densityMaps[i];
-            if (densityMap.map == null || densityMap.map.Length != targetLength) densityMap.map = new float[targetLength];//TODO properly rescale
+            if (densityMap.map == null || densityMap.map.Length != targetLength) densityMap.map = new Vector4[targetLength];//TODO properly rescale
         }
         //dpMeshData.FreeMeshLists();//TODO ? this seems to block update, maybe crashes the thread
     }

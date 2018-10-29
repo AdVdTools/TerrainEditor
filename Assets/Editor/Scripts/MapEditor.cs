@@ -76,6 +76,9 @@ public class MapEditor : Editor {
         //InvalidateSelection();//TODO needed?
     }
 
+    readonly GUIContent rebuildTerrainGUIContent = new GUIContent("Rebuild Terrain");
+    readonly GUIContent rebuildPropsGUIContent = new GUIContent("Rebuild Props");
+
     readonly GUIContent editButtonContent = new GUIContent("Edit");
     readonly GUIContent applyGUIContent = new GUIContent("Apply To Selection");
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
@@ -90,6 +93,12 @@ public class MapEditor : Editor {
 
         lodScale = EditorGUILayout.FloatField(lodScaleGUIContent, lodScale);
         //lodScale = clamp?
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button(rebuildTerrainGUIContent)) RebuildMapTerrain();
+        if (GUILayout.Button(rebuildPropsGUIContent)) RebuildPropMeshesSync();//TODO not that useful
+        EditorGUILayout.EndHorizontal();
+
 
         editing = GUILayout.Toggle(editing, editButtonContent, EditorStyles.miniButton);
         Tools.hidden = editing;
@@ -169,9 +178,11 @@ public class MapEditor : Editor {
                 case DENSITY_MAPS_TARGET:
                     DrawDensityMapSelector();
                     //TODO inspector for prop randomness
-
-                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;
+                    
+                    Brush.currentBrush.currentValueType = Brush.ValueType.Vector4;
                     Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    Vector4Math.mask = Brush.currentBrush.VectorMask;
+                    //TODO include DensityPropsLogic definitions
                     break;
             }
             Brush.currentBrush.HandleBrushShortcuts();//TODO check working properly
@@ -361,7 +372,7 @@ public class MapEditor : Editor {
                                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                                 {
                                     MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(densityMap.map, data.Indices, FloatMath.sharedHandler));
+                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
                                 }
                                 else
                                 {
@@ -453,7 +464,7 @@ public class MapEditor : Editor {
 
     float[] auxHeights = null;
     Color[] auxColors = null;
-    float[] auxDensityMap = null;
+    Vector4[] auxDensityMap = null;
     MapData.InstanceSet auxInstanceSet = null;
 
     void ApplyBrush()
@@ -496,7 +507,7 @@ public class MapEditor : Editor {
                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                 {
                     MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                    ApplyBrush<float>(data.Vertices, densityMap.map, auxDensityMap/*TODO reuse auxHeights?*/, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
+                    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, Brush.currentBrush.vectorValue, Vector4Math.sharedHandler);
                 }
                 else
                 {
@@ -692,7 +703,7 @@ public class MapEditor : Editor {
                         MapData.PropInstance instance = new MapData.PropInstance()
                         {
                             position = position,
-                            direction = Vector3.up,
+                            alignment = 0,
                             rotation = UnityEngine.Random.value * 360f,
                             size = 1f,
                             variantIndex = 0

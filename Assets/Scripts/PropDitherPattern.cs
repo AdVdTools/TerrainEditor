@@ -31,7 +31,7 @@ public class PropDitherPattern : ScriptableObject
         /// </summary>
         public float rand2;
         /// <summary>
-        /// Variant
+        /// Other
         /// </summary>
         public float rand3;
     }
