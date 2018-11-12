@@ -95,8 +95,16 @@ public class MapEditor : Editor {
         //lodScale = clamp?
 
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button(rebuildTerrainGUIContent)) RebuildMapTerrain();
-        if (GUILayout.Button(rebuildPropsGUIContent)) RebuildPropMeshesSync();//TODO not that useful
+        if (GUILayout.Button(rebuildTerrainGUIContent))
+        {
+            //RebuildMapTerrain();
+            map.Refresh();
+        }
+        if (GUILayout.Button(rebuildPropsGUIContent))
+        {
+            RebuildPropMeshesSync();//TODO not that useful
+            //TODO call map RefreshProps?
+        }
         EditorGUILayout.EndHorizontal();
 
 
