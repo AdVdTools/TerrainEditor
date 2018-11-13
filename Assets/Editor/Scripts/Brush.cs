@@ -22,9 +22,16 @@ public class Brush
     private const string brushTexturesPath = "Assets/Editor/BrushTextures";
     private Texture2D[] brushTextures;
     private GUIContent[] brushTextureGUIContents;
+    
+    Material brushProjectorMaterial;
+    int mainTexID;
+    int mainColorID;
+    int projMatrixID;
+    int opacityID;
 
     public Brush()
     {
+        // Load Textures
         if (Directory.Exists(brushTexturesPath))
         {
             string[] textureFiles = Directory.GetFiles(brushTexturesPath, "*.png");
@@ -39,6 +46,18 @@ public class Brush
             brushTextures = new Texture2D[0];
             brushTextureGUIContents = new GUIContent[0];
         }
+
+        // Build Material
+        brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
+        brushProjectorMaterial.hideFlags = HideFlags.HideAndDontSave;
+
+        mainTexID = Shader.PropertyToID("_MainTex");
+        mainColorID = Shader.PropertyToID("_MainColor");
+        projMatrixID = Shader.PropertyToID("_ProjMatrix");
+        opacityID = Shader.PropertyToID("_Opacity");
+
+        brushProjectorMaterial.SetColor(mainColorID, Color.green);
+        //TODO free stuff eventually? check if materials remain between reloads?
     }
     
     private int currentBrushTextureIndex;
@@ -60,7 +79,6 @@ public class Brush
         }
         else
         {
-            //TODO use native array?//Texture.GetRawPixels
             currentBrushTexturePixels = texture.GetPixels();
             currentBrushTextureWidth = texture.width;
             currentBrushTextureHeight = texture.height;
@@ -83,19 +101,12 @@ public class Brush
         coords.y *= currentBrushTextureHeight;
         if (currentBrushTexturePixels == null) return 0f;
         int x = Mathf.FloorToInt(coords.x);
-        if (x < 0 || x >= currentBrushTextureWidth) return 0f;// -1 if interpolating?
+        if (x < 0 || x >= currentBrushTextureWidth) return 0f;
         int y = Mathf.FloorToInt(coords.y);
-        if (y < 0 || y >= currentBrushTextureHeight) return 0f;// -1 if interpolating?
+        if (y < 0 || y >= currentBrushTextureHeight) return 0f;
         int index = x + y * currentBrushTextureWidth;
-        //TODO remove interpolation for speed! (avoid substraction in previus ifs too)
+
         return currentBrushTexturePixels[index].a;
-        //float a00 = currentBrushTexturePixels[index].a;
-        //float a01 = currentBrushTexturePixels[index + 1].a;
-        //float a10 = currentBrushTexturePixels[index + currentBrushTextureWidth].a;
-        //float a11 = currentBrushTexturePixels[index + currentBrushTextureWidth + 1].a;
-        //float u0 = coords.x - x, u1 = 1 - u0;
-        //float v0 = coords.y - y, v1 = 1 - v0;
-        //return a00 * u1 * v1 + a01 * u0 * v1 + a10 * u1 * v0 + a11 * u0 * v0;
     }
 
     public Matrix4x4 GetProjectionMatrix(Vector3 center, Matrix4x4 mapL2WMatrix, Camera camera)//TODO use camera to rotate brush
@@ -115,11 +126,26 @@ public class Brush
                 return Matrix4x4.identity;
         }
     }
-    
+
+    public void SetMaterial(Matrix4x4 projMatrix, bool textured)
+    {
+        brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
+        if (textured) // Textured pass
+        {
+            brushProjectorMaterial.SetFloat(opacityID, opacity * 0.5f);
+            brushProjectorMaterial.SetTexture(mainTexID, currentTexture);
+            brushProjectorMaterial.SetPass(0);
+        }
+        else // Ring pass
+        {
+            brushProjectorMaterial.SetFloat(opacityID, 0f);
+            brushProjectorMaterial.SetPass(1);
+        }
+    }
+
 
     private Rect windowPosition = new Rect(10f, 20f, 0f, 0f);
     private bool editBrush;
-    public static Brush currentBrush = new Brush();
 
     private bool brushChanged;
 
@@ -228,22 +254,22 @@ public class Brush
         EventType type = Event.current.type;
         if (type == EventType.ScrollWheel && Event.current.control)
         {
-            currentBrush.size -= Event.current.delta.y * 0.5f;
+            size -= Event.current.delta.y * 0.5f;
             Event.current.Use();
             brushChanged = true;
             return BrushEvent.BrushChanged;
         }
         else if (type == EventType.ScrollWheel && Event.current.alt)
         {
-            currentBrush.opacity -= Event.current.delta.y * 0.0625f;
-            currentBrush.opacity = Mathf.Round(currentBrush.opacity * 100f) * 0.01f;
+            opacity -= Event.current.delta.y * 0.0625f;
+            opacity = Mathf.Round(opacity * 100f) * 0.01f;
             Event.current.Use();
             brushChanged = true;
             return BrushEvent.BrushChanged;
         }
         else if (type == EventType.KeyUp && Event.current.keyCode == KeyCode.Tab && Event.current.control)
         {
-            currentBrush.mode = (Mode)(((int)currentBrush.mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
+            mode = (Mode)(((int)mode + MODES + (Event.current.shift ? -1 : +1)) % MODES);
             Event.current.Use();
             brushChanged = true;
             return BrushEvent.BrushChanged;
@@ -275,7 +301,7 @@ public class Brush
     public void DrawBrushWindow()
     {
         GUI.skin = EditorGUIUtility.GetBuiltinSkin(EditorSkin.Scene);
-        windowPosition = GUILayout.Window(GUIUtility.GetControlID(brushWindowGUIContent, FocusType.Passive), windowPosition, currentBrush.DrawBrushWindow, brushGUIContent);
+        windowPosition = GUILayout.Window(GUIUtility.GetControlID(brushWindowGUIContent, FocusType.Passive), windowPosition, DrawBrushWindow, brushGUIContent);
     }
     private void DrawBrushWindow(int id)
     {

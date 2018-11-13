@@ -206,8 +206,6 @@ public partial class MapData : ScriptableObject
         public abstract class DensityPropsLogic : ScriptableObject
         {
             public abstract bool BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues, ref MapData.PropInstance instanceData);
-
-            public abstract string GetDefinitions();
         }
 
 

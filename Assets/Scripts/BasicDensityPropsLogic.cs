@@ -5,11 +5,6 @@ using UnityEngine;
 [System.Serializable]
 public struct VariantAttributes //For density maps only
 {
-    //InstanceSet PropInstances ignore the following fields
-    //public float probability;
-
-    //public Vector3 propsDirection;
-
     public FloatRange scaleRange;
     public FloatRange alignmentRange;
     public FloatRange rotationRange;
@@ -21,8 +16,6 @@ public struct VariantAttributes //For density maps only
         {
             return new VariantAttributes()
             {
-                //probability = 1f,
-                //propsDirection = Vector3.up,
                 scaleRange = new FloatRange(1f, 1f),
                 alignmentRange = new FloatRange(0.2f, 0.5f),
                 rotationRange = new FloatRange(-180f, 180f),
@@ -32,14 +25,18 @@ public struct VariantAttributes //For density maps only
     }
 }
 
+/// <summary>
+/// XYZ: variants densities
+/// W: size
+/// </summary>
 [CreateAssetMenu(menuName = "DensityPropsLogic/Basic", fileName = "Basic Density Props Logic")]
 public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsLogic
 {
     [SerializeField]
     VariantAttributes[] variantAttributes = new VariantAttributes[] {
         VariantAttributes.DefaultAttributes
-    };//TODO force length = 3 (XYZ)
-
+    };
+    
     public readonly Vector3 propsDirection = new Vector3(0, 1, 0);
 
     public sealed override bool BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues, ref MapData.PropInstance instanceData)
@@ -71,10 +68,8 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         return true;
     }
 
-    const string definitions = "XYZ: variants densities\nW: size";
-
-    public sealed override string GetDefinitions()
+    void OnValidate()
     {
-        return definitions;
+        if (variantAttributes.Length != 3) System.Array.Resize(ref variantAttributes, 3);
     }
 }

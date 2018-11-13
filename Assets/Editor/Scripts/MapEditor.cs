@@ -7,12 +7,9 @@ public class MapEditor : Editor {
 
     private Map map;
     private MapData data;
-    Material brushProjectorMaterial;
-    int mainTexID;
-    int mainColorID;
-    int projMatrixID;
-    int opacityID;
 
+    private static Brush currentBrush;
+    
     private bool editing;
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
@@ -37,15 +34,7 @@ public class MapEditor : Editor {
         map = target as Map;
         data = map.Data;
 
-        brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
-        brushProjectorMaterial.hideFlags = HideFlags.HideAndDontSave;
-
-        mainTexID = Shader.PropertyToID("_MainTex");
-        mainColorID = Shader.PropertyToID("_MainColor");
-        projMatrixID = Shader.PropertyToID("_ProjMatrix");
-        opacityID = Shader.PropertyToID("_Opacity");
-
-        brushProjectorMaterial.SetColor(mainColorID, Color.green);
+        if (currentBrush == null) currentBrush = new Brush();//Initialize
 
         Undo.undoRedoPerformed += OnUndoRedo;
         SceneView.onSceneGUIDelegate += OnSceneHandler;
@@ -61,8 +50,6 @@ public class MapEditor : Editor {
 
     private void OnDisable()
     {
-        if (brushProjectorMaterial != null) DestroyImmediate(brushProjectorMaterial, false);
-
         Undo.undoRedoPerformed -= OnUndoRedo;
         SceneView.onSceneGUIDelegate -= OnSceneHandler;
         Debug.LogWarning("OnDisable");
@@ -92,7 +79,7 @@ public class MapEditor : Editor {
         DrawDefaultInspector();
 
         lodScale = EditorGUILayout.FloatField(lodScaleGUIContent, lodScale);
-        //lodScale = clamp?
+        lodScale = Mathf.Clamp(lodScale, 0.001f, 1000);
 
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button(rebuildTerrainGUIContent))
@@ -102,7 +89,7 @@ public class MapEditor : Editor {
         }
         if (GUILayout.Button(rebuildPropsGUIContent))
         {
-            RebuildPropMeshesSync();//TODO not that useful
+            RebuildPropMeshesSync();//TODO not that useful, no scene camera here
             //TODO call map RefreshProps?
         }
         EditorGUILayout.EndHorizontal();
@@ -115,34 +102,33 @@ public class MapEditor : Editor {
         {
             brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
 
-            bool enableValueFields = Brush.currentBrush.mode != Brush.Mode.Average && Brush.currentBrush.mode != Brush.Mode.Smooth;
+            bool enableValueFields = currentBrush.mode != Brush.Mode.Average && currentBrush.mode != Brush.Mode.Smooth;
             
             DrawHelp();
             switch (brushTarget)//TODO test vector values?
             {
                 case HEIGHT_TARGET:
-                    Brush.currentBrush.currentValueType = Brush.ValueType.Float;
-                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    currentBrush.currentValueType = Brush.ValueType.Float;
+                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
                 case COLOR_TARGET:
-                    Brush.currentBrush.currentValueType = Brush.ValueType.Color;
-                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    ColorMath.mask = Brush.currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
+                    currentBrush.currentValueType = Brush.ValueType.Color;
+                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
                     break;
                 case PROPS_TARGET:
                     DrawInstanceSetSelector();
-
-                    //TODO use rand value inspector for smooth (separation)
-                    switch (Brush.currentBrush.mode)
+                    
+                    switch (currentBrush.mode)
                     {
                         case Brush.Mode.Set:
                             instanceValues.DoInstancePropertiesInspector();
                             break;
                         case Brush.Mode.Add:
                             EditorGUILayout.LabelField(amountGUIContent, GUI.skin.button);
-                            Brush.currentBrush.currentValueType = Brush.ValueType.Int;//TODO do others?
-                            Brush.currentBrush.DrawBrushValueInspector(true, false);
-                            if (Brush.currentBrush.intValue <= 0) Brush.currentBrush.intValue = 1;
+                            currentBrush.currentValueType = Brush.ValueType.Int;
+                            currentBrush.DrawBrushValueInspector(true, false);
+                            if (currentBrush.intValue <= 0) currentBrush.intValue = 1;
 
                             instanceValues.DoInstancePropertiesInspector();
                             break;
@@ -158,9 +144,6 @@ public class MapEditor : Editor {
                             break;
                     }
                     
-
-                    //TODO Draw warn box if mode does nothing
-                    //TODO Props instance set selector
                     break;
                 case SELECT_TARGET:
                     DrawInstanceSetSelector();
@@ -185,15 +168,13 @@ public class MapEditor : Editor {
 
                 case DENSITY_MAPS_TARGET:
                     DrawDensityMapSelector();
-                    //TODO inspector for prop randomness
                     
-                    Brush.currentBrush.currentValueType = Brush.ValueType.Vector4;
-                    Brush.currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    Vector4Math.mask = Brush.currentBrush.VectorMask;
-                    //TODO include DensityPropsLogic definitions
+                    currentBrush.currentValueType = Brush.ValueType.Vector4;
+                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    Vector4Math.mask = currentBrush.VectorMask;
                     break;
             }
-            Brush.currentBrush.HandleBrushShortcuts();//TODO check working properly
+            currentBrush.HandleBrushShortcuts();//TODO check working properly
         }
 
         if (GUI.changed) SceneView.RepaintAll();
@@ -211,10 +192,9 @@ public class MapEditor : Editor {
     private void DrawHelp()
     {
         int brushTargetIndex = Mathf.Clamp(brushTarget, 0, brushTargetGUIContents.Length - 1);
-        int brushModeIndex = (int)Brush.currentBrush.mode;
+        int brushModeIndex = (int)currentBrush.mode;
 
         EditorGUILayout.HelpBox(helpGUIContents[brushTargetIndex, brushModeIndex]);
-        //EditorGUILayout.LabelField(helpGUIContents[brushTargetIndex, brushModeIndex], EditorStyles.boldLabel);
     }
 
     private void DrawInstanceSetSelector()
@@ -280,13 +260,11 @@ public class MapEditor : Editor {
 
             if (Event.current.type == EventType.MouseMove || Event.current.type == EventType.MouseDrag)
             {
-                //TODO sometimes MouseMove wont reach
-                //Debug.Log("Move");//TODO this seems to require something more than repaint for the scene to refresh always?
                 SceneView.RepaintAll();
                 Repaint();
             }
             if (Event.current.type == EventType.Repaint)
-            {//TODO Layout vs Repaint?
+            {
                 Vector2 screenPoint = Event.current.mousePosition;
                 Ray worldRay = HandleUtility.GUIPointToWorldRay(screenPoint);
                 Matrix4x4 invMatrix = map.transform.worldToLocalMatrix;
@@ -314,28 +292,17 @@ public class MapEditor : Editor {
                 InvalidateSelection();
             }
 
-            switch (Brush.currentBrush.CheckBrushEvent())
+            switch (currentBrush.CheckBrushEvent())
             {
                 case BrushEvent.BrushDraw:
                     Mesh mesh = data.sharedTerrainMesh;
 
                     if (mesh != null)
                     {
-                        Matrix4x4 projMatrix = Brush.currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
+                        Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
-                        brushProjectorMaterial.SetMatrix(projMatrixID, projMatrix);
-                        if (brushTarget != SELECT_TARGET)
-                        {
-                            brushProjectorMaterial.SetFloat(opacityID, Brush.currentBrush.opacity * 0.5f);
-                            brushProjectorMaterial.SetTexture(mainTexID, Brush.currentBrush.currentTexture);
-                            brushProjectorMaterial.SetPass(0);
-                            //TODO move material to brush class?
-                        }
-                        else
-                        {
-                            brushProjectorMaterial.SetFloat(opacityID, 0f);
-                            brushProjectorMaterial.SetPass(1);
-                        }
+                        currentBrush.SetMaterial(projMatrix, brushTarget != SELECT_TARGET);
+
                         Graphics.DrawMeshNow(mesh, matrix, 0);
                     }
                     
@@ -371,16 +338,16 @@ public class MapEditor : Editor {
                         switch (brushTarget)
                         {
                             case HEIGHT_TARGET:
-                                Brush.currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
+                                currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
                                 break;
                             case COLOR_TARGET:
-                                Brush.currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
+                                currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
                                 break;
                             case DENSITY_MAPS_TARGET:
                                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                                 {
                                     MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                                    Brush.currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
+                                    currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
                                 }
                                 else
                                 {
@@ -388,7 +355,7 @@ public class MapEditor : Editor {
                                 }
                                 break;
                         }
-                        Brush.currentBrush.AcceptPeekValue();
+                        currentBrush.AcceptPeekValue();
                         Repaint();
                     }
                     break;
@@ -413,7 +380,7 @@ public class MapEditor : Editor {
 
                 EditorGUILayout.EndVertical();
             }
-            Brush.currentBrush.DrawBrushWindow();
+            currentBrush.DrawBrushWindow();
             Handles.EndGUI();
         }
 
@@ -482,10 +449,10 @@ public class MapEditor : Editor {
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
-                ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, Brush.currentBrush.floatValue, FloatMath.sharedHandler);
+                ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
             case COLOR_TARGET:
-                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, Brush.currentBrush.colorValue, ColorMath.sharedHandler);
+                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
                 break;
             case PROPS_TARGET:
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
@@ -504,6 +471,7 @@ public class MapEditor : Editor {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
                     ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);
                     if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
+                    //TODO investigate autoApplyValues: on inspector change, mesh is lost after and wont show updated until scene is repainted
                 }
                 else
                 {
@@ -515,7 +483,7 @@ public class MapEditor : Editor {
                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                 {
                     MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, Brush.currentBrush.vectorValue, Vector4Math.sharedHandler);
+                    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, currentBrush.vectorValue, Vector4Math.sharedHandler);
                 }
                 else
                 {
@@ -552,8 +520,7 @@ public class MapEditor : Editor {
 
     void ApplyBrush<T>(Vector3[] vertices, T[] srcArray, T[] auxArray, T value, IMathHandler<T> mathHandler) where T: struct
     {
-        Brush brush = Brush.currentBrush;
-        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
+        Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
 
         int pointCount = vertices.Length;
         //TODO check null vertices?
@@ -561,14 +528,14 @@ public class MapEditor : Editor {
         if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];//TODO actually cache this array, pass by reference!
 
         T avgValue = default(T);
-        if (brush.mode == Brush.Mode.Average)
+        if (currentBrush.mode == Brush.Mode.Average)
         {
             T valueSum = default(T);
             float weightSum = 0;
             for(int index = 0; index < pointCount; ++index)
             {
                 Vector3 vertex = vertices[index];
-                float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                 if (strength > 0)
                 {
                     valueSum = mathHandler.WeightedSum(valueSum, srcArray[index], strength);
@@ -589,13 +556,13 @@ public class MapEditor : Editor {
             {
                 ThreadData td = (ThreadData)d;
                 //ThreadData td = threadData;
-                switch (brush.mode)
+                switch (currentBrush.mode)
                 {
                     case Brush.Mode.Add:
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
                             Vector3 vertex = vertices[index];
-                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, strength);
                             else auxArray[index] = srcArray[index];
                         }
@@ -604,7 +571,7 @@ public class MapEditor : Editor {
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
                             Vector3 vertex = vertices[index];
-                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, -strength);
                             else auxArray[index] = srcArray[index];
                         }
@@ -613,7 +580,7 @@ public class MapEditor : Editor {
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
                             Vector3 vertex = vertices[index];
-                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], value, strength);
                             else auxArray[index] = srcArray[index];
                         }
@@ -622,7 +589,7 @@ public class MapEditor : Editor {
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
                             Vector3 vertex = vertices[index];
-                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], avgValue, strength);
                             else auxArray[index] = srcArray[index];
                         }
@@ -631,7 +598,7 @@ public class MapEditor : Editor {
                         for (int index = td.startIndex; index < td.endIndex; ++index)
                         {
                             Vector3 vertex = vertices[index];
-                            float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
+                            float strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(vertex));
                             if (strength > 0f)
                             {
                                 Vector2Int coords = data.IndexToGrid(index);
@@ -680,8 +647,7 @@ public class MapEditor : Editor {
 
     void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)
     {
-        Brush brush = Brush.currentBrush;
-        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
+        Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
         //TODO check null vertices?
 
@@ -691,17 +657,17 @@ public class MapEditor : Editor {
         float rand, strength;
         int instanceCount = instanceSet.Count;
         MapData.PropInstance[] instances = instanceSet.Instances;
-        switch (brush.mode)
+        switch (currentBrush.mode)
         {
             case Brush.Mode.Add://TODO min separation/size variable instead of amount, along with brush density
-                instanceSet.EnsureCapacity(instanceSet.Count + Brush.currentBrush.intValue * 2);//TODO greater margin?
-                for (int i = 0; i < Brush.currentBrush.intValue; ++i)
+                instanceSet.EnsureCapacity(instanceSet.Count + currentBrush.intValue * 2);//TODO greater margin?
+                for (int i = 0; i < currentBrush.intValue; ++i)
                 {
                     Vector3 randOffset = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
-                    Vector3 position = new Vector3(intersection.x + randOffset.x * brush.size, 0f, intersection.z + randOffset.z * brush.size);
+                    Vector3 position = new Vector3(intersection.x + randOffset.x * currentBrush.size, 0f, intersection.z + randOffset.z * currentBrush.size);
                     position.y = data.SampleHeight(position.x, position.z);
                     rand = UnityEngine.Random.value;
-                    strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
                     //Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
                     
                     if (rand < strength)
@@ -729,7 +695,7 @@ public class MapEditor : Editor {
                 {
                     Vector3 position = data.GetRealInstancePosition(instances[index].position);
                     rand = UnityEngine.Random.value;
-                    strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
                     if (rand < strength)
                     {
                         instances[index].variantIndex = -1;
@@ -743,7 +709,7 @@ public class MapEditor : Editor {
                 {
                     Vector3 position = data.GetRealInstancePosition(instances[index].position);
 
-                    strength = brush.GetStrength(projMatrix.MultiplyPoint(position));
+                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
                     if (strength > 0f)
                     {
                         MapData.PropInstance instance = instances[index];
@@ -973,8 +939,7 @@ public class MapEditor : Editor {
 
     void ApplySelectionBrush(MapData.InstanceSet instanceSet)
     {
-        Brush brush = Brush.currentBrush;
-        Matrix4x4 projMatrix = brush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
+        Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         int instanceCount = instanceSet.Count;
         MapData.PropInstance[] instances = instanceSet.Instances;
         //TODO have personal references for threads (like instances, data would be missing) to prevent null exceptions
@@ -995,7 +960,7 @@ public class MapEditor : Editor {
             {
                 ThreadData td = (ThreadData)d;
                 //ThreadData td = threadData;
-                switch (brush.mode)
+                switch (currentBrush.mode)
                 {
                     case Brush.Mode.Add:
                         for (int index = td.startIndex; index < td.endIndex; ++index)
