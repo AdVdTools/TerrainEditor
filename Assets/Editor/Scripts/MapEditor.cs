@@ -14,12 +14,13 @@ public class MapEditor : Editor {
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
     private const int COLOR_TARGET = 1;
-    private const int PROPS_TARGET = 2;
-    private const int SELECT_TARGET = 3;
-    private const int DENSITY_MAPS_TARGET = 4;
+    private const int TEX_COLOR_TARGET = 2;
+    private const int PROPS_TARGET = 3;
+    private const int SELECT_TARGET = 4;
+    private const int DENSITY_MAPS_TARGET = 5;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Maps")
+        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Tex Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Maps")
     };
     
     float lodScale = 1f;
@@ -58,7 +59,8 @@ public class MapEditor : Editor {
     private void OnUndoRedo()
     {
         RebuildMapTerrain();
-        data.PropMeshesSetDirty();//Just set dirty since pov would be unavailable
+        SetPropsDirtyAndRepaintScene();//Just set dirty since pov would be unavailable
+        //data.PropMeshesSetDirty();//Just set dirty since pov would be unavailable
 
         //InvalidateSelection();//TODO needed?
     }
@@ -84,13 +86,11 @@ public class MapEditor : Editor {
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button(rebuildTerrainGUIContent))
         {
-            //RebuildMapTerrain();
             map.Refresh();
         }
         if (GUILayout.Button(rebuildPropsGUIContent))
         {
-            RebuildPropMeshesSync();//TODO not that useful, no scene camera here
-            //TODO call map RefreshProps?
+            map.RefreshProps();//Not that useful, doesn't use scene camera
         }
         EditorGUILayout.EndHorizontal();
 
@@ -100,7 +100,7 @@ public class MapEditor : Editor {
 
         if (editing)
         {
-            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, brushTargetGUIContents.Length);
+            brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, 3);
 
             bool enableValueFields = currentBrush.mode != Brush.Mode.Average && currentBrush.mode != Brush.Mode.Smooth;
             
@@ -115,6 +115,10 @@ public class MapEditor : Editor {
                     currentBrush.currentValueType = Brush.ValueType.Color;
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
+                    break;
+                case TEX_COLOR_TARGET:
+                    //TODO 
+                    //TODO also set uv1 as the right coordinates for sampling
                     break;
                 case PROPS_TARGET:
                     DrawInstanceSetSelector();
@@ -174,7 +178,7 @@ public class MapEditor : Editor {
                     Vector4Math.mask = currentBrush.VectorMask;
                     break;
             }
-            currentBrush.HandleBrushShortcuts();//TODO check working properly
+            currentBrush.HandleBrushShortcuts();
         }
 
         if (GUI.changed) SceneView.RepaintAll();
@@ -183,6 +187,7 @@ public class MapEditor : Editor {
     readonly GUIContent[,] helpGUIContents =
     {
         { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
+        { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
         { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
         { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") },
         { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") },
@@ -254,7 +259,7 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
-
+                
                 RebuildPropMeshesAsync(false);
             }
 
@@ -321,11 +326,10 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintEnd:
                     RebuildMapTerrain();
-                    RebuildPropMeshesAsync(true);//TODO do parallel method?
-
-                                                // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
-                                                // but will once some other event happens (such as right click)
-                                                // first click outside of the scene window wont work either
+                    RebuildPropMeshesAsync(true);
+                    // TODO Undo won't work after mouseUp if a mouseDrag happens afterwards, 
+                    // but will once some other event happens (such as right click)
+                    // first click outside of the scene window wont work either
 
                     //Debug.LogWarningFormat("PaintEnd {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
@@ -446,12 +450,15 @@ public class MapEditor : Editor {
     {
         applyStopWatch.Reset();
         applyStopWatch.Start();
+        int pointCount = data.Vertices.Length;
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
+                if (auxHeights == null || auxHeights.Length != pointCount) auxHeights = new float[pointCount];
                 ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
             case COLOR_TARGET:
+                if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
                 ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
                 break;
             case PROPS_TARGET:
@@ -471,7 +478,6 @@ public class MapEditor : Editor {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
                     ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);
                     if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
-                    //TODO investigate autoApplyValues: on inspector change, mesh is lost after and wont show updated until scene is repainted
                 }
                 else
                 {
@@ -483,6 +489,7 @@ public class MapEditor : Editor {
                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                 {
                     MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
+                    if (auxDensityMap == null || auxDensityMap.Length != pointCount) auxDensityMap = new Vector4[pointCount];
                     ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, currentBrush.vectorValue, Vector4Math.sharedHandler);
                 }
                 else
@@ -505,11 +512,10 @@ public class MapEditor : Editor {
                 data.UpdateMeshColor();
                 break;
             case PROPS_TARGET:
-                //data.RefreshPropMesh(0); //quick?
-                RebuildPropMeshesAsync(true);//
+                RebuildPropMeshesAsync(true);
                 break;
             case DENSITY_MAPS_TARGET:
-                RebuildPropMeshesAsync(true);//TODO set dirty, despite pov change?
+                RebuildPropMeshesAsync(true);
                 break;
         }
         rebuildStopWatch.Stop();
@@ -524,9 +530,7 @@ public class MapEditor : Editor {
 
         int pointCount = vertices.Length;
         //TODO check null vertices?
-
-        if (auxArray == null || auxArray.Length != pointCount) auxArray = new T[pointCount];//TODO actually cache this array, pass by reference!
-
+        
         T avgValue = default(T);
         if (currentBrush.mode == Brush.Mode.Average)
         {
@@ -645,7 +649,7 @@ public class MapEditor : Editor {
 
         //TODO individual prop brush vs density props brush!!!!
 
-    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)
+    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)//TODO use auxInstanceSet? remove?
     {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
@@ -659,8 +663,8 @@ public class MapEditor : Editor {
         MapData.PropInstance[] instances = instanceSet.Instances;
         switch (currentBrush.mode)
         {
-            case Brush.Mode.Add://TODO min separation/size variable instead of amount, along with brush density
-                instanceSet.EnsureCapacity(instanceSet.Count + currentBrush.intValue * 2);//TODO greater margin?
+            case Brush.Mode.Add:
+                instanceSet.EnsureCapacity(instanceSet.Count + currentBrush.intValue * 2);
                 for (int i = 0; i < currentBrush.intValue; ++i)
                 {
                     Vector3 randOffset = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
@@ -690,7 +694,6 @@ public class MapEditor : Editor {
                 }
                 break;
             case Brush.Mode.Substract:
-                //TODO multithreading
                 for (int index = 0; index < instanceCount; ++index)
                 {
                     Vector3 position = data.GetRealInstancePosition(instances[index].position);
@@ -833,12 +836,24 @@ public class MapEditor : Editor {
     {
         if (forceDirtying) data.PropMeshesSetDirty();
 
+        if (data.PropMeshesRebuildOngoing())
+        {
+            SceneView.RepaintAll();
+            //First repaint comes from the triggering event, probably
+            //extra repaint after "ready" to redraw with the new mesh
+            //also useful if data is dirty again
+        }
+
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.BkgRefreshPropMeshes(pov, lodScale);//TODO set dirty, update on repaint & repaint while updating
+        data.RefreshPropMeshesAsync(pov, lodScale);
+    }
 
-        if (data.PropMeshesRebuildOngoing()) Repaint();
+    void SetPropsDirtyAndRepaintScene()
+    {
+        data.PropMeshesSetDirty();
+        SceneView.RepaintAll();
     }
 
     #region Selection
@@ -865,7 +880,7 @@ public class MapEditor : Editor {
             if (selectionCount > 0) meanPosition *= 1f / selectionCount;
             //TODO if (transformSelectionHandle)
             {
-                Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);//TODO use different handle?
+                Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);
 
                 if (newPosition != meanPosition)
                 {
@@ -875,10 +890,8 @@ public class MapEditor : Editor {
                     {
                         if (instanceSelection[index]) instances[index].position += deltaPosition;
                     }
-
-                    //data.RefreshPropMesh(0); //quick?
-                    RebuildPropMeshesAsync(true);//This recalculates positions//UPDATE: No more
-                    //TODO set props dirty, update on repaints (repaint while updating)
+                    
+                    RebuildPropMeshesAsync(true);
                 }
             }
         }
@@ -1024,8 +1037,8 @@ public class MapEditor : Editor {
                 instanceSet.Instances[index] = instance;
             }
         }
-        
-        RebuildPropMeshesAsync(true);
+
+        SetPropsDirtyAndRepaintScene();//Doesn't call RefreshProps because it might not have the Scene POV
     }
 
     #endregion

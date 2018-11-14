@@ -122,7 +122,7 @@ public partial class MapData : ScriptableObject
     /// </summary>
     /// <param name="pov"></param>
     /// <param name="lodScale"></param>
-    public void BkgRefreshPropMeshes(Vector3 pov, float lodScale)
+    public void RefreshPropMeshesAsync(Vector3 pov, float lodScale)
     {
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
