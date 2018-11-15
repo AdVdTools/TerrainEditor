@@ -60,9 +60,6 @@ public class MapEditor : Editor {
     {
         RebuildMapTerrain();
         SetPropsDirtyAndRepaintScene();//Just set dirty since pov would be unavailable
-        //data.PropMeshesSetDirty();//Just set dirty since pov would be unavailable
-
-        //InvalidateSelection();//TODO needed?
     }
 
     readonly GUIContent rebuildTerrainGUIContent = new GUIContent("Rebuild Terrain");
@@ -448,6 +445,8 @@ public class MapEditor : Editor {
 
     void ApplyBrush()
     {
+        if (data.Vertices == null) return;
+
         applyStopWatch.Reset();
         applyStopWatch.Start();
         int pointCount = data.Vertices.Length;
@@ -461,7 +460,7 @@ public class MapEditor : Editor {
                 if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
                 ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
                 break;
-            case PROPS_TARGET:
+            case PROPS_TARGET://TODO reimagine non density props editor
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
@@ -476,7 +475,7 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);
+                    ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);//TODO
                     if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
                 }
                 else
@@ -529,7 +528,6 @@ public class MapEditor : Editor {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
 
         int pointCount = vertices.Length;
-        //TODO check null vertices?
         
         T avgValue = default(T);
         if (currentBrush.mode == Brush.Mode.Average)
@@ -832,22 +830,27 @@ public class MapEditor : Editor {
         data.RefreshPropMeshes(pov, lodScale);//TODO inspector button
     }
 
+    bool afterMeshUpdateRefreshPending = false;
+
     void RebuildPropMeshesAsync(bool forceDirtying)
     {
         if (forceDirtying) data.PropMeshesSetDirty();
-
-        if (data.PropMeshesRebuildOngoing())
-        {
-            SceneView.RepaintAll();
-            //First repaint comes from the triggering event, probably
-            //extra repaint after "ready" to redraw with the new mesh
-            //also useful if data is dirty again
-        }
-
+        
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
         data.RefreshPropMeshesAsync(pov, lodScale);
+
+        if (data.PropMeshesRebuildOngoing())
+        {
+            SceneView.RepaintAll();
+            //Extra repaint after "ready" to redraw with the new mesh
+            afterMeshUpdateRefreshPending = true;
+        }
+        else if (afterMeshUpdateRefreshPending) {
+            SceneView.RepaintAll();
+            afterMeshUpdateRefreshPending = false;
+        }
     }
 
     void SetPropsDirtyAndRepaintScene()
@@ -878,7 +881,8 @@ public class MapEditor : Editor {
                 }
             }
             if (selectionCount > 0) meanPosition *= 1f / selectionCount;
-            //TODO if (transformSelectionHandle)
+
+            if (Tools.current == Tool.Move)
             {
                 Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);
 
@@ -945,9 +949,8 @@ public class MapEditor : Editor {
             InvalidateSelection();
         }
     }
-
-    //TODO improve selection handling
-    bool[] instanceSelection = null;//TODO do I want an aux selection array?
+    
+    bool[] instanceSelection = null;
     int selectionCount = 0;
 
     void ApplySelectionBrush(MapData.InstanceSet instanceSet)
@@ -955,10 +958,7 @@ public class MapEditor : Editor {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         int instanceCount = instanceSet.Count;
         MapData.PropInstance[] instances = instanceSet.Instances;
-        //TODO have personal references for threads (like instances, data would be missing) to prevent null exceptions
         
-        //TODO check null instances?
-
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
         if (instanceSelection == null) return;//Could not initialize
 
@@ -968,11 +968,11 @@ public class MapEditor : Editor {
         {
             ThreadData threadData = threadsData[i];
             threadData.Reset(i * instancesPerThread, Mathf.Min((i + 1) * instancesPerThread, instanceCount));
-            //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
+            
             ThreadPool.QueueUserWorkItem((d) =>
             {
                 ThreadData td = (ThreadData)d;
-                //ThreadData td = threadData;
+
                 switch (currentBrush.mode)
                 {
                     case Brush.Mode.Add:
@@ -982,7 +982,6 @@ public class MapEditor : Editor {
                             Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
                             float sqrDist = projOffset.sqrMagnitude;
                             if (sqrDist <= 1f) instanceSelection[index] = true;
-                            //else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Substract:
@@ -992,7 +991,6 @@ public class MapEditor : Editor {
                             Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
                             float sqrDist = projOffset.sqrMagnitude;
                             if (sqrDist <= 1f) instanceSelection[index] = false;
-                            //else auxArray[index] = srcArray[index];
                         }
                         break;
                     case Brush.Mode.Set:
@@ -1013,8 +1011,7 @@ public class MapEditor : Editor {
         {
             threadData.mre.WaitOne();
         }
-
-        //Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        
         selectionCount = 0;
         for (int i = 0; i < instanceSelection.Length; ++i) if (instanceSelection[i]) selectionCount++;
     }
