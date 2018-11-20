@@ -20,7 +20,7 @@ public class MapEditor : Editor {
     private const int DENSITY_MAPS_TARGET = 5;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Tex Color"), new GUIContent("Props"), new GUIContent("Select"), new GUIContent("Density Maps")
+        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Tex Color"), new GUIContent("Edit Props"), new GUIContent("Select Props"), new GUIContent("Density Maps")
     };
     
     float lodScale = 1f;
@@ -70,7 +70,7 @@ public class MapEditor : Editor {
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
     readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
-    readonly GUIContent amountGUIContent = new GUIContent("Amount");
+    readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
     public override void OnInspectorGUI()
@@ -94,8 +94,9 @@ public class MapEditor : Editor {
 
         editing = GUILayout.Toggle(editing, editButtonContent, EditorStyles.miniButton);
         Tools.hidden = editing;
-
-        if (editing)
+        
+        data = map.Data;
+        if (editing && data != null)
         {
             brushTarget = GUILayout.SelectionGrid(brushTarget, brushTargetGUIContents, 3);
 
@@ -126,10 +127,10 @@ public class MapEditor : Editor {
                             instanceValues.DoInstancePropertiesInspector();
                             break;
                         case Brush.Mode.Add:
-                            EditorGUILayout.LabelField(amountGUIContent, GUI.skin.button);
-                            currentBrush.currentValueType = Brush.ValueType.Int;
+                            EditorGUILayout.LabelField(pacingGUIContent, GUI.skin.button);
+                            currentBrush.currentValueType = Brush.ValueType.Float;
                             currentBrush.DrawBrushValueInspector(true, false);
-                            if (currentBrush.intValue <= 0) currentBrush.intValue = 1;
+                            if (currentBrush.floatValue < 0) currentBrush.floatValue = 0;
 
                             instanceValues.DoInstancePropertiesInspector();
                             break;
@@ -248,7 +249,8 @@ public class MapEditor : Editor {
         Handles.matrix = matrix;
         Handles.color = Color.red;
 
-        if (editing)
+        data = map.Data;
+        if (editing && data != null)
         {
             //Debug.Log(Event.current.type);
             if (Event.current.type == EventType.Repaint)
@@ -303,7 +305,7 @@ public class MapEditor : Editor {
                     {
                         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
-                        currentBrush.SetMaterial(projMatrix, brushTarget != SELECT_TARGET);
+                        currentBrush.SetMaterial(projMatrix, brushTarget != SELECT_TARGET && (brushTarget != PROPS_TARGET || currentBrush.mode != Brush.Mode.Add));
 
                         Graphics.DrawMeshNow(mesh, matrix, 0);
                     }
@@ -312,6 +314,8 @@ public class MapEditor : Editor {
                     break;
                 case BrushEvent.BrushPaintStart:
                     shouldApplyBrush = true;
+
+                    lastInstancePlacing = new Vector3(float.MinValue, float.MinValue, float.MinValue);//Reset for prop placing mode
 
                     Undo.RegisterCompleteObjectUndo(data, "Map Paint");
                     //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
@@ -441,7 +445,6 @@ public class MapEditor : Editor {
     float[] auxHeights = null;
     Color[] auxColors = null;
     Vector4[] auxDensityMap = null;
-    MapData.InstanceSet auxInstanceSet = null;
 
     void ApplyBrush()
     {
@@ -464,7 +467,7 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    ApplyBrush(data.Vertices, instanceSet, auxInstanceSet);
+                    ApplyBrush(data.Vertices, instanceSet);
                 }
                 else
                 {
@@ -475,7 +478,7 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    ApplySelectionBrush(instanceSet/*, auxInstanceSet?*/);//TODO
+                    ApplySelectionBrush(instanceSet);
                     if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
                 }
                 else
@@ -546,8 +549,7 @@ public class MapEditor : Editor {
             }
             if (weightSum > 0.001f) avgValue = mathHandler.Product(valueSum, 1f / weightSum);
         }
-
-        //TODO is this slower?
+        
         int pointsPerThread = (pointCount - 1) / threads + 1;
         for (int i = 0; i < threads; ++i)
         {
@@ -639,22 +641,14 @@ public class MapEditor : Editor {
     }
     //TODO serialize MapData object!!
 
-    //void ApplyPropsBrush(propSetData?, T[] srcArray, T[] auxArray, T value, IMathHandler<T> mathHandler)
-    //{
 
-    //}
+    
+    Vector3 lastInstancePlacing;
+    //TODO individual prop brush vs density props brush!!!!
 
-
-        //TODO individual prop brush vs density props brush!!!!
-
-    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet, MapData.InstanceSet auxInstanceSet)//TODO use auxInstanceSet? remove?
+    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet)
     {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
-        
-        //TODO check null vertices?
-
-        //if (auxInstanceSet == null) auxInstanceSet = new MapData.InstanceSet();
-        //TODO clear instanceSet?, calculate positions / distances?
         
         float rand, strength;
         int instanceCount = instanceSet.Count;
@@ -662,34 +656,26 @@ public class MapEditor : Editor {
         switch (currentBrush.mode)
         {
             case Brush.Mode.Add:
-                instanceSet.EnsureCapacity(instanceSet.Count + currentBrush.intValue * 2);
-                for (int i = 0; i < currentBrush.intValue; ++i)
+                instanceSet.EnsureCapacity(instanceSet.Count + 1);//TODO mind multithreading
+
+                if (Vector3.Distance(lastInstancePlacing, intersection) > currentBrush.floatValue)
                 {
-                    Vector3 randOffset = new Vector3(UnityEngine.Random.value * 2f - 1f, 0f, UnityEngine.Random.value * 2f - 1f);
-                    Vector3 position = new Vector3(intersection.x + randOffset.x * currentBrush.size, 0f, intersection.z + randOffset.z * currentBrush.size);
-                    position.y = data.SampleHeight(position.x, position.z);
-                    rand = UnityEngine.Random.value;
-                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
-                    //Debug.Log(rand + " " + strength + " " + instanceSet.Count + " " + randOffset);
-                    
-                    if (rand < strength)
+                    lastInstancePlacing = intersection;
+
+                    MapData.PropInstance instance = new MapData.PropInstance()
                     {
-                        //Debug.Log(rand + " < " + strength);
-                        position.y = 0;
-                        MapData.PropInstance instance = new MapData.PropInstance()
-                        {
-                            position = position,
-                            alignment = 0,
-                            rotation = UnityEngine.Random.value * 360f,
-                            size = 1f,
-                            variantIndex = 0
-                        };
-                        Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
-                        instance = instanceValues.ApplyValues(instance, normal, strength);
-                        instanceSet.Instances[instanceCount] = instance;
-                        instanceSet.Count = instanceCount = instanceCount + 1;
-                    }
+                        position = new Vector3(intersection.x, 0f, intersection.z),
+                        alignment = 0,
+                        rotation = UnityEngine.Random.value * 360f,
+                        size = 1f,
+                        variantIndex = 0
+                    };
+                    Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
+                    instance = instanceValues.ApplyValues(instance, normal, 1f);
+                    instanceSet.Instances[instanceCount] = instance;
+                    instanceSet.Count = instanceCount = instanceCount + 1;
                 }
+
                 break;
             case Brush.Mode.Substract:
                 for (int index = 0; index < instanceCount; ++index)
@@ -725,96 +711,6 @@ public class MapEditor : Editor {
             default:
                 break;
         }
-
-        //TODO is this slower?
-    //    int pointsPerThread = (pointCount - 1) / threads + 1;
-    //    for (int i = 0; i < threads; ++i)
-    //    {
-    //        ThreadData threadData = threadsData[i];
-    //        threadData.Reset(i * pointsPerThread, Mathf.Min((i + 1) * pointsPerThread, pointCount));
-    //        //Debug.Log(i * pointsPerThread + " " + (i + 1) * pointsPerThread + " " + pointCount);
-    //        ThreadPool.QueueUserWorkItem((d) =>
-    //        {
-    //            ThreadData td = (ThreadData)d;
-    //            //ThreadData td = threadData;
-    //            switch (brush.Mode)
-    //            {
-    //                case "Add":
-    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
-    //                    {
-    //                        Vector3 vertex = vertices[index];
-    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-    //                        if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, strength);
-    //                        else auxArray[index] = srcArray[index];
-    //                    }
-    //                    break;
-    //                case "Substract":
-    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
-    //                    {
-    //                        Vector3 vertex = vertices[index];
-    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-    //                        if (strength > 0f) auxArray[index] = mathHandler.WeightedSum(srcArray[index], value, -strength);
-    //                        else auxArray[index] = srcArray[index];
-    //                    }
-    //                    break;
-    //                case "Set":
-    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
-    //                    {
-    //                        Vector3 vertex = vertices[index];
-    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-    //                        if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], value, strength);
-    //                        else auxArray[index] = srcArray[index];
-    //                    }
-    //                    break;
-    //                case "Average":
-    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
-    //                    {
-    //                        Vector3 vertex = vertices[index];
-    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-    //                        if (strength > 0f) auxArray[index] = mathHandler.Blend(srcArray[index], avgValue, strength);
-    //                        else auxArray[index] = srcArray[index];
-    //                    }
-    //                    break;
-    //                case "Smooth":
-    //                    for (int index = td.startIndex; index < td.endIndex; ++index)
-    //                    {
-    //                        Vector3 vertex = vertices[index];
-    //                        float strength = brush.GetStrength(projMatrix.MultiplyPoint(vertex));
-    //                        if (strength > 0f)
-    //                        {
-    //                            Vector2Int coords = data.IndexToGrid(index);
-    //                            int columnOffset = coords.y & 1;
-    //                            int eastIndex = data.GridToIndex(coords.y, coords.x + 1);//Checks bounds!
-    //                            int neIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset);//Checks bounds!
-    //                            int nwIndex = data.GridToIndex(coords.y + 1, coords.x + columnOffset - 1);//Checks bounds!
-    //                            int westIndex = data.GridToIndex(coords.y, coords.x - 1);//Checks bounds!
-    //                            int swIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset - 1);//Checks bounds!
-    //                            int seIndex = data.GridToIndex(coords.y - 1, coords.x + columnOffset);//Checks bounds!
-
-    //                            T neighbourAverage = mathHandler.Product(
-    //                                mathHandler.Sum(
-    //                                    mathHandler.Sum(srcArray[eastIndex], srcArray[neIndex]),
-    //                                    mathHandler.Sum(
-    //                                        mathHandler.Sum(srcArray[nwIndex], srcArray[westIndex]),
-    //                                        mathHandler.Sum(srcArray[swIndex], srcArray[seIndex]))),
-    //                                1f / 6);
-                                
-    //                            auxArray[index] = mathHandler.Blend(srcArray[index], neighbourAverage, strength * 0.5f);
-    //                        }
-    //                        else auxArray[index] = srcArray[index];
-    //                    }
-    //                    break;
-    //            }
-    //        td.mre.Set();
-    //    }, threadData);
-    //}
-    //    foreach (var threadData in threadsData)
-    //    {
-    //        threadData.mre.WaitOne();
-    //    }
-
-        //Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
-        
     }
 
     void RebuildMapTerrain()
@@ -827,7 +723,7 @@ public class MapEditor : Editor {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshes(pov, lodScale);//TODO inspector button
+        data.RefreshPropMeshes(pov, lodScale);
     }
 
     bool afterMeshUpdateRefreshPending = false;
@@ -961,8 +857,7 @@ public class MapEditor : Editor {
         
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
         if (instanceSelection == null) return;//Could not initialize
-
-        //TODO is this slower?
+        
         int instancesPerThread = (instanceCount - 1) / threads + 1;
         for (int i = 0; i < threads; ++i)
         {

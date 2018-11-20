@@ -15,15 +15,12 @@ public partial class MapData : ScriptableObject
 
     [SerializeField] private Material terrainMaterial;
     //TODO Array of props data objects with arrays for prop data, prop materials and other prop set data
-
-    //[SerializeField] private PropsData[] propGroups = new PropsData[0];
-
+    
 
     public float[] Heights { get { return heights; } }
     public Color[] Colors { get { return colors; } }
-
     public Material TerrainMaterial { get { return terrainMaterial; } }
-    //TODO etc
+    
 
     public const float sqrt3 = 1.7320508f;
     public const float cos30 = 0.8660254f;
@@ -196,32 +193,7 @@ public partial class MapData : ScriptableObject
             return Vector3.up;
         }
     }
-
-    // There is no lighting in DrawMeshNow
-    //public void DrawMeshes(Matrix4x4 matrix)
-    //{
-    //    //TODO Draw terrain
-    //    int passCount = TerrainMaterial.passCount;
-    //    for (int p = 0; p < passCount; ++p)
-    //    {
-    //        TerrainMaterial.SetPass(p);
-    //        Graphics.DrawMeshNow(sharedTerrainMesh, matrix, 0);
-    //    }
-    //    //Graphics.DrawMesh(sharedTerrainMesh, matrix, TerrainMaterial, 0);//TODO vs MeshNow?
-
-    //    //TODO Draw props meshes
-    //    for (int i = 0; i< meshesData.Length; ++i)
-    //    {
-    //        MeshData meshData = meshesData[i];
-    //        passCount = meshData.sharedMaterial.passCount;
-    //        for (int p = 0; p < passCount; ++p)
-    //        {
-    //            meshData.sharedMaterial.SetPass(p);
-    //            Graphics.DrawMeshNow(meshData.sharedMesh, matrix, 0);
-    //        }
-    //        //Graphics.DrawMesh(meshData.sharedMesh, matrix, meshData.sharedMaterial, 0);
-    //    }
-    //}
+    
 
     public Mesh sharedTerrainMesh { get { return terrainMesh; } }
 
@@ -424,6 +396,8 @@ public partial class MapData : ScriptableObject
             terrainMesh.Clear();
         }
 
+        if (width < 2 || depth < 2) return terrainMesh;
+
         int verticesLength = width * depth;
         int indicesLength = (width - 1) * (depth - 1) * 6;
         
@@ -462,7 +436,7 @@ public partial class MapData : ScriptableObject
         {
             data.mre.WaitOne();
         }
-        
+
         int indexIndex = 0;
         for (int r = 1; r < depth; ++r)
         {

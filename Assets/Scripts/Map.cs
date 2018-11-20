@@ -30,7 +30,13 @@ public class Map : MonoBehaviour
     [ContextMenu("Refresh Mesh")]
     public void Refresh()
     {
-        if (mapData != null) meshFilter.sharedMesh = mapData.RefreshTerrainMesh();
+        if (mapData != null)
+        {
+            meshFilter.sharedMesh = mapData.RefreshTerrainMesh();
+            
+            MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
+            if (meshRenderer != null) meshRenderer.sharedMaterial = mapData.TerrainMaterial;
+        }
         else meshFilter.sharedMesh = null;
     }
 
@@ -44,7 +50,7 @@ public class Map : MonoBehaviour
             if (povTransform == null) { Camera mainCam = Camera.main; povTransform = mainCam != null ? mainCam.transform : null; }
             Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
             pov = transform.InverseTransformPoint(pov);
-            Debug.Log(pov);
+            //Debug.Log(pov);
             mapData.RefreshPropMeshes(pov, 1f);
             int count = Mathf.Min(propsMeshData.Length, propsMeshFilters.Length);
             for (int i = 0; i < count; ++i)
