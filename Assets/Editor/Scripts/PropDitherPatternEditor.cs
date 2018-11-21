@@ -74,6 +74,7 @@ public class PropDitherPatternEditor : Editor {
 
 
     private int threshold = -1;
+    private Instance.SortMode sortMode = Instance.SortMode.Basic;
 
     public override void OnInspectorGUI()
     {
@@ -102,9 +103,11 @@ public class PropDitherPatternEditor : Editor {
         }
         timeScale = EditorGUILayout.Slider("Time Scale", timeScale, 0f, 10f);
 
+        sortMode = (Instance.SortMode) EditorGUILayout.EnumPopup("Sort Mode", sortMode);
+
         if (GUILayout.Button("Calculate"))
         {
-            Instance.Order(instances);
+            Instance.Order(instances, sortMode);
         }
 
         EditorGUILayout.BeginHorizontal();
@@ -225,7 +228,9 @@ public class PropDitherPatternEditor : Editor {
             return p;
         }
 
-        public static void Order(Instance[] instances)
+        public enum SortMode { Basic, PrioritizeLatest, IgnoreOlderThanHalf, PrioritizeAndIgnore }
+
+        public static void Order(Instance[] instances, SortMode sortMode)
         {
             int count = instances.Length;
             instances[0].order = 1;
@@ -238,7 +243,7 @@ public class PropDitherPatternEditor : Editor {
                 for (int i = 1; i < count; ++i)
                 {
                     if (instances[i].order > 0) continue;
-                    float meanInvDist = 0;
+                    float accumInvDist = 0;
                     for (int j = 0; j < count; ++j)
                     {
                         if (instances[j].order <= 0) continue;
@@ -247,12 +252,25 @@ public class PropDitherPatternEditor : Editor {
                         Vector2 delta = i2.pos - i1.pos;
                         delta = Wrap(delta);
 
-                        meanInvDist += 1 / delta.magnitude;
+                        float priority = 1f;//Basic
+                        switch (sortMode)
+                        {
+                            case SortMode.PrioritizeLatest:
+                                priority = instances[j].order;
+                                break;
+                            case SortMode.IgnoreOlderThanHalf:
+                                priority = instances[j].order + instances.Length * 0.5f > order ? 1f : 0f;
+                                break;
+                            case SortMode.PrioritizeAndIgnore:
+                                priority = instances[j].order + instances.Length * 0.5f > order ? instances[j].order : 0f;
+                                break;
+                        }
+                        accumInvDist += priority / delta.magnitude;
                     }
-                    meanInvDist /= order;
-                    if (meanInvDist < best)
+
+                    if (accumInvDist < best)
                     {
-                        best = meanInvDist;
+                        best = accumInvDist;
                         bestIndex = i;
                     }
                 }
