@@ -69,6 +69,7 @@
     <Compile Include="Assets\Scripts\MeshResourceData.cs" />
     <Compile Include="Assets\Scripts\PropDitherPattern.cs" />
     <None Include="Assets\Handpainted Forest Environment Free Sample\Terrain Trees\ReadMe.txt" />
+    <None Include="Assets\MapAssets\TerrainShader2.shader" />
     <None Include="Assets\MapAssets\TerrainShader.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
