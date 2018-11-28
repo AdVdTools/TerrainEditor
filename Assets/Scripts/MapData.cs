@@ -5,6 +5,7 @@ using System.Threading;
 using UnityEngine;
 using UnityEngine.Profiling;
 
+[Serializable]
 [CreateAssetMenu(fileName = "Map")]
 public partial class MapData : ScriptableObject
 {
@@ -206,6 +207,7 @@ public partial class MapData : ScriptableObject
     Vector3[] normals;
     // colors is serialized and defined at the beginning
     Vector2[] uvs;
+    Vector2[] uvs2;
     int[] indices;
     
     [ContextMenu("RebuildTerrainMesh")]
@@ -217,6 +219,7 @@ public partial class MapData : ScriptableObject
     private void OnEnable()
     {
         PropsDataOnEnable();
+        ColorMapOnEnable();
     }
 
 
@@ -227,6 +230,7 @@ public partial class MapData : ScriptableObject
         if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
 
         PropsDataOnDisable();
+        ColorMapOnDisable();
     }
 
 
@@ -237,6 +241,7 @@ public partial class MapData : ScriptableObject
         if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
 
         PropsDataOnValidate();
+        ColorMapOnValidate();
     }
 
     public struct RaycastHit {
@@ -404,6 +409,7 @@ public partial class MapData : ScriptableObject
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
         if (uvs == null || uvs.Length != verticesLength) uvs = new Vector2[verticesLength];
+        if (uvs2 == null || uvs2.Length != verticesLength) uvs2 = new Vector2[verticesLength];
 
         if (indices == null || indices.Length != indicesLength) indices = new int[indicesLength];
 
@@ -426,6 +432,7 @@ public partial class MapData : ScriptableObject
                 {
                     vertices[vertexIndex] = GetPosition(vertexIndex);
                     uvs[vertexIndex] = new Vector2(vertices[vertexIndex].x, vertices[vertexIndex].z);//TODO normalize?
+                    uvs2[vertexIndex] = new Vector2(vertexIndex % width, vertexIndex / width);
                     normals[vertexIndex] = Vector3.zero;// Vector3.up;
                 }
                 td.mre.Set();
@@ -476,6 +483,7 @@ public partial class MapData : ScriptableObject
         terrainMesh.vertices = vertices;
         terrainMesh.normals = normals;
         terrainMesh.uv = uvs;
+        terrainMesh.uv2 = uvs2;
         terrainMesh.colors = colors;
         terrainMesh.triangles = indices;
 
@@ -529,4 +537,31 @@ public partial class MapData : ScriptableObject
 
         terrainMesh.colors = colors;
     }
+    
+
+    #region 2DUtility
+    public static void Resize2D<T>(ref T[] array, int srcWidth, int srcHeight, int tgtWidth, int tgtHeight) where T : struct
+    {
+        if (srcWidth != tgtWidth || srcHeight != tgtHeight) return;
+
+        T[] aux = new T[tgtWidth * tgtHeight];
+        Copy2D(array, srcWidth, srcHeight, aux, tgtWidth, tgtHeight);
+    }
+
+    public static void Copy2D<T>(T[] srcArray, int srcWidth, int srcHeight, T[] tgtArray, int tgtWidth, int tgtHeight) where T : struct
+    {
+        float minWidth = Mathf.Min(srcWidth, tgtWidth);
+        float minHeight = Mathf.Min(srcHeight, tgtHeight);
+
+        for (int i = 0; i < minHeight; ++i)
+        {
+            int srcRowIndex = i * srcWidth;
+            int tgtRowIndex = i * tgtWidth;
+            for (int j = 0; j < minWidth; ++j)
+            {
+                tgtArray[tgtRowIndex + j] = srcArray[srcRowIndex + j];
+            }
+        }
+    }
+    #endregion
 }

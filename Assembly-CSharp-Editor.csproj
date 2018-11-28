@@ -69,6 +69,7 @@
     <Compile Include="Assets\Editor\Scripts\MathHandlers.cs" />
     <Compile Include="Assets\Editor\Scripts\PropDitherPatternEditor.cs" />
     <None Include="Assets\Editor\Scripts\GridShader.shader" />
+    <None Include="Assets\Editor\Scripts\ColorMapShader.shader" />
     <None Include="Assets\Editor\Scripts\BrushProjector.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>D:/Documents/UnityProjects/MeshSculpting/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>

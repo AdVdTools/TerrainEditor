@@ -2,7 +2,6 @@
 using System.Threading;
 using UnityEngine;
 
-[System.Serializable]
 public partial class MapData : ScriptableObject
 {
     [System.Serializable]

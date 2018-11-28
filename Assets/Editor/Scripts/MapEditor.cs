@@ -14,7 +14,7 @@ public class MapEditor : Editor {
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
     private const int COLOR_TARGET = 1;
-    private const int TEX_COLOR_TARGET = 2;
+    private const int COLOR_MAPS_TARGET = 2;
     private const int PROPS_TARGET = 3;
     private const int SELECT_TARGET = 4;
     private const int DENSITY_MAPS_TARGET = 5;
@@ -28,7 +28,11 @@ public class MapEditor : Editor {
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
     private static int currentDensityMapIndex;
+    private static int currentColorMapIndex;
 
+    private Material colorMapMaterial;
+    private bool displayColorMap;
+    private int mainTexID;
 
     private void OnEnable()
     {
@@ -46,6 +50,11 @@ public class MapEditor : Editor {
             threadsData[i] = new ThreadData();
         }
 
+
+        colorMapMaterial = new Material(Shader.Find("Hidden/AdVd/ColorMapShader"));
+        colorMapMaterial.hideFlags = HideFlags.HideAndDontSave;
+        mainTexID = Shader.PropertyToID("_MainTex");
+
         InvalidateSelection();
     }
 
@@ -54,12 +63,16 @@ public class MapEditor : Editor {
         Undo.undoRedoPerformed -= OnUndoRedo;
         SceneView.onSceneGUIDelegate -= OnSceneHandler;
         Debug.LogWarning("OnDisable");
+
+        if (colorMapMaterial != null) DestroyImmediate(colorMapMaterial, true);
     }
 
     private void OnUndoRedo()
     {
         RebuildMapTerrain();
         SetPropsDirtyAndRepaintScene();//Just set dirty since pov would be unavailable
+
+        //if (data != null) data.SerializeMapAssets();//TODO record texture changes instead
     }
 
     readonly GUIContent rebuildTerrainGUIContent = new GUIContent("Rebuild Terrain");
@@ -70,6 +83,7 @@ public class MapEditor : Editor {
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
     readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
+    readonly GUIContent colorMapGUIContent = new GUIContent("Color Map");
     readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
@@ -114,9 +128,16 @@ public class MapEditor : Editor {
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
                     break;
-                case TEX_COLOR_TARGET:
+                case COLOR_MAPS_TARGET:
                     //TODO 
                     //TODO also set uv1 as the right coordinates for sampling
+                    DrawColorMapSelector();
+
+                    displayColorMap = EditorGUILayout.Toggle(displayColorMap);
+
+                    currentBrush.currentValueType = Brush.ValueType.Color;
+                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    ColorMath.mask = currentBrush.ColorMask;
                     break;
                 case PROPS_TARGET:
                     DrawInstanceSetSelector();
@@ -216,6 +237,12 @@ public class MapEditor : Editor {
         currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
     }
 
+    private void DrawColorMapSelector()
+    {
+        int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
+        currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
+    }
+
     #region StopWatches
     System.Diagnostics.Stopwatch raycastStopWatch = new System.Diagnostics.Stopwatch();
     float raycastDuration;
@@ -308,6 +335,18 @@ public class MapEditor : Editor {
                         currentBrush.SetMaterial(projMatrix, brushTarget != SELECT_TARGET && (brushTarget != PROPS_TARGET || currentBrush.mode != Brush.Mode.Add));
 
                         Graphics.DrawMeshNow(mesh, matrix, 0);
+
+                        if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
+                        {
+                            if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                            {
+                                MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+
+                                colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
+                                colorMapMaterial.SetPass(0); 
+                                Graphics.DrawMeshNow(mesh, matrix, 0);
+                            }
+                        }//TODO draw when not focused!
                     }
                     
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
@@ -347,6 +386,17 @@ public class MapEditor : Editor {
                                 break;
                             case COLOR_TARGET:
                                 currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
+                                break;
+                            case COLOR_MAPS_TARGET:
+                                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                                {
+                                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+                                    currentBrush.SetPeekValue(GetRaycastValue<Color>(colorMap.map, data.Indices, ColorMath.sharedHandler));
+                                }
+                                else
+                                {
+                                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                                }
                                 break;
                             case DENSITY_MAPS_TARGET:
                                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
@@ -444,6 +494,7 @@ public class MapEditor : Editor {
 
     float[] auxHeights = null;
     Color[] auxColors = null;
+    Color[] auxColorMap = null;
     Vector4[] auxDensityMap = null;
 
     void ApplyBrush()
@@ -462,6 +513,18 @@ public class MapEditor : Editor {
             case COLOR_TARGET:
                 if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
                 ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
+                break;
+            case COLOR_MAPS_TARGET:
+                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                {
+                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+                    if (auxColorMap == null || auxColorMap.Length != pointCount) auxColorMap = new Color[pointCount];
+                    ApplyBrush<Color>(data.Vertices, colorMap.map, auxColorMap, currentBrush.colorValue, ColorMath.sharedHandler);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                }
                 break;
             case PROPS_TARGET://TODO reimagine non density props editor
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
@@ -486,7 +549,6 @@ public class MapEditor : Editor {
                     Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
                 }
                 break;
-
             case DENSITY_MAPS_TARGET:
                 if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
                 {
@@ -512,6 +574,20 @@ public class MapEditor : Editor {
                 break;
             case COLOR_TARGET:
                 data.UpdateMeshColor();
+                break;
+            case COLOR_MAPS_TARGET:
+                //data.UpdateMeshColor();
+                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                {
+                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+                    Undo.RecordObject(colorMap.texture, "TextureChange");//TODO record texture?, check null
+                    data.EnsureTextureAtPath(colorMap, currentColorMapIndex);//TODO refactor
+                    data.WriteToTexture(colorMap);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                }
                 break;
             case PROPS_TARGET:
                 RebuildPropMeshesAsync(true);
