@@ -54,7 +54,7 @@
 				o.uv2 = v.uv2;
 
 				//TODO: Eventually move to rect grid (less tex reads)
-
+				//TODO  or just accept single tex read as an aproximation
 
 				return o;
 			}
@@ -128,12 +128,12 @@
 				//float2 coord = (i.uv2 + float2(0.5, 0.5)) * invTexSize;
 				float2 coord = (intUV2 + float2(0.5, 0.5)) * invTexSize;
 
-				fixed4 c0 = tex2D(_MainTex, float4(coord.xy, 0, 0/*mip level?*/));
+				fixed4 c0 = tex2D(_MainTex, coord);
 
 				col = color;
 
 				col.rgb *= col.a;
-				col.a = 0.5;
+				col.a *= 0.5;
 				return col;
 			}
 			ENDCG

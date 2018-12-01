@@ -81,11 +81,17 @@ public class MapEditor : Editor {
     readonly GUIContent editButtonContent = new GUIContent("Edit");
     readonly GUIContent applyGUIContent = new GUIContent("Apply To Selection");
     readonly GUIContent autoApplyGUIContent = new GUIContent("Auto Apply");
+
+    readonly GUIContent minusGUIContent = new GUIContent("-");
+    readonly GUIContent plusGUIContent = new GUIContent("+");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
     readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
     readonly GUIContent colorMapGUIContent = new GUIContent("Color Map");
+
     readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
+
+    readonly GUIContent displayColorMapGUIContent = new GUIContent("Display Color Map");
 
     public override void OnInspectorGUI()
     {
@@ -130,10 +136,9 @@ public class MapEditor : Editor {
                     break;
                 case COLOR_MAPS_TARGET:
                     //TODO 
-                    //TODO also set uv1 as the right coordinates for sampling
                     DrawColorMapSelector();
 
-                    displayColorMap = EditorGUILayout.Toggle(displayColorMap);
+                    displayColorMap = EditorGUILayout.Toggle(displayColorMapGUIContent, displayColorMap);
 
                     currentBrush.currentValueType = Brush.ValueType.Color;
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
@@ -223,24 +228,45 @@ public class MapEditor : Editor {
 
     private void DrawInstanceSetSelector()
     {
-        int nextInstanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);
+        int nextInstanceSetIndex = IndexSelector(instanceSetGUIContent, currentInstanceSetIndex, data.instanceSets.Length);
+        //int nextInstanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);
         if (nextInstanceSetIndex != currentInstanceSetIndex)
         {
             InvalidateSelection();
         }
-        currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
+        currentInstanceSetIndex = nextInstanceSetIndex;
+        //currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
     }
 
     private void DrawDensityMapSelector()
     {
-        int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
-        currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
+        currentDensityMapIndex = IndexSelector(densityMapGUIContent, currentDensityMapIndex, data.densityMaps.Length);
+        //int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
+        //currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
     }
 
     private void DrawColorMapSelector()
     {
-        int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
-        currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
+        currentColorMapIndex = IndexSelector(colorMapGUIContent, currentColorMapIndex, data.colorMaps.Length);
+        //int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
+        //currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
+    }
+
+    readonly GUILayoutOption widthLayoutOption = GUILayout.Width(32f);
+
+    private int IndexSelector(GUIContent guiContent, int index, int length)
+    {
+        EditorGUILayout.BeginHorizontal();
+        index = EditorGUILayout.IntField(guiContent, index);
+        bool enabledGUI = GUI.enabled;
+        GUI.enabled = index > 0;
+        if (GUILayout.Button(minusGUIContent, EditorStyles.miniButtonLeft, widthLayoutOption)) index--;
+        GUI.enabled = index < length - 1;
+        if (GUILayout.Button(plusGUIContent, EditorStyles.miniButtonRight, widthLayoutOption)) index++;
+        GUI.enabled = enabledGUI;
+        EditorGUILayout.EndHorizontal();
+        index = Mathf.Clamp(index, 0, length - 1);
+        return index;
     }
 
     #region StopWatches
@@ -303,6 +329,8 @@ public class MapEditor : Editor {
 
                 HandleRaycast();
 
+                DrawColorMap(matrix);
+
                 if (shouldApplyBrush)
                 {// Don't apply brush unless there is need for it
                     if (rayHits) ApplyBrush();
@@ -336,17 +364,17 @@ public class MapEditor : Editor {
 
                         Graphics.DrawMeshNow(mesh, matrix, 0);
 
-                        if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
-                        {
-                            if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
-                            {
-                                MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+                        //if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
+                        //{
+                        //    if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                        //    {
+                        //        MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
 
-                                colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
-                                colorMapMaterial.SetPass(0); 
-                                Graphics.DrawMeshNow(mesh, matrix, 0);
-                            }
-                        }//TODO draw when not focused!
+                        //        colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
+                        //        colorMapMaterial.SetPass(0); 
+                        //        Graphics.DrawMeshNow(mesh, matrix, 0);
+                        //    }
+                        //}//TODO draw when not focused!
                     }
                     
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
@@ -476,6 +504,26 @@ public class MapEditor : Editor {
         return value;
     }
 
+    private void DrawColorMap(Matrix4x4 matrix)
+    {
+        Mesh mesh = data.sharedTerrainMesh;
+
+        if (mesh != null)
+        {
+            if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
+            {
+                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                {
+                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+
+                    colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
+                    colorMapMaterial.SetPass(0);
+                    Graphics.DrawMeshNow(mesh, matrix, 0);
+                }
+            }
+        }
+    }
+
     private class ThreadData
     {
         public int startIndex, endIndex;
@@ -580,8 +628,15 @@ public class MapEditor : Editor {
                 if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
                 {
                     MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
-                    Undo.RecordObject(colorMap.texture, "TextureChange");//TODO record texture?, check null
-                    data.EnsureTextureAtPath(colorMap, currentColorMapIndex);//TODO refactor
+                    if (colorMap.texture != null)
+                    {
+                        Undo.RecordObject(colorMap.texture, "Color Map Change");//TODO record texture?, check null
+                        data.EnsureTexture(currentColorMapIndex);//TODO refactor
+                    }
+                    else {
+                        data.EnsureTexture(currentColorMapIndex);//TODO refactor
+                        Undo.RegisterCreatedObjectUndo(colorMap.texture, "Color Map Create");
+                    }
                     data.WriteToTexture(colorMap);
                 }
                 else
