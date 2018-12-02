@@ -7,12 +7,13 @@ public partial class MapData : ScriptableObject
 {
 
     [System.Serializable]
-    public class ColorMap
+    public class MapTexture//TODO label for editor
     {
         [System.NonSerialized] public Color[] map;
         [HideInInspector] public Texture2D texture;
 
-        public Color SampleColor(float x, float y, MapData mapData)
+        //Implicit conversión Color-Vector4
+        public Color SampleValue(float x, float y, MapData mapData)
         {
             Vector3Int indices;
             Vector3 barycentricCoordinate;
@@ -29,72 +30,74 @@ public partial class MapData : ScriptableObject
         }
     }
 
-    public ColorMap[] colorMaps = new ColorMap[0];
+    [UnityEngine.Serialization.FormerlySerializedAs("colorMaps")]//TODO remove
+    public MapTexture[] mapTextures = new MapTexture[0];
 
     
-    public void ReadTexture(ColorMap colorMap)
+    public void ReadTexture(MapTexture mapTexture)
     {
         int targetLength = width * depth;
-        if (colorMap.map == null || colorMap.map.Length != targetLength) colorMap.map = new Color[targetLength];
+        if (mapTexture.map == null || mapTexture.map.Length != targetLength) mapTexture.map = new Color[targetLength];
 
-        if (colorMap.texture == null) return;
-        Texture2D source = colorMap.texture;
+        if (mapTexture.texture == null) return;
+        Texture2D source = mapTexture.texture;
 
         Color[] colors = source.GetPixels();
-        Copy2D(colors, source.width, source.height, colorMap.map, width, depth);
+        Copy2D(colors, source.width, source.height, mapTexture.map, width, depth);
     }
 
-    public void WriteToTexture(ColorMap colorMap)
+    public void WriteToTexture(MapTexture mapTexture)
     {
         int targetLength = width * depth;
-        if (colorMap.map == null || colorMap.map.Length != targetLength)
+        if (mapTexture.map == null || mapTexture.map.Length != targetLength)
         {
             Debug.LogError("Color map data might be corrupt");
             return;
         }
 
-        if (colorMap.texture == null) {
+        if (mapTexture.texture == null) {
             Debug.LogError("Missing color map texture");
             return;
         }
-        Texture2D target = colorMap.texture;
+        Texture2D target = mapTexture.texture;
 
         if (target.width != width || target.height != depth)
         {
             target.Resize(width, depth, TextureFormat.ARGB32, false);
         }
         
-        target.SetPixels(colorMap.map);
+        target.SetPixels(mapTexture.map);
         target.Apply(true, false);
     }
 
-    void ColorMapOnEnable()
+    void MapTextureOnEnable()
     {
 
     }
 
-    void ColorMapOnDisable()
+    void MapTextureOnDisable()
     {
 
     }
 
-    void ColorMapOnValidate()//TODO test
+    void MapTextureOnValidate()//TODO test
     {
 #if UNITY_EDITOR
-        for (int i = 0; i < colorMaps.Length; ++i)
+        for (int i = 0; i < mapTextures.Length; ++i)
         {
-            ColorMap colorMap = colorMaps[i];
+            MapTexture mapTexture = mapTextures[i];
 
-            ReadTexture(colorMap);
+            ReadTexture(mapTexture);
         }
-        ValidateColorMapsAssets();// SerializeMapAssets();
+        ValidateMapTexturesAssets();// SerializeMapAssets();
 #endif
         //TODO #else load main color map only, do not reserialize
     }
 
 
 #if UNITY_EDITOR
-    public void ValidateColorMapsAssets()//TODO extend to other subassets: move to main cs file, wrap colorMap loop, add other maps
+    //TODO trigger assets/project update (as in save) on certain events (mouse up?)
+    public void ValidateMapTexturesAssets()//TODO extend to other subassets: move to main cs file, wrap colorMap loop, add other maps
     {
         string assetPath = UnityEditor.AssetDatabase.GetAssetPath(this);
         Object[] assetsAtPath = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath);
@@ -104,38 +107,38 @@ public partial class MapData : ScriptableObject
         if (mainAssetIndex < 0) Debug.LogWarning("Main asset is not part of 'all assets at path'");
         else refCounters[mainAssetIndex]++;
 
-        for (int i = 0; i < colorMaps.Length; ++i)
+        for (int i = 0; i < mapTextures.Length; ++i)
         {
-            ColorMap colorMap = colorMaps[i];
+            MapTexture mapTexture = mapTextures[i];
 
-            if (colorMap.texture != null)
+            if (mapTexture.texture != null)
             {
-                int assetIndex = System.Array.FindIndex(assetsAtPath, (asset) => ReferenceEquals(asset, colorMap.texture));
+                int assetIndex = System.Array.FindIndex(assetsAtPath, (asset) => ReferenceEquals(asset, mapTexture.texture));
                 if (assetIndex >= 0) 
                 {
                     refCounters[assetIndex]++;
                     if (refCounters[assetIndex] > 1)
                     {
-                        Debug.LogWarningFormat("Texture '{0}' referenced more than once", colorMap.texture);
-                        colorMap.texture = null;
+                        Debug.LogWarningFormat("Texture '{0}' referenced more than once", mapTexture.texture);
+                        mapTexture.texture = null;
                     }
                 }
                 else {
-                    Debug.LogWarningFormat("Texture '{0}' is not part of 'all assets at path'", colorMap.texture);
+                    Debug.LogWarningFormat("Texture '{0}' is not part of 'all assets at path'", mapTexture.texture);
                 }
             }
 
-            if (colorMap.texture != null)//TODO reuse for other maps, and in editor if possible
+            if (mapTexture.texture != null)//TODO reuse for other maps, and in editor if possible
             {
-                UnityEditor.Undo.RecordObject(colorMap.texture, "Color Map Change");
+                UnityEditor.Undo.RecordObject(mapTexture.texture, "Color Map Change");
                 EnsureTextureAtPath(i, assetPath);
             }
             else
             {
                 EnsureTextureAtPath(i, assetPath);
-                UnityEditor.Undo.RegisterCreatedObjectUndo(colorMap.texture, "Color Map Create");
+                UnityEditor.Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Color Map Create");
             }
-            WriteToTexture(colorMap);
+            WriteToTexture(mapTexture);
         }
 
         for (int i = 0; i < refCounters.Length; ++i)
@@ -157,8 +160,8 @@ public partial class MapData : ScriptableObject
 
     private void EnsureTextureAtPath(int index, string assetPath)
     {
-        ColorMap colorMap = colorMaps[index];
-        Texture2D texture = colorMap.texture;
+        MapTexture mapTexture = mapTextures[index];
+        Texture2D texture = mapTexture.texture;
         if (texture != null)
         {
             string textureAssetPath = UnityEditor.AssetDatabase.GetAssetPath(texture);
@@ -174,9 +177,9 @@ public partial class MapData : ScriptableObject
         {
             texture = new Texture2D(width, depth);
             UnityEditor.AssetDatabase.AddObjectToAsset(texture, this);
-            colorMap.texture = texture;
+            mapTexture.texture = texture;
         }
-        texture.name = string.Format("{0}.Color{1}", this.name, index);
+        texture.name = string.Format("{0}.Texture{1}", this.name, index);
     }
 #endif
 }

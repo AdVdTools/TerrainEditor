@@ -1,4 +1,4 @@
-﻿Shader "Hidden/AdVd/ColorMapShader"
+﻿Shader "Hidden/AdVd/MapTextureShader"
 {
 	Properties
 	{

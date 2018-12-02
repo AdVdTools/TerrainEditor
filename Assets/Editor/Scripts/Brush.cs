@@ -158,7 +158,7 @@ public class Brush
         bool leftClick = Event.current.button == 0;
         bool focused = EditorWindow.focusedWindow == SceneView.currentDrawingSceneView;
 
-        if (pickingValue)
+        if (pickingValue)//TODO ignore/disable pickingValue (inspector, ctrl+C, ...) when in smooth/average modes
         {
             if (type == EventType.Repaint)
             {

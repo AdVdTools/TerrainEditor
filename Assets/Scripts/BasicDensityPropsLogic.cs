@@ -39,11 +39,14 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
     
     public readonly Vector3 propsDirection = new Vector3(0, 1, 0);
 
-    public sealed override bool BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues, ref MapData.PropInstance instanceData)
+    public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues)
     {
+        MapData.PropInstance instanceData = default(MapData.PropInstance);
+        instanceData.variantIndex = -1;//Null instance
+
         float densitySum = densityValues.x + densityValues.y + densityValues.z;
         
-        if (elementRand > densitySum) return false;//Density filter
+        if (elementRand > densitySum) return instanceData;//Density filter
         
         Vector3 densityLimits = densityValues;
         if (densitySum > 1f) {
@@ -55,9 +58,13 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         if (elementRand <= densityLimits.x) instanceData.variantIndex = 0;
         else if (elementRand <= densityLimits.y) instanceData.variantIndex = 1;
         else if (elementRand <= densityLimits.z) instanceData.variantIndex = 2;
-        else return false;
+        else return instanceData;//Null instance still
 
-        if (variantAttributes.Length <= instanceData.variantIndex) return false;
+        if (variantAttributes.Length <= instanceData.variantIndex)
+        {
+            instanceData.variantIndex = -1;//Back to null instance
+            return instanceData;
+        }
         VariantAttributes attributes = variantAttributes[instanceData.variantIndex];
 
         instanceData.position = new Vector3(pos.x, attributes.yOffsetRange.GetValue(element.rand2), pos.y);
@@ -65,7 +72,7 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         instanceData.rotation = attributes.rotationRange.GetValue(element.rand1);
         instanceData.size = element.r * attributes.scaleRange.GetValue(densityValues.w);//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
         
-        return true;
+        return instanceData;
     }
 
     void OnValidate()

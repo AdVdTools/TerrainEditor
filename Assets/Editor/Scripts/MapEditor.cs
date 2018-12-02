@@ -13,25 +13,25 @@ public class MapEditor : Editor {
     private bool editing;
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
-    private const int COLOR_TARGET = 1;
-    private const int COLOR_MAPS_TARGET = 2;
-    private const int PROPS_TARGET = 3;
-    private const int SELECT_TARGET = 4;
-    private const int DENSITY_MAPS_TARGET = 5;
+    //private const int COLOR_TARGET = 1;
+    private const int MAP_TEXTURE_TARGET = 1;//2;
+    private const int PROPS_TARGET = 2;//3;
+    private const int SELECT_TARGET = 3;//4;
+    //private const int DENSITY_MAPS_TARGET = 5;
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Color"), new GUIContent("Tex Color"), new GUIContent("Edit Props"), new GUIContent("Select Props"), new GUIContent("Density Maps")
+        new GUIContent("Height"), /*new GUIContent("Color"),*/ new GUIContent("Map Texture"), new GUIContent("Edit Props"), new GUIContent("Select Props")/*, new GUIContent("Density Maps")*/
     };
     
     float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
-    private static int currentDensityMapIndex;
-    private static int currentColorMapIndex;
+    //private static int currentDensityMapIndex;
+    private static int currentMapTextureIndex;
 
-    private Material colorMapMaterial;
-    private bool displayColorMap;
+    private Material mapTextureMaterial;
+    private bool displayMapTexture;
     private int mainTexID;
 
     private void OnEnable()
@@ -51,8 +51,8 @@ public class MapEditor : Editor {
         }
 
 
-        colorMapMaterial = new Material(Shader.Find("Hidden/AdVd/ColorMapShader"));
-        colorMapMaterial.hideFlags = HideFlags.HideAndDontSave;
+        mapTextureMaterial = new Material(Shader.Find("Hidden/AdVd/MapTextureShader"));
+        mapTextureMaterial.hideFlags = HideFlags.HideAndDontSave;
         mainTexID = Shader.PropertyToID("_MainTex");
 
         InvalidateSelection();
@@ -64,7 +64,7 @@ public class MapEditor : Editor {
         SceneView.onSceneGUIDelegate -= OnSceneHandler;
         Debug.LogWarning("OnDisable");
 
-        if (colorMapMaterial != null) DestroyImmediate(colorMapMaterial, true);
+        if (mapTextureMaterial != null) DestroyImmediate(mapTextureMaterial, true);
     }
 
     private void OnUndoRedo()
@@ -85,13 +85,13 @@ public class MapEditor : Editor {
     readonly GUIContent minusGUIContent = new GUIContent("-");
     readonly GUIContent plusGUIContent = new GUIContent("+");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
-    readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
-    readonly GUIContent colorMapGUIContent = new GUIContent("Color Map");
+    //readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
+    readonly GUIContent mapTextureGUIContent = new GUIContent("Map Texture");
 
     readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
-    readonly GUIContent displayColorMapGUIContent = new GUIContent("Display Color Map");
+    readonly GUIContent displayMapTextureGUIContent = new GUIContent("Display Map Texture");
 
     public override void OnInspectorGUI()
     {
@@ -129,18 +129,18 @@ public class MapEditor : Editor {
                     currentBrush.currentValueType = Brush.ValueType.Float;
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
-                case COLOR_TARGET:
-                    currentBrush.currentValueType = Brush.ValueType.Color;
-                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
-                    break;
-                case COLOR_MAPS_TARGET:
+                //case COLOR_TARGET:
+                    //currentBrush.currentValueType = Brush.ValueType.Color;
+                    //currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    //ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
+                    //break;
+                case MAP_TEXTURE_TARGET:
                     //TODO 
-                    DrawColorMapSelector();
+                    DrawMapTextureSelector();
 
-                    displayColorMap = EditorGUILayout.Toggle(displayColorMapGUIContent, displayColorMap);
+                    displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
 
-                    currentBrush.currentValueType = Brush.ValueType.Color;
+                    currentBrush.currentValueType = Brush.ValueType.Color;//TODO Toogle V4-Color?
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     ColorMath.mask = currentBrush.ColorMask;
                     break;
@@ -194,13 +194,13 @@ public class MapEditor : Editor {
                     EditorGUILayout.EndHorizontal();
                     break;
 
-                case DENSITY_MAPS_TARGET:
-                    DrawDensityMapSelector();
+                //case DENSITY_MAPS_TARGET:
+                    //DrawDensityMapSelector();
                     
-                    currentBrush.currentValueType = Brush.ValueType.Vector4;
-                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    Vector4Math.mask = currentBrush.VectorMask;
-                    break;
+                    //currentBrush.currentValueType = Brush.ValueType.Vector4;
+                    //currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    //Vector4Math.mask = currentBrush.VectorMask;
+                    //break;
             }
             currentBrush.HandleBrushShortcuts();
         }
@@ -211,11 +211,11 @@ public class MapEditor : Editor {
     readonly GUIContent[,] helpGUIContents =
     {
         { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
-        { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
-        { new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
+        //{ new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
+        { new GUIContent("Set Texture Value"), new GUIContent("Add Texture Value"), new GUIContent("Substract Texture Value"), new GUIContent("Average Texture Value"), new GUIContent("Smooth Texture Value") },
         { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") },
-        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") },
-        { new GUIContent("Set Density"), new GUIContent("Increase Density"), new GUIContent("Reduce Density"), new GUIContent("Average Density"), new GUIContent("Smooth Density") }
+        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }//,
+        //{ new GUIContent("Set Density"), new GUIContent("Increase Density"), new GUIContent("Reduce Density"), new GUIContent("Average Density"), new GUIContent("Smooth Density") }
     };
 
     private void DrawHelp()
@@ -238,16 +238,16 @@ public class MapEditor : Editor {
         //currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
     }
 
-    private void DrawDensityMapSelector()
-    {
-        currentDensityMapIndex = IndexSelector(densityMapGUIContent, currentDensityMapIndex, data.densityMaps.Length);
-        //int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
-        //currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
-    }
+    //private void DrawDensityMapSelector()
+    //{
+    //    currentDensityMapIndex = IndexSelector(densityMapGUIContent, currentDensityMapIndex, data.densityMaps.Length);
+    //    //int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
+    //    //currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
+    //}
 
-    private void DrawColorMapSelector()
+    private void DrawMapTextureSelector()
     {
-        currentColorMapIndex = IndexSelector(colorMapGUIContent, currentColorMapIndex, data.colorMaps.Length);
+        currentMapTextureIndex = IndexSelector(mapTextureGUIContent, currentMapTextureIndex, data.mapTextures.Length);
         //int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
         //currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
     }
@@ -329,7 +329,7 @@ public class MapEditor : Editor {
 
                 HandleRaycast();
 
-                DrawColorMap(matrix);
+                DrawMapTexture(matrix);
 
                 if (shouldApplyBrush)
                 {// Don't apply brush unless there is need for it
@@ -412,31 +412,31 @@ public class MapEditor : Editor {
                             case HEIGHT_TARGET:
                                 currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
                                 break;
-                            case COLOR_TARGET:
-                                currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
-                                break;
-                            case COLOR_MAPS_TARGET:
-                                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                            //case COLOR_TARGET:
+                                //currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
+                                //break;
+                            case MAP_TEXTURE_TARGET:
+                                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                                 {
-                                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
-                                    currentBrush.SetPeekValue(GetRaycastValue<Color>(colorMap.map, data.Indices, ColorMath.sharedHandler));
+                                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                                    currentBrush.SetPeekValue(GetRaycastValue<Color>(mapTexture.map, data.Indices, ColorMath.sharedHandler));
                                 }
                                 else
                                 {
-                                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
                                 }
                                 break;
-                            case DENSITY_MAPS_TARGET:
-                                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
-                                {
-                                    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                                    currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
-                                }
-                                else
-                                {
-                                    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
-                                }
-                                break;
+                            //case DENSITY_MAPS_TARGET:
+                                //if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
+                                //{
+                                //    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
+                                //    currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
+                                //}
+                                //else
+                                //{
+                                //    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
+                                //}
+                                //break;
                         }
                         currentBrush.AcceptPeekValue();
                         Repaint();
@@ -504,20 +504,20 @@ public class MapEditor : Editor {
         return value;
     }
 
-    private void DrawColorMap(Matrix4x4 matrix)
+    private void DrawMapTexture(Matrix4x4 matrix)
     {
         Mesh mesh = data.sharedTerrainMesh;
 
         if (mesh != null)
         {
-            if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
+            if (brushTarget == MAP_TEXTURE_TARGET && displayMapTexture)
             {
-                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
-                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
+                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
 
-                    colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
-                    colorMapMaterial.SetPass(0);
+                    mapTextureMaterial.SetTexture(mainTexID, mapTexture.texture);
+                    mapTextureMaterial.SetPass(0);
                     Graphics.DrawMeshNow(mesh, matrix, 0);
                 }
             }
@@ -541,9 +541,9 @@ public class MapEditor : Editor {
 
 
     float[] auxHeights = null;
-    Color[] auxColors = null;
-    Color[] auxColorMap = null;
-    Vector4[] auxDensityMap = null;
+    //Color[] auxColors = null;
+    Color[] auxMap = null;
+    //Vector4[] auxDensityMap = null;
 
     void ApplyBrush()
     {
@@ -558,20 +558,20 @@ public class MapEditor : Editor {
                 if (auxHeights == null || auxHeights.Length != pointCount) auxHeights = new float[pointCount];
                 ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
-            case COLOR_TARGET:
-                if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
-                ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
-                break;
-            case COLOR_MAPS_TARGET:
-                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+            //case COLOR_TARGET:
+                //if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
+                //ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
+                //break;
+            case MAP_TEXTURE_TARGET:
+                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
-                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
-                    if (auxColorMap == null || auxColorMap.Length != pointCount) auxColorMap = new Color[pointCount];
-                    ApplyBrush<Color>(data.Vertices, colorMap.map, auxColorMap, currentBrush.colorValue, ColorMath.sharedHandler);
+                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                    if (auxMap == null || auxMap.Length != pointCount) auxMap = new Color[pointCount];
+                    ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.colorValue, ColorMath.sharedHandler);
                 }
                 else
                 {
-                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
                 }
                 break;
             case PROPS_TARGET://TODO reimagine non density props editor
@@ -597,18 +597,18 @@ public class MapEditor : Editor {
                     Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
                 }
                 break;
-            case DENSITY_MAPS_TARGET:
-                if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
-                {
-                    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                    if (auxDensityMap == null || auxDensityMap.Length != pointCount) auxDensityMap = new Vector4[pointCount];
-                    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, currentBrush.vectorValue, Vector4Math.sharedHandler);
-                }
-                else
-                {
-                    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
-                }
-                break;
+            //case DENSITY_MAPS_TARGET:
+                //if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
+                //{
+                //    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
+                //    if (auxDensityMap == null || auxDensityMap.Length != pointCount) auxDensityMap = new Vector4[pointCount];
+                //    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, currentBrush.vectorValue, Vector4Math.sharedHandler);
+                //}
+                //else
+                //{
+                //    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
+                //}
+                //break;
         }
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
@@ -620,36 +620,37 @@ public class MapEditor : Editor {
             case HEIGHT_TARGET:
                 data.QuickRebuildParallel(8);
                 break;
-            case COLOR_TARGET:
-                data.UpdateMeshColor();
-                break;
-            case COLOR_MAPS_TARGET:
+            //case COLOR_TARGET:
                 //data.UpdateMeshColor();
-                if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
+                //break;
+            case MAP_TEXTURE_TARGET:
+                if (currentMapTextureIndex == data.MeshColorMapIndex) data.UpdateMeshColor();
+                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
-                    MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
-                    if (colorMap.texture != null)
+                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                    if (mapTexture.texture != null)
                     {
-                        Undo.RecordObject(colorMap.texture, "Color Map Change");//TODO record texture?, check null
-                        data.EnsureTexture(currentColorMapIndex);//TODO refactor
+                        Undo.RecordObject(mapTexture.texture, "Color Map Change");//TODO record texture?, check null
+                        data.EnsureTexture(currentMapTextureIndex);//TODO refactor
                     }
                     else {
-                        data.EnsureTexture(currentColorMapIndex);//TODO refactor
-                        Undo.RegisterCreatedObjectUndo(colorMap.texture, "Color Map Create");
+                        data.EnsureTexture(currentMapTextureIndex);//TODO refactor
+                        Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Color Map Create");
                     }
-                    data.WriteToTexture(colorMap);
+                    data.WriteToTexture(mapTexture);
                 }
                 else
                 {
-                    Debug.LogWarningFormat("No color map at index {0}", currentColorMapIndex);
+                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
                 }
+                RebuildPropMeshesAsync(true);//TODO check map is used by props?
                 break;
             case PROPS_TARGET:
                 RebuildPropMeshesAsync(true);
                 break;
-            case DENSITY_MAPS_TARGET:
-                RebuildPropMeshesAsync(true);
-                break;
+            //case DENSITY_MAPS_TARGET:
+                //RebuildPropMeshesAsync(true);
+                //break;
         }
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;

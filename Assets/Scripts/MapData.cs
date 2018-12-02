@@ -11,6 +11,7 @@ public partial class MapData : ScriptableObject
 {
 
     [SerializeField] private int width, depth;
+    [SerializeField] private int meshColorMapIndex;
     [HideInInspector] [SerializeField] private float[] heights = new float[0];
     [HideInInspector] [SerializeField] private Color[] colors = new Color[0];
 
@@ -19,7 +20,8 @@ public partial class MapData : ScriptableObject
     
 
     public float[] Heights { get { return heights; } }
-    public Color[] Colors { get { return colors; } }
+    //public Color[] Colors { get { return colors; } }
+    public int MeshColorMapIndex { get { return meshColorMapIndex; } }
     public Material TerrainMaterial { get { return terrainMaterial; } }
     
 
@@ -219,7 +221,7 @@ public partial class MapData : ScriptableObject
     private void OnEnable()
     {
         PropsDataOnEnable();
-        ColorMapOnEnable();
+        MapTextureOnEnable();
     }
 
 
@@ -227,10 +229,10 @@ public partial class MapData : ScriptableObject
     {
         int targetLength = width * depth;
         if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
-        if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+        //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
 
         PropsDataOnDisable();
-        ColorMapOnDisable();
+        MapTextureOnDisable();
     }
 
 
@@ -238,10 +240,10 @@ public partial class MapData : ScriptableObject
     {
         int targetLength = width * depth;
         if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
-        if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+        //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
 
         PropsDataOnValidate();
-        ColorMapOnValidate();
+        MapTextureOnValidate();//TODO Load colorMapIndex map for mesh build even if !EDITOR
     }
 
     public struct RaycastHit {
@@ -484,7 +486,7 @@ public partial class MapData : ScriptableObject
         terrainMesh.normals = normals;
         terrainMesh.uv = uvs;
         terrainMesh.uv2 = uvs2;
-        terrainMesh.colors = colors;
+        UpdateMeshColor();
         terrainMesh.triangles = indices;
 
         return terrainMesh;
@@ -533,9 +535,17 @@ public partial class MapData : ScriptableObject
     public void UpdateMeshColor()
     {
         if (terrainMesh == null) return;
-        if (colors == null) return;
+        //if (colors == null) return;
 
-        terrainMesh.colors = colors;
+        if (meshColorMapIndex < 0 || meshColorMapIndex >= mapTextures.Length) return;
+        MapTexture meshColorMapTexture = mapTextures[meshColorMapIndex];
+        if (meshColorMapTexture.map == null)
+        {
+            Debug.LogError("Mesh color map has not been loaded");//TODO
+            return;
+        }
+
+        terrainMesh.colors = meshColorMapTexture.map;
     }
     
 

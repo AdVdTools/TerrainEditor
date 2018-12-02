@@ -55,33 +55,33 @@ public partial class MapData : ScriptableObject
     
     public int instanceLimit = 100;//TODO Limit for the sum of meshdata.instances.count's?
 
-    [System.Serializable]
-    public class DensityMap
-    {
-        [HideInInspector] public Vector4[] map;
+    //[System.Serializable]
+    //public class DensityMap
+    //{
+    //    [HideInInspector] public Vector4[] map;
         
-        public Vector4 SampleDensity(float x, float y, MapData mapData)
-        {
-            Vector3Int indices;
-            Vector3 barycentricCoordinate;
-            if (mapData.SampleInfo(x, y, out indices, out barycentricCoordinate))
-            {
-                return map[indices.x] * barycentricCoordinate.x +
-                    map[indices.y] * barycentricCoordinate.y +
-                    map[indices.z] * barycentricCoordinate.z;
-            }
-            else
-            {
-                return default(Vector4);
-            }
-        }
-    }
+    //    public Vector4 SampleDensity(float x, float y, MapData mapData)
+    //    {
+    //        Vector3Int indices;
+    //        Vector3 barycentricCoordinate;
+    //        if (mapData.SampleInfo(x, y, out indices, out barycentricCoordinate))
+    //        {
+    //            return map[indices.x] * barycentricCoordinate.x +
+    //                map[indices.y] * barycentricCoordinate.y +
+    //                map[indices.z] * barycentricCoordinate.z;
+    //        }
+    //        else
+    //        {
+    //            return default(Vector4);
+    //        }
+    //    }
+    //}
 
     public InstanceSet[] instanceSets = new InstanceSet[0];
-    public DensityMap[] densityMaps = new DensityMap[0];
+    //public DensityMap[] densityMaps = new DensityMap[0];
 
     //TODO
-    // InstanceSets and DensityMaps
+    // InstanceSets and DensityMaps (MapTextures)
     // PropsMeshData has pointers to instance set and/or density map
     // Variants in PropsMeshData (selected with probability from density map, and with index from instance set)
     // MeshResourceData with MeshResource (reusable object), and distance range
@@ -194,7 +194,7 @@ public partial class MapData : ScriptableObject
         
         public abstract class DensityPropsLogic : ScriptableObject
         {
-            public abstract bool BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues, ref MapData.PropInstance instanceData);
+            public abstract PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues);
         }
 
 
@@ -245,7 +245,11 @@ public partial class MapData : ScriptableObject
                     currentUpdateState = UpdateState.Idle;
                     currPOV = pov;
                 }
-                //else, hope that someone is checking for updates and finishes the job
+                else
+                {
+                    //else, hope that someone is checking for updates and finishes the job
+                    Debug.LogWarning("Update Ongoing");
+                }
             }
         }
         
@@ -407,7 +411,7 @@ public partial class MapData : ScriptableObject
             }
 
 
-            if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.densityMaps.Length)
+            if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.mapTextures.Length)
             {
                 PropDitherPattern.PatternElement[] elements = pattern.elements;
                 int elementsLength = elements.Length;
@@ -415,11 +419,11 @@ public partial class MapData : ScriptableObject
                 int povCellX = Mathf.RoundToInt(pov.x / patternScale);
                 int povCellY = Mathf.RoundToInt(pov.z / patternScale);
 
-                DensityMap densityMap = mapData.densityMaps[densityMapIndex];//TODO null checks in all classes?
+                MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
                 
                 DensityPropsLogic currentPropsLogic = propsLogic;//TODO sealed override vs delegate
+                System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance>  BuildInstanceData = currentPropsLogic.BuildInstanceData;//TODO test performance, there might not be a huge difference
                 
-                PropInstance instanceData = default(PropInstance);
                 Vector2 elementPosition;
                 Vector4 densityValues;
                 for (int e = 0; e < elements.Length; ++e)
@@ -427,8 +431,8 @@ public partial class MapData : ScriptableObject
                     float elementRand = (float)(e + 1) / elementsLength;
 
                     elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
-                    densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
-                    if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                    densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+                    DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                 }
 
                 for (int offset = 1; offset <= maxCellsFromCenter; ++offset)//TODO configurable maxCellsFromCenter?
@@ -441,17 +445,17 @@ public partial class MapData : ScriptableObject
                             float elementRand = (float)(e + 1) / elementsLength;
 
                             elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
-                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
-                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
-                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
-                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
-                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
-                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                             elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
-                            densityValues = densityMap.SampleDensity(elementPosition.x, elementPosition.y, mapData);
-                            if (currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues, ref instanceData)) DoInstance(instanceData, ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
                         }
                     }
                 }
@@ -470,8 +474,6 @@ public partial class MapData : ScriptableObject
 
         void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
-            int subMeshCount = materials.Length;
-
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
             Variant variant = variants[instance.variantIndex];
 
@@ -485,6 +487,8 @@ public partial class MapData : ScriptableObject
             Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, instance.alignment);
             float rotation = instance.rotation;
             float size = instance.size;
+
+            int subMeshCount = materials.Length;
 
             for (int r = 0; r < variant.meshResources.Length; ++r)
             {
@@ -580,11 +584,13 @@ public partial class MapData : ScriptableObject
 
     void PropsDataOnValidate()
     {
-        int targetLength = width * depth;
-        for (int i = 0; i < densityMaps.Length; ++i)
-        {
-            DensityMap densityMap = densityMaps[i];
-            if (densityMap.map == null || densityMap.map.Length != targetLength) densityMap.map = new Vector4[targetLength];//TODO properly rescale
-        }
+        //int targetLength = width * depth;
+        //for (int i = 0; i < densityMaps.Length; ++i)
+        //{
+        //    DensityMap densityMap = densityMaps[i];
+        //    if (densityMap.map == null || densityMap.map.Length != targetLength) densityMap.map = new Vector4[targetLength];//TODO properly rescale
+        //}
+        
+        //TODO load mapTextures referenced by prop meshes data (avoid redundant loading, here and with mesh color)
     }
 }

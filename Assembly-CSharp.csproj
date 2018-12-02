@@ -64,8 +64,8 @@
     <Compile Include="Assets\Scripts\BasicDensityPropsLogic.cs" />
     <Compile Include="Assets\Scripts\FloatRange.cs" />
     <Compile Include="Assets\Scripts\Map.cs" />
-    <Compile Include="Assets\Scripts\MapData.ColorMap.cs" />
     <Compile Include="Assets\Scripts\MapData.cs" />
+    <Compile Include="Assets\Scripts\MapData.MapTexture.cs" />
     <Compile Include="Assets\Scripts\MapData.PropsData.cs" />
     <Compile Include="Assets\Scripts\MeshResourceData.cs" />
     <Compile Include="Assets\Scripts\PropDitherPattern.cs" />
