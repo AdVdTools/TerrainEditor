@@ -212,11 +212,7 @@ public class Brush
         }
         return BrushEvent.None;
     }
-
-    public void SetPeekValue(int v)
-    {
-        pickingIntValue = v;
-    }
+    
     public void SetPeekValue(float v)
     {
         pickingFloatValue = v;
@@ -234,9 +230,6 @@ public class Brush
     {
         switch (currentValueType)
         {
-            case ValueType.Int:
-                intValue = pickingIntValue;
-                break;
             case ValueType.Float:
                 floatValue = pickingFloatValue;
                 break;
@@ -333,11 +326,10 @@ public class Brush
         GUI.DragWindow();
     }
     
-    public enum ValueType { Int, Float, Vector2, Vector3, Vector4, Color }
+    public enum ValueType { Float, Vector2, Vector3, Vector4, Color }
     public ValueType currentValueType;
-
-    public int intValue = 1;
-    public float floatValue = 1f;
+    
+    public float floatValue = 0f;
     public Vector4 vectorValue;
     public Color colorValue = Color.white;
     private bool mask0 = true, mask1 = true, mask2 = true, mask3 = true;
@@ -352,8 +344,7 @@ public class Brush
     }
 
     private bool pickingValue;
-
-    private int pickingIntValue;
+    
     private float pickingFloatValue;
     private Vector4 pickingVectorValue;
     private Color pickingColorValue;
@@ -377,10 +368,6 @@ public class Brush
         //TODO check value mode (color vs float, vs Vector?)
         switch (currentValueType)
         {
-            case ValueType.Int:
-                GUI.enabled = enableValueFields;
-                intValue = EditorGUILayout.IntField(valueGUIContent, intValue);
-                break;
             case ValueType.Float:
                 GUI.enabled = enableValueFields;
                 floatValue = EditorGUILayout.FloatField(valueGUIContent, floatValue);

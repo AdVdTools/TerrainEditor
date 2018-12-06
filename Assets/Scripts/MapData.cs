@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -13,7 +14,8 @@ public partial class MapData : ScriptableObject
     [SerializeField] private int width, depth;
     [SerializeField] private int meshColorMapIndex;
     [HideInInspector] [SerializeField] private float[] heights = new float[0];
-    [HideInInspector] [SerializeField] private Color[] colors = new Color[0];
+
+    [HideInInspector] [SerializeField] private Texture2D heightTexture;
 
     [SerializeField] private Material terrainMaterial;
     //TODO Array of props data objects with arrays for prop data, prop materials and other prop set data
@@ -227,9 +229,10 @@ public partial class MapData : ScriptableObject
 
     private void OnDisable()
     {
-        int targetLength = width * depth;
-        if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
-        //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+        //int targetLength = width * depth;
+        //if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
+                                                                                                 //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+
 
         PropsDataOnDisable();
         MapTextureOnDisable();
@@ -238,12 +241,196 @@ public partial class MapData : ScriptableObject
 
     private void OnValidate()
     {
-        int targetLength = width * depth;
-        if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
+        //int targetLength = width * depth;
+        //if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
         //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
+
+        HeightTextureLoad();
 
         PropsDataOnValidate();
         MapTextureOnValidate();//TODO Load colorMapIndex map for mesh build even if !EDITOR
+
+#if UNITY_EDITOR
+        ValidateSubassets();// SerializeMapAssets();
+#endif
+    }
+
+    //TODO reestructure cs files? .subassets instead of .maptexture?
+#if UNITY_EDITOR
+    //TODO trigger assets/project update (as in save) on certain events (mouse up?)
+    public void ValidateSubassets()//TODO extend to other subassets: move to main cs file, wrap colorMap loop, add other maps
+    {
+        string assetPath = UnityEditor.AssetDatabase.GetAssetPath(this);
+        UnityEngine.Object[] assetsAtPath = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath);
+        int[] refCounters = new int[assetsAtPath.Length];
+
+        // Main Asset
+        int mainAssetIndex = System.Array.FindIndex(assetsAtPath, (asset) => ReferenceEquals(asset, this));
+        if (mainAssetIndex < 0) Debug.LogWarning("Main asset is not part of 'all assets at path'");
+        else refCounters[mainAssetIndex]++;
+
+        // Heights
+        if (heightTexture != null)
+        {
+            int heightAssetIndex = System.Array.FindIndex(assetsAtPath, (asset) => ReferenceEquals(asset, heightTexture));
+            if (heightAssetIndex < 0) Debug.LogWarning("Height map asset is not part of 'all assets at path'");
+            else refCounters[heightAssetIndex]++;
+        }
+
+        //if (heightTexture != null)//TODO reuse code for other maps, and in editor if possible
+        //{
+        //    UnityEditor.Undo.RecordObject(heightTexture, "Heightmap Texture Change");
+        //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
+        //}
+        //else
+        //{
+        //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
+        //    UnityEditor.Undo.RegisterCreatedObjectUndo(heightTexture, "Heightmap Texture Create");
+        //}
+        //WriteToTexture(Array.ConvertAll(heights, (h) => new Color(h, 0, 0, 0)), ref heightTexture);//TODO reuse Color array for heights writing
+
+        //SerializeTexture(heights, ref heightTexture, "Heights", assetPath);
+        SerializeHeights(assetPath);
+
+        // MapTextures
+        for (int i = 0; i < mapTextures.Length; ++i)
+        {
+            MapTexture mapTexture = mapTextures[i];
+
+            if (mapTexture.texture != null)
+            {
+                int assetIndex = System.Array.FindIndex(assetsAtPath, (asset) => ReferenceEquals(asset, mapTexture.texture));
+                if (assetIndex >= 0)
+                {
+                    refCounters[assetIndex]++;
+                    if (refCounters[assetIndex] > 1)
+                    {
+                        Debug.LogWarningFormat("Texture '{0}' referenced more than once", mapTexture.texture);
+                        mapTexture.texture = null;
+                    }
+                }
+                else
+                {
+                    Debug.LogWarningFormat("Texture '{0}' is not part of 'all assets at path'", mapTexture.texture);
+                }
+            }
+
+            //if (mapTexture.texture != null)//TODO reuse code for other maps, and in editor if possible
+            //{
+            //    UnityEditor.Undo.RecordObject(mapTexture.texture, "Map Texture Change");
+            //    EnsureTextureAtPath(i, assetPath);
+            //}
+            //else
+            //{
+            //    EnsureTextureAtPath(i, assetPath);
+            //    UnityEditor.Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
+            //}
+            //WriteToTexture(mapTexture);
+
+            //SerializeTexture(mapTexture.map, ref mapTexture.texture, mapTexture.GetTextureName(i), assetPath);
+            SerializeMapTexture(i, assetPath);
+        }
+
+        for (int i = 0; i < refCounters.Length; ++i)
+        {
+            if (refCounters[i] == 0)
+            {
+                Debug.LogWarning("Unreferenced texture: " + assetsAtPath[i]);
+                UnityEditor.Undo.DestroyObjectImmediate(assetsAtPath[i]);//TODO allow map destruction in mapeditor?
+                //DestroyImmediate(assetsAtPath[i], true);
+            }
+        }
+    }
+
+    //private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
+    //{
+    //    SerializeTexture(auxColorMap, ref texture, textureName, assetPath);
+    //}
+
+    private void SerializeTexture(Color[] map, ref Texture2D texture, TextureFormat textureFormat, string textureName, string assetPath)
+    {
+        if (texture != null)//TODO reuse code for other maps, and in editor if possible
+        {
+            UnityEditor.Undo.RecordObject(texture, "Texture Change");
+            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+        }
+        else
+        {
+            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+        }
+        WriteToTexture(map, texture);
+        texture.name = string.Format("{0}.{1}", this.name, textureName);
+    }
+
+    private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
+    {
+        if (texture != null)//TODO reuse code for other maps, and in editor if possible
+        {
+            UnityEditor.Undo.RecordObject(texture, "Texture Change");
+            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+        }
+        else
+        {
+            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+        }
+        WriteToTexture(map, texture);
+        texture.name = string.Format("{0}.{1}", this.name, textureName);
+    }
+
+    //private Color[] auxColorMap;
+    public void SerializeHeights(string assetPath)//TODO use map texture channel instead of own texture?
+    {
+        //int targetLength = width * depth;
+        //if (heights == null || heights.Length != targetLength)
+        //{
+        //    Debug.LogError("Height data might be corrupt");
+        //    return;
+        //}
+
+        //if (auxColorMap == null || auxColorMap.Length != targetLength) auxColorMap = new Color[targetLength];
+        //for (int i = 0; i < auxColorMap.Length; ++i) auxColorMap[i] = new Color(heights[i], 0f, 0f);
+
+
+        SerializeTexture(heights/*auxColorMap*/, ref heightTexture, "Heights", assetPath);
+    }
+    public void SerializeMapTexture(int index, string assetPath)
+    {
+        if (index >= 0 && index < mapTextures.Length)
+        {
+            MapTexture mapTexture = mapTextures[index];
+            SerializeTexture(mapTexture.map, ref mapTexture.texture, mapTexture.Format, mapTexture.GetTextureName(index), assetPath);
+        }
+        else
+        {
+            Debug.LogWarningFormat("No map texture at index {0}", index);
+        }
+    }
+#endif
+
+    private void HeightTextureLoad()
+    {
+        ReadTexture(heightTexture, ref heights/*auxColorMap*/);//ReadTexture ensures a properly sized array
+        //TODO reuse heights array
+        //if (heights == null || heights.Length != auxColorMap.Length) heights = new float[auxColorMap.Length];
+        //for (int i = 0; i < auxColorMap.Length; ++i) heights[i] = auxColorMap[i].r;
+        //heights = Array.ConvertAll(heightsMap, (c) => c.r);
+#if UNITY_EDITOR
+        // ensure this texture, done in validate subassets TODO remove?
+        //if (mapTexture.texture != null)//TODO reuse code for other maps, and in editor if possible
+        //{
+        //    UnityEditor.Undo.RecordObject(mapTexture.texture, "Map Texture Change");
+        //    EnsureTextureAtPath(i, assetPath);//TODO use RFloat format
+        //}
+        //else
+        //{
+        //    EnsureTextureAtPath(i, assetPath);
+        //    UnityEditor.Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
+        //}
+        //WriteToTexture(mapTexture);
+
+#endif
     }
 
     public struct RaycastHit {
@@ -559,6 +746,22 @@ public partial class MapData : ScriptableObject
     }
 
     public static void Copy2D<T>(T[] srcArray, int srcWidth, int srcHeight, T[] tgtArray, int tgtWidth, int tgtHeight) where T : struct
+    {
+        float minWidth = Mathf.Min(srcWidth, tgtWidth);
+        float minHeight = Mathf.Min(srcHeight, tgtHeight);
+
+        for (int i = 0; i < minHeight; ++i)
+        {
+            int srcRowIndex = i * srcWidth;
+            int tgtRowIndex = i * tgtWidth;
+            for (int j = 0; j < minWidth; ++j)
+            {
+                tgtArray[tgtRowIndex + j] = srcArray[srcRowIndex + j];
+            }
+        }
+    }
+
+    public static void CopyNative2D<T>(NativeArray<T> srcArray, int srcWidth, int srcHeight, T[] tgtArray, int tgtWidth, int tgtHeight) where T : struct
     {
         float minWidth = Mathf.Min(srcWidth, tgtWidth);
         float minHeight = Mathf.Min(srcHeight, tgtHeight);

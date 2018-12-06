@@ -30,8 +30,10 @@ public class MapEditor : Editor {
     //private static int currentDensityMapIndex;
     private static int currentMapTextureIndex;
 
+    private static bool colorBrushMode;
+
+    private static bool displayMapTexture;
     private Material mapTextureMaterial;
-    private bool displayMapTexture;
     private int mainTexID;
 
     private void OnEnable()
@@ -71,6 +73,7 @@ public class MapEditor : Editor {
     {
         RebuildMapTerrain();
         SetPropsDirtyAndRepaintScene();//Just set dirty since pov would be unavailable
+        //Unfortunately props won't update if editor is not updating
 
         //if (data != null) data.SerializeMapAssets();//TODO record texture changes instead
     }
@@ -92,6 +95,9 @@ public class MapEditor : Editor {
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
     readonly GUIContent displayMapTextureGUIContent = new GUIContent("Display Map Texture");
+
+    readonly GUIContent brushColorModeGUIContent = new GUIContent("Brush Color Mode");
+    readonly GUIContent[] brushColorModesGUIContents = new GUIContent[] { new GUIContent("Vector4"), new GUIContent("Color") };
 
     public override void OnInspectorGUI()
     {
@@ -140,9 +146,20 @@ public class MapEditor : Editor {
 
                     displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
 
-                    currentBrush.currentValueType = Brush.ValueType.Color;//TODO Toogle V4-Color?
+                    colorBrushMode = EditorGUILayout.Popup(brushColorModeGUIContent, colorBrushMode ? 1 : 0, brushColorModesGUIContents) == 1;
+
+                    if (colorBrushMode)
+                    {
+                        currentBrush.currentValueType = Brush.ValueType.Color;//TODO Toogle V4-Color?
+                        ColorMath.mask = currentBrush.ColorMask;
+                    }
+                    else
+                    {
+                        currentBrush.currentValueType = Brush.ValueType.Vector4;//TODO Toogle V4-Color?
+                        Vector4Math.mask = currentBrush.VectorMask;
+                    }
+
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    ColorMath.mask = currentBrush.ColorMask;
                     break;
                 case PROPS_TARGET:
                     DrawInstanceSetSelector();
@@ -248,6 +265,16 @@ public class MapEditor : Editor {
     private void DrawMapTextureSelector()
     {
         currentMapTextureIndex = IndexSelector(mapTextureGUIContent, currentMapTextureIndex, data.mapTextures.Length);
+        if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
+        {
+            MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+            EditorGUILayout.LabelField(" ", mapTexture.GetTextureName(currentMapTextureIndex), EditorStyles.boldLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField(string.Format("No texture at index {0}", currentInstanceSetIndex), EditorStyles.boldLabel);
+        }
+
         //int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
         //currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
     }
@@ -356,7 +383,7 @@ public class MapEditor : Editor {
                 case BrushEvent.BrushDraw:
                     Mesh mesh = data.sharedTerrainMesh;
 
-                    if (mesh != null)
+                    if (rayHits && mesh != null)
                     {
                         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
@@ -423,7 +450,7 @@ public class MapEditor : Editor {
                                 }
                                 else
                                 {
-                                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
+                                    Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
                                 }
                                 break;
                             //case DENSITY_MAPS_TARGET:
@@ -571,7 +598,7 @@ public class MapEditor : Editor {
                 }
                 else
                 {
-                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
+                    Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
                 }
                 break;
             case PROPS_TARGET://TODO reimagine non density props editor
@@ -618,31 +645,48 @@ public class MapEditor : Editor {
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
+                //TODO:
+                //if (heightTexture != null)//TODO reuse code for other maps, and in editor if possible
+                //{
+                //    Undo.RecordObject(heightTexture, "Heightmap Texture Change");
+                //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
+                //}
+                //else
+                //{
+                //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
+                //    Undo.RegisterCreatedObjectUndo(heightTexture, "Heightmap Texture Create");
+                //}
+                //WriteToTexture(Array.ConvertAll(heights, (h) => new Color(h, 0, 0, 0)), ref heightTexture);//TODO reuse Color array for heights writing
+
                 data.QuickRebuildParallel(8);
+                //TODO wrap this
+                data.SerializeHeights(AssetDatabase.GetAssetPath(data));/*  Texture(data.Heights, ref data.heightTexture "")*/
+
                 break;
             //case COLOR_TARGET:
                 //data.UpdateMeshColor();
                 //break;
             case MAP_TEXTURE_TARGET:
                 if (currentMapTextureIndex == data.MeshColorMapIndex) data.UpdateMeshColor();
-                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
-                {
-                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
-                    if (mapTexture.texture != null)
-                    {
-                        Undo.RecordObject(mapTexture.texture, "Color Map Change");//TODO record texture?, check null
-                        data.EnsureTexture(currentMapTextureIndex);//TODO refactor
-                    }
-                    else {
-                        data.EnsureTexture(currentMapTextureIndex);//TODO refactor
-                        Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Color Map Create");
-                    }
-                    data.WriteToTexture(mapTexture);
-                }
-                else
-                {
-                    Debug.LogWarningFormat("No color map at index {0}", currentMapTextureIndex);
-                }
+                //if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
+                //{
+                    //MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                    //if (mapTexture.texture != null)
+                    //{
+                    //    Undo.RecordObject(mapTexture.texture, "Map Texture Change");//TODO record texture?, check null
+                    //    data.EnsureTexture(currentMapTextureIndex);//TODO refactor
+                    //}
+                    //else {
+                    //    data.EnsureTexture(currentMapTextureIndex);//TODO refactor
+                    //    Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
+                    //}
+                    //data.WriteToTexture(mapTexture);
+                //}
+                //else
+                //{
+                //    Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
+                //}
+                data.SerializeMapTexture(currentMapTextureIndex, AssetDatabase.GetAssetPath(data));
                 RebuildPropMeshesAsync(true);//TODO check map is used by props?
                 break;
             case PROPS_TARGET:

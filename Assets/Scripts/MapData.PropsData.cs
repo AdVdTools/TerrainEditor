@@ -40,7 +40,7 @@ public partial class MapData : ScriptableObject
         {
             if (instances.Length != newSize) System.Array.Resize(ref instances, newSize);
         }
-        public void RemoveMarked()//TODO test !!!!!
+        public void RemoveMarked()
         {
             int index = 0;
             while (index < count && instances[index].variantIndex >= 0) ++index;
@@ -52,8 +52,6 @@ public partial class MapData : ScriptableObject
             count = index;
         }
     }
-    
-    public int instanceLimit = 100;//TODO Limit for the sum of meshdata.instances.count's?
 
     //[System.Serializable]
     //public class DensityMap
@@ -78,7 +76,6 @@ public partial class MapData : ScriptableObject
     //}
 
     public InstanceSet[] instanceSets = new InstanceSet[0];
-    //public DensityMap[] densityMaps = new DensityMap[0];
 
     //TODO
     // InstanceSets and DensityMaps (MapTextures)
@@ -210,6 +207,7 @@ public partial class MapData : ScriptableObject
         List<Vector3> vertices;
         List<Vector3> normals;
         List<Vector2> uvs;
+        //TODO color
         List<int>[] triangleLists;
 
         MapData mapData;
@@ -380,8 +378,7 @@ public partial class MapData : ScriptableObject
             if (uvs == null) uvs = new List<Vector2>();
             
             int subMeshCount = materials.Length;
-
-            Debug.Log("Hi why is this null?");//TODO
+            
             if (triangleLists == null || triangleLists.Length != subMeshCount) {
                 triangleLists = new List<int>[subMeshCount];
                 for (int i = 0; i < subMeshCount; ++i) triangleLists[i] = new List<int>();
@@ -520,8 +517,7 @@ public partial class MapData : ScriptableObject
                         Vector2 uv = meshData.uvsList[i];
                         uvs.Add(uv);
                     }
-
-                    //if (vertexIndex < 300) Debug.Log(meshResource.targetSubMesh + " asdffasd fas ");
+                    
                     if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
                     {
                         List<int> triangles = triangleLists[meshResource.targetSubMesh];
@@ -558,11 +554,11 @@ public partial class MapData : ScriptableObject
             mesh.SetNormals(normals);//mesh.normals = normals;
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
             //mesh.colors = colors;
-            Debug.Log("WTF: "+triangleLists+", BTW: "+updateDuration);//TODO avoid null exception
+            Debug.Log("BTW: "+updateDuration);
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)
             {
-                mesh.SetTriangles(triangleLists[sm], sm, false);//mesh.triangles = indices; //TODO extra parameters? calculate bounds later?
+                mesh.SetTriangles(triangleLists[sm], sm, false);//TODO calculate bounds later?
             }
             //mesh.RecalculateBounds();
         }
