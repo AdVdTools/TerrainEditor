@@ -2,6 +2,7 @@
 using UnityEditor;
 using System.Threading;
 using System;
+
 [CustomEditor(typeof(Map))]
 public class MapEditor : Editor {
 
@@ -13,21 +14,19 @@ public class MapEditor : Editor {
     private bool editing;
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
-    //private const int COLOR_TARGET = 1;
     private const int MAP_TEXTURE_TARGET = 1;//2;
     private const int PROPS_TARGET = 2;//3;
-    private const int SELECT_TARGET = 3;//4;
-    //private const int DENSITY_MAPS_TARGET = 5;
+    //private const int SELECT_TARGET = 3;//4;
+
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), /*new GUIContent("Color"),*/ new GUIContent("Map Texture"), new GUIContent("Edit Props"), new GUIContent("Select Props")/*, new GUIContent("Density Maps")*/
+        new GUIContent("Height"), new GUIContent("Map Texture"), new GUIContent("Props")/*, new GUIContent("Select Props")*/
     };
     
     float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
-    //private static int currentDensityMapIndex;
     private static int currentMapTextureIndex;
 
     private static bool colorBrushMode;
@@ -35,6 +34,8 @@ public class MapEditor : Editor {
     private static bool displayMapTexture;
     private Material mapTextureMaterial;
     private int mainTexID;
+
+    private static bool selectMode;
 
     private void OnEnable()
     {
@@ -88,7 +89,6 @@ public class MapEditor : Editor {
     readonly GUIContent minusGUIContent = new GUIContent("-");
     readonly GUIContent plusGUIContent = new GUIContent("+");
     readonly GUIContent instanceSetGUIContent = new GUIContent("Instance Set");
-    //readonly GUIContent densityMapGUIContent = new GUIContent("Density Map");
     readonly GUIContent mapTextureGUIContent = new GUIContent("Map Texture");
 
     readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
@@ -98,6 +98,8 @@ public class MapEditor : Editor {
 
     readonly GUIContent brushColorModeGUIContent = new GUIContent("Brush Color Mode");
     readonly GUIContent[] brushColorModesGUIContents = new GUIContent[] { new GUIContent("Vector4"), new GUIContent("Color") };
+
+    readonly GUIContent selectModeGUIContent = new GUIContent("Select Mode");
 
     public override void OnInspectorGUI()
     {
@@ -135,13 +137,8 @@ public class MapEditor : Editor {
                     currentBrush.currentValueType = Brush.ValueType.Float;
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
-                //case COLOR_TARGET:
-                    //currentBrush.currentValueType = Brush.ValueType.Color;
-                    //currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    //ColorMath.mask = currentBrush.ColorMask; //new Color(maskR ? 1f : 0f, maskG ? 1f : 0f, maskB ? 1f : 0f, maskA ? 1f : 0f);
-                    //break;
+
                 case MAP_TEXTURE_TARGET:
-                    //TODO 
                     DrawMapTextureSelector();
 
                     displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
@@ -161,13 +158,14 @@ public class MapEditor : Editor {
 
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
+
                 case PROPS_TARGET:
                     DrawInstanceSetSelector();
                     
                     switch (currentBrush.mode)
                     {
                         case Brush.Mode.Set:
-                            instanceValues.DoInstancePropertiesInspector();
+                            //instanceValues.DoInstancePropertiesInspector();
                             break;
                         case Brush.Mode.Add:
                             EditorGUILayout.LabelField(pacingGUIContent, GUI.skin.button);
@@ -175,7 +173,7 @@ public class MapEditor : Editor {
                             currentBrush.DrawBrushValueInspector(true, false);
                             if (currentBrush.floatValue < 0) currentBrush.floatValue = 0;
 
-                            instanceValues.DoInstancePropertiesInspector();
+                            //instanceValues.DoInstancePropertiesInspector();
                             break;
                         case Brush.Mode.Substract:
                             GUI.enabled = false;
@@ -189,12 +187,14 @@ public class MapEditor : Editor {
                             break;
                     }
                     
-                    break;
-                case SELECT_TARGET:
-                    DrawInstanceSetSelector();
+                //    break;
+                //case SELECT_TARGET:
+                    //DrawInstanceSetSelector();
+
+                    GUI.changed = false;
 
                     instanceValues.DoInstancePropertiesInspector();
-
+                    
                     if (GUI.changed && autoApplyValues) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
                     EditorGUILayout.BeginHorizontal();
                     GUI.enabled = !autoApplyValues;
@@ -206,18 +206,12 @@ public class MapEditor : Editor {
 
 
                     EditorGUILayout.BeginHorizontal();
+                    selectMode = GUILayout.Toggle(selectMode, selectModeGUIContent, EditorStyles.miniButton, GUILayout.Width(80));
+                    //TODO UX!!
                     GUILayout.FlexibleSpace();
                     GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)), EditorStyles.miniLabel);
                     EditorGUILayout.EndHorizontal();
                     break;
-
-                //case DENSITY_MAPS_TARGET:
-                    //DrawDensityMapSelector();
-                    
-                    //currentBrush.currentValueType = Brush.ValueType.Vector4;
-                    //currentBrush.DrawBrushValueInspector(enableValueFields, true);
-                    //Vector4Math.mask = currentBrush.VectorMask;
-                    //break;
             }
             currentBrush.HandleBrushShortcuts();
         }
@@ -228,11 +222,9 @@ public class MapEditor : Editor {
     readonly GUIContent[,] helpGUIContents =
     {
         { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
-        //{ new GUIContent("Set Color"), new GUIContent("Add Color"), new GUIContent("Substract Color"), new GUIContent("Average Color"), new GUIContent("Smooth Color") },
         { new GUIContent("Set Texture Value"), new GUIContent("Add Texture Value"), new GUIContent("Substract Texture Value"), new GUIContent("Average Texture Value"), new GUIContent("Smooth Texture Value") },
-        { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") },
-        { new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }//,
-        //{ new GUIContent("Set Density"), new GUIContent("Increase Density"), new GUIContent("Reduce Density"), new GUIContent("Average Density"), new GUIContent("Smooth Density") }
+        { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") }//,
+        //{ new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }
     };
 
     private void DrawHelp()
@@ -246,21 +238,13 @@ public class MapEditor : Editor {
     private void DrawInstanceSetSelector()
     {
         int nextInstanceSetIndex = IndexSelector(instanceSetGUIContent, currentInstanceSetIndex, data.instanceSets.Length);
-        //int nextInstanceSetIndex = EditorGUILayout.IntField(instanceSetGUIContent, currentInstanceSetIndex);
         if (nextInstanceSetIndex != currentInstanceSetIndex)
         {
             InvalidateSelection();
         }
         currentInstanceSetIndex = nextInstanceSetIndex;
-        //currentInstanceSetIndex = Mathf.Clamp(nextInstanceSetIndex, 0, data.instanceSets.Length - 1);
     }
-
-    //private void DrawDensityMapSelector()
-    //{
-    //    currentDensityMapIndex = IndexSelector(densityMapGUIContent, currentDensityMapIndex, data.densityMaps.Length);
-    //    //int nextDensityMapIndex = EditorGUILayout.IntField(densityMapGUIContent, currentDensityMapIndex);
-    //    //currentDensityMapIndex = Mathf.Clamp(nextDensityMapIndex, 0, data.densityMaps.Length - 1);
-    //}
+    
 
     private void DrawMapTextureSelector()
     {
@@ -365,7 +349,7 @@ public class MapEditor : Editor {
                     shouldApplyBrush = false;
                 }
             }
-            if (brushTarget == SELECT_TARGET)
+            if (selectMode/*brushTarget == SELECT_TARGET*/)
             {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
@@ -387,21 +371,9 @@ public class MapEditor : Editor {
                     {
                         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
-                        currentBrush.SetMaterial(projMatrix, brushTarget != SELECT_TARGET && (brushTarget != PROPS_TARGET || currentBrush.mode != Brush.Mode.Add));
+                        currentBrush.SetMaterial(projMatrix, !selectMode && (brushTarget != PROPS_TARGET /*TODO redo*/ || currentBrush.mode != Brush.Mode.Add));
 
                         Graphics.DrawMeshNow(mesh, matrix, 0);
-
-                        //if (brushTarget == COLOR_MAPS_TARGET && displayColorMap)
-                        //{
-                        //    if (currentColorMapIndex >= 0 && currentColorMapIndex < data.colorMaps.Length)
-                        //    {
-                        //        MapData.ColorMap colorMap = data.colorMaps[currentColorMapIndex];
-
-                        //        colorMapMaterial.SetTexture(mainTexID, colorMap.texture);
-                        //        colorMapMaterial.SetPass(0); 
-                        //        Graphics.DrawMeshNow(mesh, matrix, 0);
-                        //    }
-                        //}//TODO draw when not focused!
                     }
                     
                     //Debug.LogWarningFormat("Draw {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
@@ -585,10 +557,6 @@ public class MapEditor : Editor {
                 if (auxHeights == null || auxHeights.Length != pointCount) auxHeights = new float[pointCount];
                 ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
-            //case COLOR_TARGET:
-                //if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
-                //ApplyBrush<Color>(data.Vertices, data.Colors, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
-                //break;
             case MAP_TEXTURE_TARGET:
                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
@@ -605,37 +573,33 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    ApplyBrush(data.Vertices, instanceSet);
+                    if (!selectMode)
+                    {
+                        ApplyBrush(data.Vertices, instanceSet);
+                    }
+                    else
+                    {
+                        ApplySelectionBrush(instanceSet);//TODO redo with keys insetad of brush mode
+                        if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
+                    }
                 }
                 else
                 {
                     Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
                 }
                 break;
-            case SELECT_TARGET:
-                if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
-                {
-                    MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    ApplySelectionBrush(instanceSet);
-                    if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
-                }
-                else
-                {
-                    Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
-                }
-                break;
-            //case DENSITY_MAPS_TARGET:
-                //if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
-                //{
-                //    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                //    if (auxDensityMap == null || auxDensityMap.Length != pointCount) auxDensityMap = new Vector4[pointCount];
-                //    ApplyBrush<Vector4>(data.Vertices, densityMap.map, auxDensityMap, currentBrush.vectorValue, Vector4Math.sharedHandler);
-                //}
-                //else
-                //{
-                //    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
-                //}
-                //break;
+            //case SELECT_TARGET:
+            //    if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+            //    {
+            //        MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+            //        ApplySelectionBrush(instanceSet);
+            //        if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
+            //    }
+            //    else
+            //    {
+            //        Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
+            //    }
+            //    break;
         }
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
@@ -954,7 +918,7 @@ public class MapEditor : Editor {
             }
             if (selectionCount > 0) meanPosition *= 1f / selectionCount;
 
-            if (Tools.current == Tool.Move)
+            if (Tools.current == Tool.Move && selectionCount > 0)
             {
                 Vector3 newPosition = Handles.PositionHandle(meanPosition, Quaternion.identity);
 
@@ -1030,6 +994,9 @@ public class MapEditor : Editor {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         int instanceCount = instanceSet.Count;
         MapData.PropInstance[] instances = instanceSet.Instances;
+
+        bool shift = Event.current.shift;
+        bool ctrl = Event.current.control;
         
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
         if (instanceSelection == null) return;//Could not initialize
@@ -1043,38 +1010,36 @@ public class MapEditor : Editor {
             ThreadPool.QueueUserWorkItem((d) =>
             {
                 ThreadData td = (ThreadData)d;
-
-                switch (currentBrush.mode)
-                {
-                    case Brush.Mode.Add:
-                        for (int index = td.startIndex; index < td.endIndex; ++index)
-                        {
-                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
-                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
-                            float sqrDist = projOffset.sqrMagnitude;
-                            if (sqrDist <= 1f) instanceSelection[index] = true;
-                        }
-                        break;
-                    case Brush.Mode.Substract:
-                        for (int index = td.startIndex; index < td.endIndex; ++index)
-                        {
-                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
-                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
-                            float sqrDist = projOffset.sqrMagnitude;
-                            if (sqrDist <= 1f) instanceSelection[index] = false;
-                        }
-                        break;
-                    case Brush.Mode.Set:
-                        for (int index = td.startIndex; index < td.endIndex; ++index)
-                        {
-                            Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
-                            Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
-                            float sqrDist = projOffset.sqrMagnitude;
-                            if (sqrDist <= 1f) instanceSelection[index] = true;
-                            else instanceSelection[index] = false;
-                        }
-                        break;
+                
+                if (ctrl) { // Remove from seleciton
+                    for (int index = td.startIndex; index < td.endIndex; ++index)
+                    {
+                        Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
+                        Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                        float sqrDist = projOffset.sqrMagnitude;
+                        if (sqrDist <= 1f) instanceSelection[index] = false;
+                    }
                 }
+                else if (shift) { // Add to selection
+                    for (int index = td.startIndex; index < td.endIndex; ++index)
+                    {
+                        Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
+                        Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                        float sqrDist = projOffset.sqrMagnitude;
+                        if (sqrDist <= 1f) instanceSelection[index] = true;
+                    }
+                }
+                else { // Set selection
+                    for (int index = td.startIndex; index < td.endIndex; ++index)
+                    {
+                        Vector3 vertex = data.GetRealInstancePosition(instances[index].position);
+                        Vector3 projOffset = projMatrix.MultiplyPoint(vertex);
+                        float sqrDist = projOffset.sqrMagnitude;
+                        if (sqrDist <= 1f) instanceSelection[index] = true;
+                        else instanceSelection[index] = false;
+                    }
+                }
+
                 td.mre.Set();
             }, threadData);
         }

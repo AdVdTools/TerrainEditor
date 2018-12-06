@@ -13,16 +13,15 @@ public partial class MapData : ScriptableObject
 
     [SerializeField] private int width, depth;
     [SerializeField] private int meshColorMapIndex;
-    [HideInInspector] [SerializeField] private float[] heights = new float[0];
+    private float[] heights = new float[0];
 
     [HideInInspector] [SerializeField] private Texture2D heightTexture;
 
     [SerializeField] private Material terrainMaterial;
-    //TODO Array of props data objects with arrays for prop data, prop materials and other prop set data
-    
+
 
     public float[] Heights { get { return heights; } }
-    //public Color[] Colors { get { return colors; } }
+
     public int MeshColorMapIndex { get { return meshColorMapIndex; } }
     public Material TerrainMaterial { get { return terrainMaterial; } }
     
@@ -37,7 +36,7 @@ public partial class MapData : ScriptableObject
     public int GridToIndex(int row, int column)
     {
         Vector2Int inBounds = GridPositionInBounds(row, column);
-        //Debug.Log(inBounds + " " + row + " " + column);
+
         return inBounds.y * width + inBounds.x;
     }
 
@@ -62,52 +61,7 @@ public partial class MapData : ScriptableObject
         Vector2 position = GridToLocal2D(RowInBounds(gridPosition.y), gridPosition.x);
         return new Vector3(position.x, heights[index], position.y);
     }
-
-    //public float SampleHeight(float x, float y)
-    //{
-    //    Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
-    //    int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
-    //    normalizedCoords.x += - Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
-    //    //normalizedCoords.y += 0.5f + 0.5f * ((Mathf.FloorToInt(normalizedCoords.x) + 0) & 1);
-    //    //Debug.Log(normalizedCoords.x +" "+normalizedCoords.y + " " + ((Mathf.FloorToInt(normalizedCoords.y) + 1) & 1));
-
-    //    int i = Mathf.FloorToInt(normalizedCoords.y);
-    //    int j = Mathf.FloorToInt(normalizedCoords.x);
-
-    //    if (i < 0 || i >= depth - 1) return 0;
-    //    if (j < 0 || j >= width - 1) return 0;
-    //    int index = i * width + j;
-
-    //    float dx = normalizedCoords.x - j;
-    //    float dy = normalizedCoords.y - i;
-    //    //TODO figure out which triangle we are in
-    //    //TODO optimize interpolation
-    //    if (oddToEven == 0)
-    //    {
-    //        float dXY = dx + dy;
-    //        if (dXY < 1f)
-    //        {
-    //            return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
-    //        }
-    //        else
-    //        {
-    //            return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
-    //        }
-    //    }
-    //    else
-    //    {
-    //        float dXY = 1 - dx + dy;
-    //        if (dx > dy)
-    //        {
-    //            return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
-    //        }
-    //        else
-    //        {
-    //            return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
-    //        }
-    //    }
-
-    //}
+    
 
     //Returns false if outside
     private bool SampleInfo(float x, float y, out Vector3Int indices, out Vector3 barycentricCoordinate)
@@ -118,9 +72,7 @@ public partial class MapData : ScriptableObject
         Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
         int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
         normalizedCoords.x += -Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
-        //normalizedCoords.y += 0.5f + 0.5f * ((Mathf.FloorToInt(normalizedCoords.x) + 0) & 1);
-        //Debug.Log(normalizedCoords.x +" "+normalizedCoords.y + " " + ((Mathf.FloorToInt(normalizedCoords.y) + 1) & 1));
-
+        
         int i = Mathf.FloorToInt(normalizedCoords.y);
         int j = Mathf.FloorToInt(normalizedCoords.x);
 
@@ -130,8 +82,7 @@ public partial class MapData : ScriptableObject
 
         float dx = normalizedCoords.x - j;
         float dy = normalizedCoords.y - i;
-        //TODO figure out which triangle we are in
-        //TODO optimize interpolation
+        
         if (oddToEven == 0)
         {
             float dXY = dx + dy;
@@ -139,13 +90,11 @@ public partial class MapData : ScriptableObject
             {
                 indices = new Vector3Int(index, index + 1, index + width);
                 barycentricCoordinate = new Vector3(1 - dXY, dx, dy);
-                //return heights[index] * (1 - dXY) + heights[index + 1] * dx + heights[index + width] * dy;
             }
             else
             {
                 indices = new Vector3Int(index + width + 1, index + 1, index + width);
                 barycentricCoordinate = new Vector3(dXY - 1, 1 - dy, 1 - dx);
-                //return heights[index + width + 1] * (dXY - 1) + heights[index + 1] * (1 - dy) + heights[index + width] * (1 - dx);
             }
         }
         else
@@ -155,13 +104,11 @@ public partial class MapData : ScriptableObject
             {
                 indices = new Vector3Int(index, index + 1, index + width + 1);
                 barycentricCoordinate = new Vector3(1 - dx, 1 - dXY, dy);
-                //return heights[index] * (1 - dx) + heights[index + 1] * (1 - dXY) + heights[index + width + 1] * dy;
             }
             else
             {
                 indices = new Vector3Int(index, index + width, index + width + 1);
                 barycentricCoordinate = new Vector3(1 - dy, dXY - 1, dx);
-                //return heights[index] * (1 - dy) + heights[index + width] * (dXY - 1) + heights[index + width + 1] * dx;
             }
         }
         return true;
@@ -209,7 +156,7 @@ public partial class MapData : ScriptableObject
     Mesh terrainMesh;
     Vector3[] vertices;
     Vector3[] normals;
-    // colors is serialized and defined at the beginning
+    // color comes from a map texture
     Vector2[] uvs;
     Vector2[] uvs2;
     int[] indices;
@@ -229,11 +176,6 @@ public partial class MapData : ScriptableObject
 
     private void OnDisable()
     {
-        //int targetLength = width * depth;
-        //if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
-                                                                                                 //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
-
-
         PropsDataOnDisable();
         MapTextureOnDisable();
     }
@@ -241,18 +183,19 @@ public partial class MapData : ScriptableObject
 
     private void OnValidate()
     {
-        //int targetLength = width * depth;
-        //if (heights == null || heights.Length != targetLength) heights = new float[targetLength];//TODO properly rescale
-        //if (colors == null || colors.Length != targetLength) colors = new Color[targetLength];//TODO properly rescale
-
         HeightTextureLoad();
 
         PropsDataOnValidate();
-        MapTextureOnValidate();//TODO Load colorMapIndex map for mesh build even if !EDITOR
+        MapTextureOnValidate();//Load colorMapIndex map for mesh build even if !EDITOR
 
 #if UNITY_EDITOR
         ValidateSubassets();// SerializeMapAssets();
 #endif
+    }
+
+    private void HeightTextureLoad()
+    {
+        ReadTexture(heightTexture, ref heights);//ReadTexture ensures a properly sized array
     }
 
     //TODO reestructure cs files? .subassets instead of .maptexture?
@@ -276,20 +219,6 @@ public partial class MapData : ScriptableObject
             if (heightAssetIndex < 0) Debug.LogWarning("Height map asset is not part of 'all assets at path'");
             else refCounters[heightAssetIndex]++;
         }
-
-        //if (heightTexture != null)//TODO reuse code for other maps, and in editor if possible
-        //{
-        //    UnityEditor.Undo.RecordObject(heightTexture, "Heightmap Texture Change");
-        //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
-        //}
-        //else
-        //{
-        //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
-        //    UnityEditor.Undo.RegisterCreatedObjectUndo(heightTexture, "Heightmap Texture Create");
-        //}
-        //WriteToTexture(Array.ConvertAll(heights, (h) => new Color(h, 0, 0, 0)), ref heightTexture);//TODO reuse Color array for heights writing
-
-        //SerializeTexture(heights, ref heightTexture, "Heights", assetPath);
         SerializeHeights(assetPath);
 
         // MapTextures
@@ -314,20 +243,6 @@ public partial class MapData : ScriptableObject
                     Debug.LogWarningFormat("Texture '{0}' is not part of 'all assets at path'", mapTexture.texture);
                 }
             }
-
-            //if (mapTexture.texture != null)//TODO reuse code for other maps, and in editor if possible
-            //{
-            //    UnityEditor.Undo.RecordObject(mapTexture.texture, "Map Texture Change");
-            //    EnsureTextureAtPath(i, assetPath);
-            //}
-            //else
-            //{
-            //    EnsureTextureAtPath(i, assetPath);
-            //    UnityEditor.Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
-            //}
-            //WriteToTexture(mapTexture);
-
-            //SerializeTexture(mapTexture.map, ref mapTexture.texture, mapTexture.GetTextureName(i), assetPath);
             SerializeMapTexture(i, assetPath);
         }
 
@@ -342,59 +257,12 @@ public partial class MapData : ScriptableObject
         }
     }
 
-    //private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
-    //{
-    //    SerializeTexture(auxColorMap, ref texture, textureName, assetPath);
-    //}
 
-    private void SerializeTexture(Color[] map, ref Texture2D texture, TextureFormat textureFormat, string textureName, string assetPath)
+    public void SerializeHeights(string assetPath)
     {
-        if (texture != null)//TODO reuse code for other maps, and in editor if possible
-        {
-            UnityEditor.Undo.RecordObject(texture, "Texture Change");
-            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
-        }
-        else
-        {
-            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
-            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
-        }
-        WriteToTexture(map, texture);
-        texture.name = string.Format("{0}.{1}", this.name, textureName);
+        SerializeTexture(heights, ref heightTexture, "Heights", assetPath);
     }
 
-    private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
-    {
-        if (texture != null)//TODO reuse code for other maps, and in editor if possible
-        {
-            UnityEditor.Undo.RecordObject(texture, "Texture Change");
-            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
-        }
-        else
-        {
-            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
-            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
-        }
-        WriteToTexture(map, texture);
-        texture.name = string.Format("{0}.{1}", this.name, textureName);
-    }
-
-    //private Color[] auxColorMap;
-    public void SerializeHeights(string assetPath)//TODO use map texture channel instead of own texture?
-    {
-        //int targetLength = width * depth;
-        //if (heights == null || heights.Length != targetLength)
-        //{
-        //    Debug.LogError("Height data might be corrupt");
-        //    return;
-        //}
-
-        //if (auxColorMap == null || auxColorMap.Length != targetLength) auxColorMap = new Color[targetLength];
-        //for (int i = 0; i < auxColorMap.Length; ++i) auxColorMap[i] = new Color(heights[i], 0f, 0f);
-
-
-        SerializeTexture(heights/*auxColorMap*/, ref heightTexture, "Heights", assetPath);
-    }
     public void SerializeMapTexture(int index, string assetPath)
     {
         if (index >= 0 && index < mapTextures.Length)
@@ -407,32 +275,41 @@ public partial class MapData : ScriptableObject
             Debug.LogWarningFormat("No map texture at index {0}", index);
         }
     }
-#endif
 
-    private void HeightTextureLoad()
+
+    private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
     {
-        ReadTexture(heightTexture, ref heights/*auxColorMap*/);//ReadTexture ensures a properly sized array
-        //TODO reuse heights array
-        //if (heights == null || heights.Length != auxColorMap.Length) heights = new float[auxColorMap.Length];
-        //for (int i = 0; i < auxColorMap.Length; ++i) heights[i] = auxColorMap[i].r;
-        //heights = Array.ConvertAll(heightsMap, (c) => c.r);
-#if UNITY_EDITOR
-        // ensure this texture, done in validate subassets TODO remove?
-        //if (mapTexture.texture != null)//TODO reuse code for other maps, and in editor if possible
-        //{
-        //    UnityEditor.Undo.RecordObject(mapTexture.texture, "Map Texture Change");
-        //    EnsureTextureAtPath(i, assetPath);//TODO use RFloat format
-        //}
-        //else
-        //{
-        //    EnsureTextureAtPath(i, assetPath);
-        //    UnityEditor.Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
-        //}
-        //WriteToTexture(mapTexture);
-
-#endif
+        if (texture != null)
+        {
+            UnityEditor.Undo.RecordObject(texture, "Texture Change");
+            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+        }
+        else
+        {
+            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+        }
+        WriteToTexture(map, texture);
+        texture.name = string.Format("{0}.{1}", this.name, textureName);
     }
 
+    private void SerializeTexture(Color[] map, ref Texture2D texture, TextureFormat textureFormat, string textureName, string assetPath)
+    {
+        if (texture != null)
+        {
+            UnityEditor.Undo.RecordObject(texture, "Texture Change");
+            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+        }
+        else
+        {
+            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+        }
+        WriteToTexture(map, texture);
+        texture.name = string.Format("{0}.{1}", this.name, textureName);
+    }
+#endif
+    
     public struct RaycastHit {
         public float distance;
         public Vector3 point;
@@ -622,7 +499,7 @@ public partial class MapData : ScriptableObject
                     vertices[vertexIndex] = GetPosition(vertexIndex);
                     uvs[vertexIndex] = new Vector2(vertices[vertexIndex].x, vertices[vertexIndex].z);//TODO normalize?
                     uvs2[vertexIndex] = new Vector2(vertexIndex % width, vertexIndex / width);
-                    normals[vertexIndex] = Vector3.zero;// Vector3.up;
+                    normals[vertexIndex] = Vector3.zero;
                 }
                 td.mre.Set();
             }, data);
@@ -722,7 +599,6 @@ public partial class MapData : ScriptableObject
     public void UpdateMeshColor()
     {
         if (terrainMesh == null) return;
-        //if (colors == null) return;
 
         if (meshColorMapIndex < 0 || meshColorMapIndex >= mapTextures.Length) return;
         MapTexture meshColorMapTexture = mapTextures[meshColorMapIndex];
