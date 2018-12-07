@@ -16,7 +16,7 @@ public class Brush
 
     public Mode mode = Mode.Set;
     public float opacity = 1f;
-    public float size = 5f;
+    public float size = 2f;
     public Projection projection = Projection.Sphere;
 
     private const string brushTexturesPath = "Assets/Editor/BrushTextures";
@@ -247,7 +247,7 @@ public class Brush
         EventType type = Event.current.type;
         if (type == EventType.ScrollWheel && Event.current.control)
         {
-            size -= Event.current.delta.y * 0.5f;
+            size -= Event.current.delta.y * 0.125f;
             Event.current.Use();
             brushChanged = true;
             return BrushEvent.BrushChanged;

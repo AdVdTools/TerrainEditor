@@ -7,6 +7,7 @@ interface IMathHandler<T>
     T Sum(T value1, T value2);
     T WeightedSum(T value1, T value2, float weight2);
     T Blend(T value1, T value2, float t);
+    T BarycentricInterpolation(T value1, T value2, T value3, Vector3 weights);
 }
 
 public class FloatMath : IMathHandler<float>
@@ -30,6 +31,11 @@ public class FloatMath : IMathHandler<float>
     public float Blend(float value1, float value2, float t)
     {
         return value1 + (value2 - value1) * t;
+    }
+    
+    public float BarycentricInterpolation(float value1, float value2, float value3, Vector3 weights)
+    {
+        return value1 * weights.x + value2 * weights.y + value3 * weights.z;
     }
 }
 
@@ -62,7 +68,13 @@ public class Vector4Math : IMathHandler<Vector4>
     {
         return value1 + Vector4.Scale(value2 - value1, mask * t);
     }
+
+    public Vector4 BarycentricInterpolation(Vector4 value1, Vector4 value2, Vector4 value3, Vector3 weights)
+    {
+        return value1 * weights.x + value2 * weights.y + value3 * weights.z;
+    }
 }
+
 
 public class ColorMath : IMathHandler<Color>
 {
@@ -91,5 +103,10 @@ public class ColorMath : IMathHandler<Color>
     public Color Blend(Color value1, Color value2, float t)
     {
         return value1 + (value2 - value1) * (mask * t);
+    }
+
+    public Color BarycentricInterpolation(Color value1, Color value2, Color value3, Vector3 weights)
+    {
+        return value1 * weights.x + value2 * weights.y + value3 * weights.z;
     }
 }

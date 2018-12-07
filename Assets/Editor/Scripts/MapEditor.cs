@@ -14,13 +14,12 @@ public class MapEditor : Editor {
     private bool editing;
     private int brushTarget;
     private const int HEIGHT_TARGET = 0;
-    private const int MAP_TEXTURE_TARGET = 1;//2;
-    private const int PROPS_TARGET = 2;//3;
-    //private const int SELECT_TARGET = 3;//4;
+    private const int TEXTURES_TARGET = 1;
+    private const int PROPS_TARGET = 2;
 
     private GUIContent[] brushTargetGUIContents = new GUIContent[]
     {
-        new GUIContent("Height"), new GUIContent("Map Texture"), new GUIContent("Props")/*, new GUIContent("Select Props")*/
+        new GUIContent("Height"), new GUIContent("Textures"), new GUIContent("Props")/*, new GUIContent("Select Props")*/
     };
     
     float lodScale = 1f;
@@ -35,7 +34,7 @@ public class MapEditor : Editor {
     private Material mapTextureMaterial;
     private int mainTexID;
 
-    private static bool selectMode;
+    //private static bool selectMode;
 
     private void OnEnable()
     {
@@ -99,8 +98,11 @@ public class MapEditor : Editor {
     readonly GUIContent brushColorModeGUIContent = new GUIContent("Brush Color Mode");
     readonly GUIContent[] brushColorModesGUIContents = new GUIContent[] { new GUIContent("Vector4"), new GUIContent("Color") };
 
-    readonly GUIContent selectModeGUIContent = new GUIContent("Select Mode");
-
+    readonly GUIContent deleteSelectionGUIContent = new GUIContent("Delete Selection");
+    
+    readonly GUILayoutOption miniButtonsWidthLayoutOption = GUILayout.Width(120f);
+    readonly GUILayoutOption plusMinusWidthLayoutOption = GUILayout.Width(32f);
+    
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
@@ -131,14 +133,14 @@ public class MapEditor : Editor {
             bool enableValueFields = currentBrush.mode != Brush.Mode.Average && currentBrush.mode != Brush.Mode.Smooth;
             
             DrawHelp();
-            switch (brushTarget)//TODO test vector values?
+            switch (brushTarget)
             {
                 case HEIGHT_TARGET:
                     currentBrush.currentValueType = Brush.ValueType.Float;
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
                     break;
 
-                case MAP_TEXTURE_TARGET:
+                case TEXTURES_TARGET:
                     DrawMapTextureSelector();
 
                     displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
@@ -147,13 +149,13 @@ public class MapEditor : Editor {
 
                     if (colorBrushMode)
                     {
-                        currentBrush.currentValueType = Brush.ValueType.Color;//TODO Toogle V4-Color?
+                        currentBrush.currentValueType = Brush.ValueType.Color;
                         ColorMath.mask = currentBrush.ColorMask;
                     }
                     else
                     {
-                        currentBrush.currentValueType = Brush.ValueType.Vector4;//TODO Toogle V4-Color?
-                        Vector4Math.mask = currentBrush.VectorMask;
+                        currentBrush.currentValueType = Brush.ValueType.Vector4;
+                        ColorMath.mask = currentBrush.VectorMask;//Vector mask is actually equivalent to color mask
                     }
 
                     currentBrush.DrawBrushValueInspector(enableValueFields, true);
@@ -165,7 +167,24 @@ public class MapEditor : Editor {
                     switch (currentBrush.mode)
                     {
                         case Brush.Mode.Set:
-                            //instanceValues.DoInstancePropertiesInspector();
+                            instanceValues.DoInstancePropertiesInspector();
+
+                            if (GUI.changed && autoApplyValues) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
+                            EditorGUILayout.BeginHorizontal();
+                            GUI.enabled = !autoApplyValues;
+                            bool applyToSelection = GUILayout.Button(applyGUIContent, EditorStyles.miniButton, miniButtonsWidthLayoutOption);
+                            if (applyToSelection) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
+                            GUI.enabled = true;
+                            autoApplyValues = EditorGUILayout.ToggleLeft(autoApplyGUIContent, autoApplyValues);
+                            EditorGUILayout.EndHorizontal();
+                            
+                            EditorGUILayout.BeginHorizontal();
+                            bool deleteSelection = GUILayout.Button(deleteSelectionGUIContent, EditorStyles.miniButton, miniButtonsWidthLayoutOption);
+                            if (deleteSelection) DeleteSelection(data.instanceSets[currentInstanceSetIndex]);
+                            GUILayout.FlexibleSpace();
+                            GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)), EditorStyles.miniLabel);
+                            EditorGUILayout.EndHorizontal();
+
                             break;
                         case Brush.Mode.Add:
                             EditorGUILayout.LabelField(pacingGUIContent, GUI.skin.button);
@@ -173,7 +192,7 @@ public class MapEditor : Editor {
                             currentBrush.DrawBrushValueInspector(true, false);
                             if (currentBrush.floatValue < 0) currentBrush.floatValue = 0;
 
-                            //instanceValues.DoInstancePropertiesInspector();
+                            instanceValues.DoInstancePropertiesInspector();
                             break;
                         case Brush.Mode.Substract:
                             GUI.enabled = false;
@@ -186,31 +205,6 @@ public class MapEditor : Editor {
                             GUI.enabled = true;
                             break;
                     }
-                    
-                //    break;
-                //case SELECT_TARGET:
-                    //DrawInstanceSetSelector();
-
-                    GUI.changed = false;
-
-                    instanceValues.DoInstancePropertiesInspector();
-                    
-                    if (GUI.changed && autoApplyValues) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
-                    EditorGUILayout.BeginHorizontal();
-                    GUI.enabled = !autoApplyValues;
-                    bool applyToSelection = GUILayout.Button(applyGUIContent, EditorStyles.miniButton);
-                    if (applyToSelection) ApplyPropertiesToSelection(data.instanceSets[currentInstanceSetIndex]);
-                    GUI.enabled = true;
-                    autoApplyValues = EditorGUILayout.ToggleLeft(autoApplyGUIContent, autoApplyValues);
-                    EditorGUILayout.EndHorizontal();
-
-
-                    EditorGUILayout.BeginHorizontal();
-                    selectMode = GUILayout.Toggle(selectMode, selectModeGUIContent, EditorStyles.miniButton, GUILayout.Width(80));
-                    //TODO UX!!
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label(new GUIContent(string.Format("Selection: {0}", selectionCount)), EditorStyles.miniLabel);
-                    EditorGUILayout.EndHorizontal();
                     break;
             }
             currentBrush.HandleBrushShortcuts();
@@ -223,8 +217,7 @@ public class MapEditor : Editor {
     {
         { new GUIContent("Set Height"), new GUIContent("Increase Height"), new GUIContent("Reduce Height"), new GUIContent("Average Height"), new GUIContent("Smooth Height") },
         { new GUIContent("Set Texture Value"), new GUIContent("Add Texture Value"), new GUIContent("Substract Texture Value"), new GUIContent("Average Texture Value"), new GUIContent("Smooth Texture Value") },
-        { new GUIContent("Edit Props"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") }//,
-        //{ new GUIContent("Select Props"), new GUIContent("Add to Selection"), new GUIContent("Remove from Selection"), new GUIContent("No Action"), new GUIContent("No Action") }
+        { new GUIContent("Edit Props (select with mouse, hold shift to add to selection, hold ctrl to remove from selection)"), new GUIContent("Add Props"), new GUIContent("Remove Props"), new GUIContent("No Action"), new GUIContent("No Action") }
     };
 
     private void DrawHelp()
@@ -258,12 +251,7 @@ public class MapEditor : Editor {
         {
             EditorGUILayout.LabelField(string.Format("No texture at index {0}", currentInstanceSetIndex), EditorStyles.boldLabel);
         }
-
-        //int nextColorMapIndex = EditorGUILayout.IntField(colorMapGUIContent, currentColorMapIndex);
-        //currentColorMapIndex = Mathf.Clamp(nextColorMapIndex, 0, data.colorMaps.Length - 1);
     }
-
-    readonly GUILayoutOption widthLayoutOption = GUILayout.Width(32f);
 
     private int IndexSelector(GUIContent guiContent, int index, int length)
     {
@@ -271,9 +259,9 @@ public class MapEditor : Editor {
         index = EditorGUILayout.IntField(guiContent, index);
         bool enabledGUI = GUI.enabled;
         GUI.enabled = index > 0;
-        if (GUILayout.Button(minusGUIContent, EditorStyles.miniButtonLeft, widthLayoutOption)) index--;
+        if (GUILayout.Button(minusGUIContent, EditorStyles.miniButtonLeft, plusMinusWidthLayoutOption)) index--;
         GUI.enabled = index < length - 1;
-        if (GUILayout.Button(plusGUIContent, EditorStyles.miniButtonRight, widthLayoutOption)) index++;
+        if (GUILayout.Button(plusGUIContent, EditorStyles.miniButtonRight, plusMinusWidthLayoutOption)) index++;
         GUI.enabled = enabledGUI;
         EditorGUILayout.EndHorizontal();
         index = Mathf.Clamp(index, 0, length - 1);
@@ -349,7 +337,7 @@ public class MapEditor : Editor {
                     shouldApplyBrush = false;
                 }
             }
-            if (selectMode/*brushTarget == SELECT_TARGET*/)
+            if (brushTarget == PROPS_TARGET && currentBrush.mode == Brush.Mode.Set)
             {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
@@ -371,7 +359,7 @@ public class MapEditor : Editor {
                     {
                         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, matrix, sceneView.camera);
 
-                        currentBrush.SetMaterial(projMatrix, !selectMode && (brushTarget != PROPS_TARGET /*TODO redo*/ || currentBrush.mode != Brush.Mode.Add));
+                        currentBrush.SetMaterial(projMatrix, brushTarget != PROPS_TARGET);
 
                         Graphics.DrawMeshNow(mesh, matrix, 0);
                     }
@@ -406,36 +394,51 @@ public class MapEditor : Editor {
                 case BrushEvent.ValuePick:
                     if (rayHits)
                     {
+                        int index0 = hitInfo.triangleIndex * 3;
+                        Vector3 weights = hitInfo.barycentricCoordinate;
+
                         switch (brushTarget)
                         {
                             case HEIGHT_TARGET:
-                                currentBrush.SetPeekValue(GetRaycastValue<float>(data.Heights, data.Indices, FloatMath.sharedHandler));
+                                {
+                                    float[] heights = data.Heights;
+                                    int[] indices = data.Indices;
+                                    FloatMath mathHandler = FloatMath.sharedHandler;
+                                    float value = mathHandler.BarycentricInterpolation(
+                                        heights[indices[index0]],
+                                        heights[indices[index0 + 1]],
+                                        heights[indices[index0 + 2]],
+                                        weights);
+
+                                    currentBrush.SetPeekValue(value);
+                                }
                                 break;
-                            //case COLOR_TARGET:
-                                //currentBrush.SetPeekValue(GetRaycastValue<Color>(data.Colors, data.Indices, ColorMath.sharedHandler));
-                                //break;
-                            case MAP_TEXTURE_TARGET:
+                            case TEXTURES_TARGET:
                                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                                 {
                                     MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
-                                    currentBrush.SetPeekValue(GetRaycastValue<Color>(mapTexture.map, data.Indices, ColorMath.sharedHandler));
+                                    Color[] map = mapTexture.map;
+                                    int[] indices = data.Indices;
+                                    ColorMath mathHandler = ColorMath.sharedHandler;
+                                    Color value = mathHandler.BarycentricInterpolation(
+                                        map[indices[index0]],
+                                        map[indices[index0 + 1]],
+                                        map[indices[index0 + 2]],
+                                        weights);
+                                    if (colorBrushMode)
+                                    {
+                                        currentBrush.SetPeekValue(value);
+                                    }
+                                    else
+                                    {
+                                        currentBrush.SetPeekValue((Vector4) value);
+                                    }
                                 }
                                 else
                                 {
                                     Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
                                 }
                                 break;
-                            //case DENSITY_MAPS_TARGET:
-                                //if (currentDensityMapIndex >= 0 && currentDensityMapIndex < data.densityMaps.Length)
-                                //{
-                                //    MapData.DensityMap densityMap = data.densityMaps[currentDensityMapIndex];
-                                //    currentBrush.SetPeekValue(GetRaycastValue<Vector4>(densityMap.map, data.Indices, Vector4Math.sharedHandler));
-                                //}
-                                //else
-                                //{
-                                //    Debug.LogWarningFormat("No density map at index {0}", currentDensityMapIndex);
-                                //}
-                                //break;
                         }
                         currentBrush.AcceptPeekValue();
                         Repaint();
@@ -492,16 +495,6 @@ public class MapEditor : Editor {
         }
     }
 
-    private T GetRaycastValue<T>(T[] srcArray, int[] indices, IMathHandler<T> mathHandler) where T: struct
-    {
-        T value = default(T);
-        int index0 = hitInfo.triangleIndex * 3;
-        Vector3 weights = hitInfo.barycentricCoordinate;
-        value = mathHandler.WeightedSum(value, srcArray[indices[index0]], weights.x);
-        value = mathHandler.WeightedSum(value, srcArray[indices[index0 + 1]], weights.y);
-        value = mathHandler.WeightedSum(value, srcArray[indices[index0 + 2]], weights.z);
-        return value;
-    }
 
     private void DrawMapTexture(Matrix4x4 matrix)
     {
@@ -509,7 +502,7 @@ public class MapEditor : Editor {
 
         if (mesh != null)
         {
-            if (brushTarget == MAP_TEXTURE_TARGET && displayMapTexture)
+            if (brushTarget == TEXTURES_TARGET && displayMapTexture)
             {
                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
@@ -557,12 +550,19 @@ public class MapEditor : Editor {
                 if (auxHeights == null || auxHeights.Length != pointCount) auxHeights = new float[pointCount];
                 ApplyBrush<float>(data.Vertices, data.Heights, auxHeights, currentBrush.floatValue, FloatMath.sharedHandler);
                 break;
-            case MAP_TEXTURE_TARGET:
+            case TEXTURES_TARGET:
                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
                     MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
                     if (auxMap == null || auxMap.Length != pointCount) auxMap = new Color[pointCount];
-                    ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.colorValue, ColorMath.sharedHandler);
+                    if (colorBrushMode)
+                    {
+                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.colorValue, ColorMath.sharedHandler);
+                    }
+                    else
+                    {
+                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.vectorValue, ColorMath.sharedHandler);
+                    }
                 }
                 else
                 {
@@ -573,15 +573,7 @@ public class MapEditor : Editor {
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-                    if (!selectMode)
-                    {
-                        ApplyBrush(data.Vertices, instanceSet);
-                    }
-                    else
-                    {
-                        ApplySelectionBrush(instanceSet);//TODO redo with keys insetad of brush mode
-                        if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
-                    }
+                    ApplyPropsBrush(data.Vertices, instanceSet);
                 }
                 else
                 {
@@ -609,56 +601,18 @@ public class MapEditor : Editor {
         switch (brushTarget)
         {
             case HEIGHT_TARGET:
-                //TODO:
-                //if (heightTexture != null)//TODO reuse code for other maps, and in editor if possible
-                //{
-                //    Undo.RecordObject(heightTexture, "Heightmap Texture Change");
-                //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
-                //}
-                //else
-                //{
-                //    EnsureTextureAtPath(ref heightTexture, "Heights", assetPath);
-                //    Undo.RegisterCreatedObjectUndo(heightTexture, "Heightmap Texture Create");
-                //}
-                //WriteToTexture(Array.ConvertAll(heights, (h) => new Color(h, 0, 0, 0)), ref heightTexture);//TODO reuse Color array for heights writing
-
                 data.QuickRebuildParallel(8);
-                //TODO wrap this
-                data.SerializeHeights(AssetDatabase.GetAssetPath(data));/*  Texture(data.Heights, ref data.heightTexture "")*/
-
+                data.SerializeHeights(AssetDatabase.GetAssetPath(data));
                 break;
-            //case COLOR_TARGET:
-                //data.UpdateMeshColor();
-                //break;
-            case MAP_TEXTURE_TARGET:
+            case TEXTURES_TARGET:
                 if (currentMapTextureIndex == data.MeshColorMapIndex) data.UpdateMeshColor();
-                //if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
-                //{
-                    //MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
-                    //if (mapTexture.texture != null)
-                    //{
-                    //    Undo.RecordObject(mapTexture.texture, "Map Texture Change");//TODO record texture?, check null
-                    //    data.EnsureTexture(currentMapTextureIndex);//TODO refactor
-                    //}
-                    //else {
-                    //    data.EnsureTexture(currentMapTextureIndex);//TODO refactor
-                    //    Undo.RegisterCreatedObjectUndo(mapTexture.texture, "Map Texture Create");
-                    //}
-                    //data.WriteToTexture(mapTexture);
-                //}
-                //else
-                //{
-                //    Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
-                //}
+                
                 data.SerializeMapTexture(currentMapTextureIndex, AssetDatabase.GetAssetPath(data));
                 RebuildPropMeshesAsync(true);//TODO check map is used by props?
                 break;
             case PROPS_TARGET:
                 RebuildPropMeshesAsync(true);
                 break;
-            //case DENSITY_MAPS_TARGET:
-                //RebuildPropMeshesAsync(true);
-                //break;
         }
         rebuildStopWatch.Stop();
         rebuildDuration += (rebuildStopWatch.ElapsedMilliseconds - rebuildDuration) * 0.5f;
@@ -786,11 +740,10 @@ public class MapEditor : Editor {
     Vector3 lastInstancePlacing;
     //TODO individual prop brush vs density props brush!!!!
 
-    void ApplyBrush(Vector3[] vertices, MapData.InstanceSet instanceSet)
+    void ApplyPropsBrush(Vector3[] vertices, MapData.InstanceSet instanceSet)
     {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
-        float rand, strength;
         int instanceCount = instanceSet.Count;
         MapData.PropInstance[] instances = instanceSet.Instances;
         switch (currentBrush.mode)
@@ -821,9 +774,9 @@ public class MapEditor : Editor {
                 for (int index = 0; index < instanceCount; ++index)
                 {
                     Vector3 position = data.GetRealInstancePosition(instances[index].position);
-                    rand = UnityEngine.Random.value;
-                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
-                    if (rand < strength)
+                    Vector3 projOffset = projMatrix.MultiplyPoint(position);
+                    float sqrDist = projOffset.sqrMagnitude;
+                    if (sqrDist <= 1f) 
                     {
                         instances[index].variantIndex = -1;
                     }
@@ -831,22 +784,8 @@ public class MapEditor : Editor {
                 instanceSet.RemoveMarked();
                 break;
             case Brush.Mode.Set:
-                
-                for (int index = 0; index < instanceSet.Count; ++index)
-                {
-                    Vector3 position = data.GetRealInstancePosition(instances[index].position);
-
-                    strength = currentBrush.GetStrength(projMatrix.MultiplyPoint(position));
-                    if (strength > 0f)
-                    {
-                        MapData.PropInstance instance = instances[index];
-                        Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
-                        instance = instanceValues.ApplyValues(instance, normal, strength);
-                        
-                        instances[index] = instance;
-                    }
-                }
-
+                ApplySelectionBrush(instanceSet);
+                if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
                 break;
             default:
                 break;
@@ -924,6 +863,8 @@ public class MapEditor : Editor {
 
                 if (newPosition != meanPosition)
                 {
+                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");//TODO test record undo on props move
+
                     Vector3 deltaPosition = newPosition - meanPosition;
                     MapData.PropInstance[] instances = instanceSet.Instances;
                     for (int index = 0; index < instanceSet.Count; ++index)//No need for parallelization here
@@ -985,7 +926,7 @@ public class MapEditor : Editor {
             InvalidateSelection();
         }
     }
-    
+
     bool[] instanceSelection = null;
     int selectionCount = 0;
 
@@ -1071,6 +1012,26 @@ public class MapEditor : Editor {
             }
         }
 
+        SetPropsDirtyAndRepaintScene();//Doesn't call RefreshProps because it might not have the Scene POV
+    }
+
+    void DeleteSelection(MapData.InstanceSet instanceSet)
+    {
+        int instanceCount = instanceSet.Count;
+
+        if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
+        if (instanceSelection == null) return;//Could not initialize
+
+        for (int index = 0; index < instanceSet.Count; ++index)
+        {
+            if (instanceSelection[index])
+            {
+                instanceSet.Instances[index].variantIndex = -1;
+            }
+        }
+
+        instanceSet.RemoveMarked();
+        InvalidateSelection();
         SetPropsDirtyAndRepaintScene();//Doesn't call RefreshProps because it might not have the Scene POV
     }
 
