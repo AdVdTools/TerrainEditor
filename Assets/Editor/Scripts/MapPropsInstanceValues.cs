@@ -25,6 +25,10 @@ public class MapPropsInstanceValues {
     public int alignmentState;
     public float minAlignment = 0.0f, maxAlignment = 1f;
 
+    public int colorState;
+    public Color singleColor = Color.white;
+    public Gradient colorGradient = new Gradient();
+
     public int variantState;
     public int variantIndex = 0;
     public int variantCount = 1;
@@ -33,6 +37,7 @@ public class MapPropsInstanceValues {
     private static readonly GUIContent yOffsetGUIContent = new GUIContent("Y Offset");
     private static readonly GUIContent rotationGUIContent = new GUIContent("Rotation");
     private static readonly GUIContent alignmentGUIContent = new GUIContent("Normal Aligned");
+    private static readonly GUIContent colorGUIContent = new GUIContent("Color");
     private static readonly GUIContent variantGUIContent = new GUIContent("Variant");
 
     private static readonly GUIContent singleGUIContent = new GUIContent("Single");
@@ -42,6 +47,7 @@ public class MapPropsInstanceValues {
     private static readonly GUIContent randomGUIContent = new GUIContent("Random");
 
     private static readonly GUIContent valueGUIContent = new GUIContent("Value");
+    private static readonly GUIContent valuesGUIContent = new GUIContent("Values");
     private static readonly GUIContent minGUIContent = new GUIContent("Min");
     private static readonly GUIContent maxGUIContent = new GUIContent("Max");
 
@@ -67,6 +73,10 @@ public class MapPropsInstanceValues {
         //    alignDirection = alignDirection.normalized;
         //}
 
+        //Color gradient
+        EditorGUILayout.LabelField(colorGUIContent, EditorStyles.boldLabel);
+        SpecialColorInspector(ref colorState, ref singleColor, ref colorGradient);
+        
         //Variant
         EditorGUILayout.LabelField(variantGUIContent, EditorStyles.boldLabel);
         SpecialVariantInspector(ref variantState, ref variantIndex);
@@ -109,6 +119,70 @@ public class MapPropsInstanceValues {
         EditorGUIUtility.labelWidth = labelWidth;
     }
 
+    //TODO rename color-tint?
+    private void SpecialColorInspector(ref int colorState, ref Color singleColor, ref Gradient colorGradient)
+    {
+        float labelWidth = EditorGUIUtility.labelWidth;
+        EditorGUILayout.BeginHorizontal();
+        bool boolState = colorState != DISABLED_STATE;
+        GUIContent guiContent = boolState ? (colorState == SINGLE_STATE ? singleGUIContent : rangeGUIContent) : disabledGUIContent;
+        bool newState = GUILayout.Toggle(boolState, guiContent, EditorStyles.miniButton, GUILayout.Width(labelWidth * 0.5f));
+        if (boolState != newState)
+        {
+            colorState = (colorState + 1) % 3;
+        }
+        EditorGUIUtility.labelWidth = 40f;
+        switch (colorState)
+        {
+            case SINGLE_STATE:
+                singleColor = EditorGUILayout.ColorField(valueGUIContent, singleColor);
+                break;
+            case RANGE_STATE:
+                colorGradient = GradientField(valuesGUIContent, colorGradient);
+                break;
+            default:
+                bool guiEnabled = GUI.enabled;
+                GUI.enabled = false;
+                EditorGUILayout.LabelField(GUIContent.none, EditorStyles.textField);
+                GUI.enabled = guiEnabled;
+                break;
+        }
+        EditorGUILayout.EndHorizontal();
+        EditorGUIUtility.labelWidth = labelWidth;
+    }
+
+    private static System.Reflection.MethodInfo GradientFieldMethod;
+    private static Gradient GradientField(GUIContent content, Gradient gradient)
+    {
+        if (GradientFieldMethod == null)
+        {
+            var methods = typeof(EditorGUILayout).GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            //System.Array.ForEach(methods, (m) => {
+            //    if (m.Name == "GradientField") {
+            //        string parameters = string.Join(", ", System.Array.ConvertAll(m.GetParameters(), (param) => param.Name + " " + param.ParameterType));
+            //        Debug.Log(m.ReturnType + " " + m.Name + " (" + parameters + ")");
+            //    }
+            //});
+            GradientFieldMethod = System.Array.Find(methods, (m) => {
+                if (m.Name == "GradientField")
+                {
+                    var p = m.GetParameters();
+                    return (p.Length >= 2 && p[0].ParameterType == typeof(GUIContent) && p[1].ParameterType == typeof(Gradient));
+                }
+                else return false;
+            });//TODO get third? check logs
+        }
+        if (GradientFieldMethod != null)
+        {
+            //EditorGUILayout.HelpBox(string.Join(", ", System.Array.ConvertAll(GradientFieldMethod.GetParameters(), (param) => param.Name +" "+param.ParameterType)), MessageType.Info);
+            gradient = GradientFieldMethod.Invoke(null, new object[] { content, gradient, new GUILayoutOption[0] }) as Gradient;//TODO this signature might not exist! check in editorGui instead of editorguilayout
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("GradientField method not found", MessageType.Error);
+        }
+        return gradient;
+    }
 
     //private void Vector3Inspector(GUIContent content, ref Vector3 value)
     //{
@@ -116,15 +190,15 @@ public class MapPropsInstanceValues {
     //    EditorGUILayout.BeginHorizontal();
 
     //    EditorGUILayout.LabelField(content, GUILayout.Width(labelWidth * 0.5f));
-        
+
     //    EditorGUIUtility.labelWidth = 40f;
 
     //    value = EditorGUILayout.Vector3Field(GUIContent.none, value);
-                
+
     //    EditorGUILayout.EndHorizontal();
     //    EditorGUIUtility.labelWidth = labelWidth;
     //}
-    
+
     private void SpecialVariantInspector(ref int variantState, ref int variantIndex)
     {
         float labelWidth = EditorGUIUtility.labelWidth;
@@ -203,6 +277,16 @@ public class MapPropsInstanceValues {
                 targetAlign += (maxAlignment - minAlignment) * Random.value;
             }
             instance.alignment += (targetAlign - instance.alignment) * strength;
+        }
+
+        if (colorState != DISABLED_STATE)
+        {
+            Color targetColor = singleColor;
+            if (colorState == RANGE_STATE)
+            {
+                targetColor += colorGradient.Evaluate(Random.value);
+            }
+            instance.tint += (targetColor - instance.tint) * strength;
         }
 
         if (variantState != DISABLED_STATE)

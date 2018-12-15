@@ -36,6 +36,9 @@ public class MapEditor : Editor {
 
     //private static bool selectMode;
 
+    //If multiple object registers required at once, group them in a single undo/redo
+    private UnityEngine.Object[] objectsToRecord = new UnityEngine.Object[2];
+
     private void OnEnable()
     {
         map = target as Map;
@@ -74,8 +77,6 @@ public class MapEditor : Editor {
         RebuildMapTerrain();
         SetPropsDirtyAndRepaintScene();//Just set dirty since pov would be unavailable
         //Unfortunately props won't update if editor is not updating
-
-        //if (data != null) data.SerializeMapAssets();//TODO record texture changes instead
     }
 
     readonly GUIContent rebuildTerrainGUIContent = new GUIContent("Rebuild Terrain");
@@ -236,6 +237,15 @@ public class MapEditor : Editor {
             InvalidateSelection();
         }
         currentInstanceSetIndex = nextInstanceSetIndex;
+        if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
+        {
+            MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
+            EditorGUILayout.LabelField(" ", instanceSet.GetInstanceSetName(currentInstanceSetIndex), EditorStyles.boldLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField(string.Format("No instance set at index {0}", currentInstanceSetIndex), EditorStyles.boldLabel);
+        }
     }
     
 
@@ -370,8 +380,31 @@ public class MapEditor : Editor {
                     shouldApplyBrush = true;
 
                     lastInstancePlacing = new Vector3(float.MinValue, float.MinValue, float.MinValue);//Reset for prop placing mode
+                    
+                    //TODO register textures, test further
+                    switch (brushTarget)
+                    {
+                        case HEIGHT_TARGET:
+                            objectsToRecord[0] = data; objectsToRecord[1] = data.HeightTexture;
+                            Undo.RegisterCompleteObjectUndo(objectsToRecord, "Heights Changed");
+                            break;
+                        case TEXTURES_TARGET:
+                            if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
+                            {
+                                MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                                objectsToRecord[0] = data; objectsToRecord[1] = mapTexture.texture;
+                                Undo.RegisterCompleteObjectUndo(objectsToRecord, "Map Texture Changed");
+                            }
+                            else
+                            {
+                                Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
+                            }
+                            break;
+                        case PROPS_TARGET:
+                            Undo.RegisterCompleteObjectUndo(data, "Props Changed");
+                            break;
+                    }
 
-                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");
                     //Debug.LogWarningFormat("PaintStart {0} {1} {2}", currentType, Event.current.mousePosition, Event.current.delta);
                     break;
                 case BrushEvent.BrushPaint:
@@ -533,9 +566,7 @@ public class MapEditor : Editor {
 
 
     float[] auxHeights = null;
-    //Color[] auxColors = null;
-    Color[] auxMap = null;
-    //Vector4[] auxDensityMap = null;
+    Color[] auxColors = null;
 
     void ApplyBrush()
     {
@@ -554,14 +585,14 @@ public class MapEditor : Editor {
                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
                     MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
-                    if (auxMap == null || auxMap.Length != pointCount) auxMap = new Color[pointCount];
+                    if (auxColors == null || auxColors.Length != pointCount) auxColors = new Color[pointCount];
                     if (colorBrushMode)
                     {
-                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.colorValue, ColorMath.sharedHandler);
+                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxColors, currentBrush.colorValue, ColorMath.sharedHandler);
                     }
                     else
                     {
-                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxMap, currentBrush.vectorValue, ColorMath.sharedHandler);
+                        ApplyBrush<Color>(data.Vertices, mapTexture.map, auxColors, currentBrush.vectorValue, ColorMath.sharedHandler);
                     }
                 }
                 else
@@ -569,7 +600,7 @@ public class MapEditor : Editor {
                     Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
                 }
                 break;
-            case PROPS_TARGET://TODO reimagine non density props editor
+            case PROPS_TARGET:
                 if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
                 {
                     MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
@@ -580,18 +611,6 @@ public class MapEditor : Editor {
                     Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
                 }
                 break;
-            //case SELECT_TARGET:
-            //    if (currentInstanceSetIndex >= 0 && currentInstanceSetIndex < data.instanceSets.Length)
-            //    {
-            //        MapData.InstanceSet instanceSet = data.instanceSets[currentInstanceSetIndex];
-            //        ApplySelectionBrush(instanceSet);
-            //        if (autoApplyValues) ApplyPropertiesToSelection(instanceSet);
-            //    }
-            //    else
-            //    {
-            //        Debug.LogWarningFormat("No instance set at index {0}", currentInstanceSetIndex);
-            //    }
-            //    break;
         }
         applyStopWatch.Stop();
         applyDuration += (applyStopWatch.ElapsedMilliseconds - applyDuration) * 0.5f;
@@ -602,13 +621,24 @@ public class MapEditor : Editor {
         {
             case HEIGHT_TARGET:
                 data.QuickRebuildParallel(8);
-                data.SerializeHeights(AssetDatabase.GetAssetPath(data));
+                //data.SerializeHeights(AssetDatabase.GetAssetPath(data));
+
+                data.WriteToTexture(data.Heights, data.HeightTexture);
                 break;
             case TEXTURES_TARGET:
                 if (currentMapTextureIndex == data.MeshColorMapIndex) data.UpdateMeshColor();
-                
-                data.SerializeMapTexture(currentMapTextureIndex, AssetDatabase.GetAssetPath(data));
-                RebuildPropMeshesAsync(true);//TODO check map is used by props?
+
+                //data.SerializeMapTexture(currentMapTextureIndex, AssetDatabase.GetAssetPath(data));
+                if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
+                {
+                    MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
+                    data.WriteToTexture(mapTexture.map, mapTexture.texture);
+                }
+                else
+                {
+                    Debug.LogWarningFormat("No map texture at index {0}", currentMapTextureIndex);
+                }
+                RebuildPropMeshesAsync(true);
                 break;
             case PROPS_TARGET:
                 RebuildPropMeshesAsync(true);
@@ -731,25 +761,21 @@ public class MapEditor : Editor {
         }
 
         Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
-        
     }
-    //TODO serialize MapData object!!
 
 
     
     Vector3 lastInstancePlacing;
-    //TODO individual prop brush vs density props brush!!!!
 
     void ApplyPropsBrush(Vector3[] vertices, MapData.InstanceSet instanceSet)
     {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
         int instanceCount = instanceSet.Count;
-        MapData.PropInstance[] instances = instanceSet.Instances;
         switch (currentBrush.mode)
         {
             case Brush.Mode.Add:
-                instanceSet.EnsureCapacity(instanceSet.Count + 1);//TODO mind multithreading
+                instanceSet.EnsureCapacity(instanceSet.Count + 1);
 
                 if (Vector3.Distance(lastInstancePlacing, intersection) > currentBrush.floatValue)
                 {
@@ -761,6 +787,7 @@ public class MapEditor : Editor {
                         alignment = 0,
                         rotation = UnityEngine.Random.value * 360f,
                         size = 1f,
+                        tint = Color.white,
                         variantIndex = 0
                     };
                     Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
@@ -771,6 +798,7 @@ public class MapEditor : Editor {
 
                 break;
             case Brush.Mode.Substract:
+                MapData.PropInstance[] instances = instanceSet.Instances;
                 for (int index = 0; index < instanceCount; ++index)
                 {
                     Vector3 position = data.GetRealInstancePosition(instances[index].position);
@@ -822,7 +850,8 @@ public class MapEditor : Editor {
             //Extra repaint after "ready" to redraw with the new mesh
             afterMeshUpdateRefreshPending = true;
         }
-        else if (afterMeshUpdateRefreshPending) {
+        else if (afterMeshUpdateRefreshPending)
+        {
             SceneView.RepaintAll();
             afterMeshUpdateRefreshPending = false;
         }
@@ -863,7 +892,7 @@ public class MapEditor : Editor {
 
                 if (newPosition != meanPosition)
                 {
-                    Undo.RegisterCompleteObjectUndo(data, "Map Paint");//TODO test record undo on props move
+                    Undo.RegisterCompleteObjectUndo(data, "Props Move");
 
                     Vector3 deltaPosition = newPosition - meanPosition;
                     MapData.PropInstance[] instances = instanceSet.Instances;

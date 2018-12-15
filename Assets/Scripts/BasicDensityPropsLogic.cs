@@ -9,6 +9,7 @@ public struct VariantAttributes //For density maps only
     public FloatRange alignmentRange;
     public FloatRange rotationRange;
     public FloatRange yOffsetRange;
+    public Gradient colorGradient;
 
     public static VariantAttributes DefaultAttributes
     {
@@ -19,7 +20,8 @@ public struct VariantAttributes //For density maps only
                 scaleRange = new FloatRange(1f, 1f),
                 alignmentRange = new FloatRange(0.2f, 0.5f),
                 rotationRange = new FloatRange(-180f, 180f),
-                yOffsetRange = new FloatRange(0f, 0f)
+                yOffsetRange = new FloatRange(0f, 0f),
+                colorGradient = new Gradient()
             };
         }
     }
@@ -71,7 +73,8 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         instanceData.alignment = attributes.alignmentRange.GetValue(element.rand0);// Vector3.Slerp(propsDirection, normal, attributes.alignmentRange.GetValue(element.rand0));//TODO alignment instead of direction, do direction on DoInstance(PropInstance)
         instanceData.rotation = attributes.rotationRange.GetValue(element.rand1);
         instanceData.size = element.r * attributes.scaleRange.GetValue(densityValues.w);//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
-        
+        instanceData.tint = attributes.colorGradient != null ? attributes.colorGradient.Evaluate(element.rand3) : Color.white;
+
         return instanceData;
     }
 

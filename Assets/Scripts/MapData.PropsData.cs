@@ -11,12 +11,14 @@ public partial class MapData : ScriptableObject
         public float alignment;//Normal aligned
         public float rotation;//Around Y
         public float size;//All axis
+        public Color tint;//TODO Rand vs texture read
         public int variantIndex;//<0 to prepare for deletion!
     }
 
     [System.Serializable]
     public class InstanceSet
     {
+        public string label = "";
         [HideInInspector] [SerializeField] private PropInstance[] instances = new PropInstance[0];
         [HideInInspector] [SerializeField] private int count;
         public PropInstance[] Instances { get { return instances; } }
@@ -50,6 +52,11 @@ public partial class MapData : ScriptableObject
                 if (inst.variantIndex >= 0) instances[index++] = inst;
             }
             count = index;
+        }
+
+        public string GetInstanceSetName(int index)
+        {
+            return string.IsNullOrEmpty(label) ? string.Format("Set{0}", index) : string.Format("Set{0}.{1}", index, label);
         }
     }
 
@@ -207,7 +214,8 @@ public partial class MapData : ScriptableObject
         List<Vector3> vertices;
         List<Vector3> normals;
         List<Vector2> uvs;
-        //TODO color
+        List<Vector2> uvs2;//Common sampling point and pivot for each instance
+        List<Color> colors;
         List<int>[] triangleLists;
 
         MapData mapData;
@@ -247,6 +255,11 @@ public partial class MapData : ScriptableObject
                 {
                     //else, hope that someone is checking for updates and finishes the job
                     Debug.LogWarning("Update Ongoing");
+                    if (rebuildThread != null && !rebuildThread.IsAlive)
+                    {
+                        Debug.Log("Thread is dead");
+                        StopThread();
+                    }
                 }
             }
         }
@@ -376,6 +389,8 @@ public partial class MapData : ScriptableObject
             if (vertices == null) vertices = new List<Vector3>();
             if (normals == null) normals = new List<Vector3>();
             if (uvs == null) uvs = new List<Vector2>();
+            if (uvs2 == null) uvs2 = new List<Vector2>();
+            if (colors == null) colors = new List<Color>();
             
             int subMeshCount = materials.Length;
             
@@ -388,6 +403,8 @@ public partial class MapData : ScriptableObject
             vertices.Clear();
             normals.Clear();
             uvs.Clear();
+            uvs2.Clear();
+            colors.Clear();
             for (int i = 0; i < subMeshCount; ++i) triangleLists[i].Clear();
 
             int vertexIndex = 0;
@@ -397,7 +414,7 @@ public partial class MapData : ScriptableObject
             {
                 InstanceSet instanceSet = mapData.instanceSets[instanceSetIndex];
                 int instanceCount = instanceSet.Count;
-                PropInstance[] instances = instanceSet.Instances;
+                PropInstance[] instances = instanceSet.Instances;//Keep reference to array in case another thread changes it (only the editor should change it)
 
                 for (int i = 0; i < instanceCount; ++i)
                 {
@@ -468,13 +485,13 @@ public partial class MapData : ScriptableObject
         }
 
 
-
         void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
             Variant variant = variants[instance.variantIndex];
 
             Vector3 position = instance.position;
+            Vector2 position2D = new Vector2(position.x, position.z);
 
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDist = (realPosition - pov).sqrMagnitude;
@@ -484,6 +501,7 @@ public partial class MapData : ScriptableObject
             Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, instance.alignment);
             float rotation = instance.rotation;
             float size = instance.size;
+            Color tint = instance.tint;
 
             int subMeshCount = materials.Length;
 
@@ -500,7 +518,7 @@ public partial class MapData : ScriptableObject
                     if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
 
                     if (!meshResource.sqrDistanceRange.CheckInRange(sqrDist)) continue;
-
+                    
                     Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
                     for (int i = 0; i < meshData.verticesCount; ++i)
                     {
@@ -516,8 +534,24 @@ public partial class MapData : ScriptableObject
                     {
                         Vector2 uv = meshData.uvsList[i];
                         uvs.Add(uv);
+                        uvs2.Add(position2D);
                     }
-                    
+                    if (meshData.colorsList.Count == meshData.verticesCount)//If colors loaded
+                    {
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            Color color = meshData.colorsList[i];
+                            colors.Add(color * tint);
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            colors.Add(tint);
+                        }
+                    }
+
                     if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
                     {
                         List<int> triangles = triangleLists[meshResource.targetSubMesh];
@@ -553,7 +587,8 @@ public partial class MapData : ScriptableObject
             mesh.SetVertices(vertices);//mesh.vertices = vertices;
             mesh.SetNormals(normals);//mesh.normals = normals;
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
-            //mesh.colors = colors;
+            mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
+            mesh.SetColors(colors);//mesh.colors = colors;
             Debug.Log("BTW: "+updateDuration);
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)

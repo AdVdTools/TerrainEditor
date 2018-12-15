@@ -34,9 +34,8 @@
 
 			struct v2f
 			{
-				float4 color : COLOR;
-				float2 uv2 : TEXCOORD1;
 				float4 vertex : SV_POSITION;
+				float2 uv2 : TEXCOORD1;
 			};
 
 			sampler2D _MainTex;
@@ -48,21 +47,15 @@
 				v2f o;
 
 				o.vertex = UnityObjectToClipPos(v.vertex);
-				o.color = float4(1,1,0,1);
-				//o.color = tex2dlod(_MainTex, float4(v.uv2.xy, 0, 0/*mip level?*/));
-				//TODO sampling? build uv2, 
 				o.uv2 = v.uv2;
 
-				//TODO: Eventually move to rect grid (less tex reads)
-				//TODO  or just accept single tex read as an aproximation
+				// single tex read can work as an aproximation
 
 				return o;
 			}
 
 			fixed4 frag(v2f i) : SV_Target
 			{
-				fixed4 col = i.color;
-
 				float2 texSize = _MainTex_TexelSize.zw;
 				float2 invTexSize = _MainTex_TexelSize.xy;
 
@@ -81,15 +74,11 @@
 					float dXY = dx + dy;
 					if (dXY < 1)
 					{
-						//indices = new Vector3Int(index, index + 1, index + width);
-						//barycentricCoordinate = new Vector3(1 - dXY, dx, dy);
 						off0 = float2(0, 0); off1 = float2(1, 0); off2 = float2(0, 1);
 						barCoords = float3(1 - dXY, dx, dy);
 					}
 					else
 					{
-						//indices = new Vector3Int(index + width + 1, index + 1, index + width);
-						//barycentricCoordinate = new Vector3(dXY - 1, 1 - dy, 1 - dx);
 						off0 = float2(1, 1); off1 = float2(1, 0); off2 = float2(0, 1);
 						barCoords = float3(dXY - 1, 1 - dy, 1 - dx);
 					}
@@ -99,15 +88,11 @@
 					float dXY = 1 - dx + dy;
 					if (dx > dy)
 					{
-						//indices = new Vector3Int(index, index + 1, index + width + 1);
-						//barycentricCoordinate = new Vector3(1 - dx, 1 - dXY, dy);
 						off0 = float2(0, 0); off1 = float2(1, 0); off2 = float2(1, 1);
 						barCoords = float3(1 - dx, 1 - dXY, dy);
 					}
 					else
 					{
-						//indices = new Vector3Int(index, index + width, index + width + 1);
-						//barycentricCoordinate = new Vector3(1 - dy, dXY - 1, dx);
 						off0 = float2(0, 0); off1 = float2(0, 1); off2 = float2(1, 1);
 						barCoords = float3(1 - dy, dXY - 1, dx);
 						
@@ -122,19 +107,14 @@
 				//color = tex2D(_MainTex, (uv2 + off0) * invTexSize);
 
 
-				/////
+				
+				float barCoordsMult = barCoords.x * barCoords.y * barCoords.z * 27;
 
+				//float alpha = step(0.95 * (1 - color.a), 1 - barCoordsMult);// *(1 - color.a);
+				float alpha = 1 - (1 - color.a) * barCoordsMult;
 
-				//float2 coord = (i.uv2 + float2(0.5, 0.5)) * invTexSize;
-				float2 coord = (intUV2 + float2(0.5, 0.5)) * invTexSize;
-
-				fixed4 c0 = tex2D(_MainTex, coord);
-
-				col = color;
-
-				col.rgb *= col.a;
-				col.a *= 0.5;
-				return col;
+				color.a = alpha * 0.5;
+				return color;
 			}
 			ENDCG
 		}

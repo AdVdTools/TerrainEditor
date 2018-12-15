@@ -19,6 +19,7 @@ public class MeshResourceData : ScriptableObject
     [System.NonSerialized] public List<Vector3> verticesList = new List<Vector3>();
     [System.NonSerialized] public List<Vector3> normalsList = new List<Vector3>();
     [System.NonSerialized] public List<Vector2> uvsList = new List<Vector2>();
+    [System.NonSerialized] public List<Color> colorsList = new List<Color>();
     [System.NonSerialized] public List<int> trianglesList = new List<int>();
 
     public readonly object dataLock = new object();
@@ -49,6 +50,7 @@ public class MeshResourceData : ScriptableObject
             mesh.GetVertices(verticesList);
             mesh.GetNormals(normalsList);
             mesh.GetUVs(0, uvsList);
+            mesh.GetColors(colorsList);
 
             mesh.GetTriangles(trianglesList, subMeshIndex);
             //mesh.GetIndices(indicesList, subMesh);//TODO have many indices arrays / lists
@@ -68,6 +70,7 @@ public class MeshResourceData : ScriptableObject
             verticesList = new List<Vector3>();
             normalsList = new List<Vector3>();
             uvsList = new List<Vector2>();
+            colorsList = new List<Color>();
             trianglesList = new List<int>();
 
             dirty = false;

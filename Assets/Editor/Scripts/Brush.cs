@@ -90,8 +90,7 @@ public class Brush
         float zScale = 1f / Mathf.Sqrt(1 - projectedOffset.z * projectedOffset.z);
         if (float.IsInfinity(zScale) || float.IsNaN(zScale)) return 0f;
         Vector2 coords = new Vector2(projectedOffset.x, projectedOffset.y) * zScale;
-        //if (Mathf.Abs(coords.x) > 1f || Mathf.Abs(coords.y) > 1f) return 0f;
-        //TODO should invert Y?
+
         return SampleCurrentTextureAlpha(coords * 0.5f + new Vector2(0.5f, 0.5f)) * opacity;
     }
 
@@ -109,16 +108,18 @@ public class Brush
         return currentBrushTexturePixels[index].a;
     }
 
-    public Matrix4x4 GetProjectionMatrix(Vector3 center, Matrix4x4 mapL2WMatrix, Camera camera)//TODO use camera to rotate brush
+    public Matrix4x4 GetProjectionMatrix(Vector3 center, Matrix4x4 mapL2WMatrix, Camera camera)
     {
+        float rot = camera.transform.rotation.eulerAngles.y - mapL2WMatrix.rotation.eulerAngles.y;
+        Quaternion rotation = Quaternion.AngleAxis(rot, Vector3.up);
         switch (projection)
         {
             case Projection.Sphere:
-                Matrix4x4 sm = Matrix4x4.TRS(center, Quaternion.identity, new Vector3(size, size, size)).inverse;
+                Matrix4x4 sm = Matrix4x4.TRS(center, rotation, new Vector3(size, size, size)).inverse;
                 Vector4 r1 = sm.GetRow(1); sm.SetRow(1, sm.GetRow(2)); sm.SetRow(2, r1);// Swap Z and Y
                 return sm;
             case Projection.Vertical:
-                Matrix4x4 vm = Matrix4x4.TRS(center, Quaternion.identity, new Vector3(size, size, size)).inverse;
+                Matrix4x4 vm = Matrix4x4.TRS(center, rotation, new Vector3(size, size, size)).inverse;
                 vm.SetRow(1, vm.GetRow(2));// Move Z to Y
                 vm.SetRow(2, Vector4.zero);// Remove Z
                 return vm;
@@ -158,7 +159,7 @@ public class Brush
         bool leftClick = Event.current.button == 0;
         bool focused = EditorWindow.focusedWindow == SceneView.currentDrawingSceneView;
 
-        if (pickingValue)//TODO ignore/disable pickingValue (inspector, ctrl+C, ...) when in smooth/average modes
+        if (pickingValue)//TODO ignore/disable pickingValue (inspector, ctrl+C, ...) when in smooth/average modes?
         {
             if (type == EventType.Repaint)
             {
@@ -247,7 +248,7 @@ public class Brush
         EventType type = Event.current.type;
         if (type == EventType.ScrollWheel && Event.current.control)
         {
-            size -= Event.current.delta.y * 0.125f;
+            size *= Mathf.Pow(1.125f, -Event.current.delta.y);
             Event.current.Use();
             brushChanged = true;
             return BrushEvent.BrushChanged;
@@ -363,9 +364,9 @@ public class Brush
     readonly GUIContent ZContent = new GUIContent("Z");
     readonly GUIContent WContent = new GUIContent("W");
 
-    public void DrawBrushValueInspector(bool enableValueFields, bool doPicker)//TODO out values
+    public void DrawBrushValueInspector(bool enableValueFields, bool doPicker)
     {
-        //TODO check value mode (color vs float, vs Vector?)
+        // Vector2 and Vector3 untested!
         switch (currentValueType)
         {
             case ValueType.Float:

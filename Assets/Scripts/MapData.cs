@@ -21,6 +21,7 @@ public partial class MapData : ScriptableObject
 
 
     public float[] Heights { get { return heights; } }
+    public Texture2D HeightTexture { get { return heightTexture; } }
 
     public int MeshColorMapIndex { get { return meshColorMapIndex; } }
     public Material TerrainMaterial { get { return terrainMaterial; } }
@@ -200,9 +201,9 @@ public partial class MapData : ScriptableObject
 
     //TODO reestructure cs files? .subassets instead of .maptexture?
 #if UNITY_EDITOR
-    //TODO trigger assets/project update (as in save) on certain events (mouse up?)
-    public void ValidateSubassets()//TODO extend to other subassets: move to main cs file, wrap colorMap loop, add other maps
+    public void ValidateSubassets()
     {
+        Debug.Log("Validate Subassets");
         string assetPath = UnityEditor.AssetDatabase.GetAssetPath(this);
         UnityEngine.Object[] assetsAtPath = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath);
         int[] refCounters = new int[assetsAtPath.Length];
@@ -219,7 +220,9 @@ public partial class MapData : ScriptableObject
             if (heightAssetIndex < 0) Debug.LogWarning("Height map asset is not part of 'all assets at path'");
             else refCounters[heightAssetIndex]++;
         }
-        SerializeHeights(assetPath);
+        //SerializeHeights(assetPath);
+        ValidateHeightTexture(assetPath);
+        
 
         // MapTextures
         for (int i = 0; i < mapTextures.Length; ++i)
@@ -243,7 +246,8 @@ public partial class MapData : ScriptableObject
                     Debug.LogWarningFormat("Texture '{0}' is not part of 'all assets at path'", mapTexture.texture);
                 }
             }
-            SerializeMapTexture(i, assetPath);
+            //SerializeMapTexture(i, assetPath);
+            ValidateMapTexture(i, assetPath);
         }
 
         for (int i = 0; i < refCounters.Length; ++i)
@@ -258,56 +262,56 @@ public partial class MapData : ScriptableObject
     }
 
 
-    public void SerializeHeights(string assetPath)
-    {
-        SerializeTexture(heights, ref heightTexture, "Heights", assetPath);
-    }
+    //public void SerializeHeights(string assetPath)//TODO record on create, record changes on brush start/end only
+    //{
+    //    SerializeTexture(heights, ref heightTexture, "Heights", assetPath);
+    //}
 
-    public void SerializeMapTexture(int index, string assetPath)
-    {
-        if (index >= 0 && index < mapTextures.Length)
-        {
-            MapTexture mapTexture = mapTextures[index];
-            SerializeTexture(mapTexture.map, ref mapTexture.texture, mapTexture.Format, mapTexture.GetTextureName(index), assetPath);
-        }
-        else
-        {
-            Debug.LogWarningFormat("No map texture at index {0}", index);
-        }
-    }
+    //public void SerializeMapTexture(int index, string assetPath)
+    //{
+    //    if (index >= 0 && index < mapTextures.Length)
+    //    {
+    //        MapTexture mapTexture = mapTextures[index];
+    //        SerializeTexture(mapTexture.map, ref mapTexture.texture, mapTexture.Format, mapTexture.GetTextureName(index), assetPath);
+    //    }
+    //    else
+    //    {
+    //        Debug.LogWarningFormat("No map texture at index {0}", index);
+    //    }
+    //}
 
 
-    private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
-    {
-        if (texture != null)
-        {
-            UnityEditor.Undo.RecordObject(texture, "Texture Change");
-            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
-        }
-        else
-        {
-            EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
-            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
-        }
-        WriteToTexture(map, texture);
-        texture.name = string.Format("{0}.{1}", this.name, textureName);
-    }
+    //private void SerializeTexture(float[] map, ref Texture2D texture, string textureName, string assetPath)
+    //{
+    //    if (texture != null)
+    //    {
+    //        UnityEditor.Undo.RecordObject(texture, "Texture Change");
+    //        EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+    //    }
+    //    else
+    //    {
+    //        EnsureTextureAtPath(ref texture, TextureFormat.RFloat, assetPath);
+    //        UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+    //    }
+    //    WriteToTexture(map, texture);
+    //    texture.name = string.Format("{0}.{1}", this.name, textureName);
+    //}
 
-    private void SerializeTexture(Color[] map, ref Texture2D texture, TextureFormat textureFormat, string textureName, string assetPath)
-    {
-        if (texture != null)
-        {
-            UnityEditor.Undo.RecordObject(texture, "Texture Change");
-            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
-        }
-        else
-        {
-            EnsureTextureAtPath(ref texture, textureFormat, assetPath);
-            UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
-        }
-        WriteToTexture(map, texture);
-        texture.name = string.Format("{0}.{1}", this.name, textureName);
-    }
+    //private void SerializeTexture(Color[] map, ref Texture2D texture, TextureFormat textureFormat, string textureName, string assetPath)
+    //{
+    //    if (texture != null)
+    //    {
+    //        UnityEditor.Undo.RecordObject(texture, "Texture Change");
+    //        EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+    //    }
+    //    else
+    //    {
+    //        EnsureTextureAtPath(ref texture, textureFormat, assetPath);
+    //        UnityEditor.Undo.RegisterCreatedObjectUndo(texture, "Texture Create");
+    //    }
+    //    WriteToTexture(map, texture);
+    //    texture.name = string.Format("{0}.{1}", this.name, textureName);
+    //}
 #endif
     
     public struct RaycastHit {
@@ -351,7 +355,7 @@ public partial class MapData : ScriptableObject
                 hitInfo.distance = distance;
                 hitInfo.point = ray.GetPoint(distance);
                 hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
-                hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+                hitInfo.triangleIndex = triIndex;
             }
         }
         if (hitInfo.distance >= raycastDistance) return false;
@@ -425,7 +429,7 @@ public partial class MapData : ScriptableObject
                         td.hitInfo.distance = distance;
                         td.hitInfo.point = ray.GetPoint(distance);
                         td.hitInfo.barycentricCoordinate = new Vector3(1 - uPlusV, u, v);
-                        td.hitInfo.triangleIndex = triIndex;//TODO avoid RaycastHit
+                        td.hitInfo.triangleIndex = triIndex;
                     }
                     //sampler.End();
                 }
@@ -604,7 +608,7 @@ public partial class MapData : ScriptableObject
         MapTexture meshColorMapTexture = mapTextures[meshColorMapIndex];
         if (meshColorMapTexture.map == null)
         {
-            Debug.LogError("Mesh color map has not been loaded");//TODO
+            Debug.LogError("Mesh color map has not been loaded");
             return;
         }
 
