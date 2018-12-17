@@ -11,7 +11,7 @@ public partial class MapData : ScriptableObject
         public float alignment;//Normal aligned
         public float rotation;//Around Y
         public float size;//All axis
-        public Color tint;//TODO Rand vs texture read
+        public Color tint;//Prop variance
         public int variantIndex;//<0 to prepare for deletion!
     }
 
@@ -60,38 +60,8 @@ public partial class MapData : ScriptableObject
         }
     }
 
-    //[System.Serializable]
-    //public class DensityMap
-    //{
-    //    [HideInInspector] public Vector4[] map;
-        
-    //    public Vector4 SampleDensity(float x, float y, MapData mapData)
-    //    {
-    //        Vector3Int indices;
-    //        Vector3 barycentricCoordinate;
-    //        if (mapData.SampleInfo(x, y, out indices, out barycentricCoordinate))
-    //        {
-    //            return map[indices.x] * barycentricCoordinate.x +
-    //                map[indices.y] * barycentricCoordinate.y +
-    //                map[indices.z] * barycentricCoordinate.z;
-    //        }
-    //        else
-    //        {
-    //            return default(Vector4);
-    //        }
-    //    }
-    //}
-
     public InstanceSet[] instanceSets = new InstanceSet[0];
-
-    //TODO
-    // InstanceSets and DensityMaps (MapTextures)
-    // PropsMeshData has pointers to instance set and/or density map
-    // Variants in PropsMeshData (selected with probability from density map, and with index from instance set)
-    // MeshResourceData with MeshResource (reusable object), and distance range
-    // MeshResourceData can represent LODs or components (such as leaves/trunk)
-    // PropsMeshData instances can point to the same instanceSets and densityMaps!
-
+    
     public Vector3 GetRealInstancePosition(Vector3 instancePosition)
     {
         instancePosition.y += SampleHeight(instancePosition.x, instancePosition.z);
@@ -154,12 +124,13 @@ public partial class MapData : ScriptableObject
     [System.Serializable]
     public class PropsMeshData
     {
-        const int maxCellsFromCenter = 12;
-
         [SerializeField]
         private PropDitherPattern pattern;
         [SerializeField]
         private float patternScale = 1f;
+        
+        [SerializeField]
+        private float maxCellOffset = 5f;
 
         [SerializeField]
         private int instanceSetIndex = -1;
@@ -320,7 +291,15 @@ public partial class MapData : ScriptableObject
                 {
                     while (shouldThreadRun)
                     {
-                        PropsUpdate();
+                        try
+                        {
+                            PropsUpdate();
+                        }
+                        catch (System.Exception e)
+                        {
+                            Debug.LogErrorFormat("{0}\n{1}", e.Message, e.StackTrace);
+                            break;
+                        }
 
                         if (!shouldThreadRun) break;//Stop sets state to Idle, don't change it again
                         
@@ -382,6 +361,11 @@ public partial class MapData : ScriptableObject
 
         void PropsUpdate()
         {
+            if (mapData.heights == null || mapData.normals == null)
+            {
+                Debug.LogError("Terrain might not be loaded");
+            }
+
             updateStopWatch.Reset();
             updateStopWatch.Start();
             //TODO measure times
@@ -406,7 +390,7 @@ public partial class MapData : ScriptableObject
             uvs2.Clear();
             colors.Clear();
             for (int i = 0; i < subMeshCount; ++i) triangleLists[i].Clear();
-
+            
             int vertexIndex = 0;
             int indexIndex = 0;
 
@@ -434,10 +418,10 @@ public partial class MapData : ScriptableObject
                 int povCellY = Mathf.RoundToInt(pov.z / patternScale);
 
                 MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
-                
-                DensityPropsLogic currentPropsLogic = propsLogic;//TODO sealed override vs delegate
-                System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance>  BuildInstanceData = currentPropsLogic.BuildInstanceData;//TODO test performance, there might not be a huge difference
-                
+
+                DensityPropsLogic currentPropsLogic = propsLogic;
+                //System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance> BuildInstanceData = currentPropsLogic.BuildInstanceData;//No apparent improvement
+
                 Vector2 elementPosition;
                 Vector4 densityValues;
                 for (int e = 0; e < elements.Length; ++e)
@@ -446,10 +430,10 @@ public partial class MapData : ScriptableObject
 
                     elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
                     densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                    DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
                 }
-
-                for (int offset = 1; offset <= maxCellsFromCenter; ++offset)//TODO configurable maxCellsFromCenter?
+                
+                for (int offset = 1; offset <= maxCellOffset; ++offset)
                 {
                     //int sideLength = offset * 2;
                     for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
@@ -460,16 +444,16 @@ public partial class MapData : ScriptableObject
 
                             elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
                             elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
                             elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
                             elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(/*currentPropsLogic.*/BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);//TODO break if it doesnt fit
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
                         }
                     }
                 }
@@ -483,8 +467,7 @@ public partial class MapData : ScriptableObject
         {
             return (new Vector2(cellX, cellY) + element.pos / PropDitherPattern.CellSize) * patternScale;
         }
-
-
+        
         void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
@@ -518,7 +501,7 @@ public partial class MapData : ScriptableObject
                     if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
 
                     if (!meshResource.sqrDistanceRange.CheckInRange(sqrDist)) continue;
-                    
+
                     Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
                     for (int i = 0; i < meshData.verticesCount; ++i)
                     {
@@ -527,8 +510,8 @@ public partial class MapData : ScriptableObject
                     }
                     for (int i = 0; i < meshData.verticesCount; ++i)
                     {
-                        Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]);
-                        normals.Add(normal);//TODO normalize?
+                        Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]).normalized;
+                        normals.Add(normal);
                     }
                     for (int i = 0; i < meshData.verticesCount; ++i)
                     {
@@ -563,7 +546,7 @@ public partial class MapData : ScriptableObject
                     }
 
                     vertexIndex += meshData.verticesCount;
-                    indexIndex += meshData.indicesCount;//TODO Split by submesh?
+                    indexIndex += meshData.indicesCount;
                 }
             }
         }
@@ -589,7 +572,9 @@ public partial class MapData : ScriptableObject
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
             mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
             mesh.SetColors(colors);//mesh.colors = colors;
+
             Debug.Log("BTW: "+updateDuration);
+
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)
             {
@@ -615,13 +600,6 @@ public partial class MapData : ScriptableObject
 
     void PropsDataOnValidate()
     {
-        //int targetLength = width * depth;
-        //for (int i = 0; i < densityMaps.Length; ++i)
-        //{
-        //    DensityMap densityMap = densityMaps[i];
-        //    if (densityMap.map == null || densityMap.map.Length != targetLength) densityMap.map = new Vector4[targetLength];//TODO properly rescale
-        //}
-        
-        //TODO load mapTextures referenced by prop meshes data (avoid redundant loading, here and with mesh color)
+        //TODO load mapTextures referenced by prop meshes data (avoid redundant loading, here and with mesh color) (if !EDITOR?)
     }
 }

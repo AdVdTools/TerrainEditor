@@ -31,6 +31,8 @@ public class MapEditor : Editor {
     private static bool colorBrushMode;
 
     private static bool displayMapTexture;
+    private static bool clampMapValues;
+
     private Material mapTextureMaterial;
     private int mainTexID;
 
@@ -95,6 +97,7 @@ public class MapEditor : Editor {
     readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
     readonly GUIContent displayMapTextureGUIContent = new GUIContent("Display Map Texture");
+    readonly GUIContent clampMapValuesGUIContent = new GUIContent("Clamp Map Values");
 
     readonly GUIContent brushColorModeGUIContent = new GUIContent("Brush Color Mode");
     readonly GUIContent[] brushColorModesGUIContents = new GUIContent[] { new GUIContent("Vector4"), new GUIContent("Color") };
@@ -144,22 +147,31 @@ public class MapEditor : Editor {
                 case TEXTURES_TARGET:
                     DrawMapTextureSelector();
 
-                    displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
-
                     colorBrushMode = EditorGUILayout.Popup(brushColorModeGUIContent, colorBrushMode ? 1 : 0, brushColorModesGUIContents) == 1;
 
                     if (colorBrushMode)
                     {
                         currentBrush.currentValueType = Brush.ValueType.Color;
                         ColorMath.mask = currentBrush.ColorMask;
+                        currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                        if (clampMapValues)
+                        {
+                            currentBrush.colorValue = ColorMath.sharedHandler.Clamp01(currentBrush.colorValue);
+                        }
                     }
                     else
                     {
                         currentBrush.currentValueType = Brush.ValueType.Vector4;
                         ColorMath.mask = currentBrush.VectorMask;//Vector mask is actually equivalent to color mask
+                        currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                        if (clampMapValues)
+                        {
+                            currentBrush.vectorValue = Vector4Math.sharedHandler.Clamp01(currentBrush.vectorValue);
+                        }
                     }
-
-                    currentBrush.DrawBrushValueInspector(enableValueFields, true);
+                    
+                    displayMapTexture = EditorGUILayout.Toggle(displayMapTextureGUIContent, displayMapTexture);
+                    clampMapValues = EditorGUILayout.Toggle(clampMapValuesGUIContent, clampMapValues);
                     break;
 
                 case PROPS_TARGET:
@@ -381,7 +393,6 @@ public class MapEditor : Editor {
 
                     lastInstancePlacing = new Vector3(float.MinValue, float.MinValue, float.MinValue);//Reset for prop placing mode
                     
-                    //TODO register textures, test further
                     switch (brushTarget)
                     {
                         case HEIGHT_TARGET:
@@ -621,14 +632,12 @@ public class MapEditor : Editor {
         {
             case HEIGHT_TARGET:
                 data.QuickRebuildParallel(8);
-                //data.SerializeHeights(AssetDatabase.GetAssetPath(data));
 
                 data.WriteToTexture(data.Heights, data.HeightTexture);
                 break;
             case TEXTURES_TARGET:
                 if (currentMapTextureIndex == data.MeshColorMapIndex) data.UpdateMeshColor();
-
-                //data.SerializeMapTexture(currentMapTextureIndex, AssetDatabase.GetAssetPath(data));
+                
                 if (currentMapTextureIndex >= 0 && currentMapTextureIndex < data.mapTextures.Length)
                 {
                     MapData.MapTexture mapTexture = data.mapTextures[currentMapTextureIndex];
@@ -745,22 +754,29 @@ public class MapEditor : Editor {
                                             mathHandler.Sum(srcArray[nwIndex], srcArray[westIndex]),
                                             mathHandler.Sum(srcArray[swIndex], srcArray[seIndex]))),
                                     1f / 6);
-                                
+
                                 auxArray[index] = mathHandler.Blend(srcArray[index], neighbourAverage, strength * 0.5f);
                             }
                             else auxArray[index] = srcArray[index];
                         }
                         break;
                 }
-            td.mre.Set();
-        }, threadData);
-    }
+                td.mre.Set();
+            }, threadData);
+        }
         foreach (var threadData in threadsData)
         {
             threadData.mre.WaitOne();
         }
 
-        Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        if (clampMapValues)
+        {
+            for (int i = 0; i < pointCount; ++i) srcArray[i] = mathHandler.Clamp01(auxArray[i]);
+        }
+        else
+        {
+            Array.Copy(auxArray, srcArray, pointCount);//Parallel Copy not worth it
+        }
     }
 
 

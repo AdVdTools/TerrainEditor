@@ -116,7 +116,6 @@ public partial class MapData : ScriptableObject
 
 
 #if UNITY_EDITOR
-    //TODO should this always write data?
     private void ValidateHeightTexture(string assetPath)
     {
         if (heightTexture != null)
@@ -145,7 +144,7 @@ public partial class MapData : ScriptableObject
         {
             if (heightTexture.width != width || heightTexture.height != depth || heightTexture.format != TextureFormat.RFloat)
             {
-                UnityEditor.Undo.RecordObject(heightTexture, "Texture Changed");//TODO avoid on undo/redo?
+                UnityEditor.Undo.RecordObject(heightTexture, "Texture Changed");
                 heightTexture.Resize(width, depth, TextureFormat.RFloat, false);
                 WriteToTexture(heights, heightTexture);
             }
@@ -191,37 +190,10 @@ public partial class MapData : ScriptableObject
         }
         texture.name = string.Format("{0}.{1}", this.name, mapTexture.GetTextureName(index));
     }
-
-    //private bool EnsureTextureAtPath(ref Texture2D texture, TextureFormat textureFormat, string assetPath)
-    //{
-    //    if (texture != null)
-    //    {
-    //        string textureAssetPath = UnityEditor.AssetDatabase.GetAssetPath(texture);
-
-    //        if (assetPath != textureAssetPath)
-    //        {
-    //            Debug.LogWarning("Current texture doesn't belong to this asset");
-    //            texture = null;
-    //        }
-    //    }
-
-    //    if (texture == null)
-    //    {
-    //        texture = new Texture2D(width, depth, textureFormat, false);
-    //        UnityEditor.AssetDatabase.AddObjectToAsset(texture, this);
-    //    }
-    //    else
-    //    {
-    //        if (texture.width != width || texture.height != depth || texture.format != textureFormat)
-    //        {
-    //            texture.Resize(width, depth, textureFormat, false);
-    //        }
-    //    }
-    //}
 #endif
     
-    // TODO check texture != null if not ensuring before use in editor, although it should be ensured on brush start
-    public void WriteToTexture(float[] map, Texture2D texture)//TODO distribute methods in files
+    //Validation ensures textures exist when these methos are used
+    public void WriteToTexture(float[] map, Texture2D texture)
     {
         int targetLength = width * depth;
         if (map == null || map.Length != targetLength)
@@ -235,7 +207,7 @@ public partial class MapData : ScriptableObject
         texture.Apply(false, false);
     }
 
-    public void WriteToTexture(Color[] map, Texture2D texture)//TODO distribute methods in files
+    public void WriteToTexture(Color[] map, Texture2D texture)
     {
         int targetLength = width * depth;
         if (map == null || map.Length != targetLength)

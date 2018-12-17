@@ -4,10 +4,9 @@ using UnityEngine;
 using UnityEditor;
 
 [System.Serializable]
-public class MapPropsInstanceValues {
-
-    //TODO keep diferent values for each brush mode, both here and in the Brush class!?!
-    //TODO static class to handle instance inspector stuff
+public class MapPropsInstanceValues
+{
+    //TODO EditorPrefs?
     public const int DISABLED_STATE = 0;
     public const int SINGLE_STATE = 1;
     public const int RANGE_STATE = 2;
@@ -118,8 +117,7 @@ public class MapPropsInstanceValues {
         EditorGUILayout.EndHorizontal();
         EditorGUIUtility.labelWidth = labelWidth;
     }
-
-    //TODO rename color-tint?
+    
     private void SpecialColorInspector(ref int colorState, ref Color singleColor, ref Gradient colorGradient)
     {
         float labelWidth = EditorGUIUtility.labelWidth;
@@ -157,12 +155,6 @@ public class MapPropsInstanceValues {
         if (GradientFieldMethod == null)
         {
             var methods = typeof(EditorGUILayout).GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            //System.Array.ForEach(methods, (m) => {
-            //    if (m.Name == "GradientField") {
-            //        string parameters = string.Join(", ", System.Array.ConvertAll(m.GetParameters(), (param) => param.Name + " " + param.ParameterType));
-            //        Debug.Log(m.ReturnType + " " + m.Name + " (" + parameters + ")");
-            //    }
-            //});
             GradientFieldMethod = System.Array.Find(methods, (m) => {
                 if (m.Name == "GradientField")
                 {
@@ -170,12 +162,11 @@ public class MapPropsInstanceValues {
                     return (p.Length >= 2 && p[0].ParameterType == typeof(GUIContent) && p[1].ParameterType == typeof(Gradient));
                 }
                 else return false;
-            });//TODO get third? check logs
+            });
         }
         if (GradientFieldMethod != null)
         {
-            //EditorGUILayout.HelpBox(string.Join(", ", System.Array.ConvertAll(GradientFieldMethod.GetParameters(), (param) => param.Name +" "+param.ParameterType)), MessageType.Info);
-            gradient = GradientFieldMethod.Invoke(null, new object[] { content, gradient, new GUILayoutOption[0] }) as Gradient;//TODO this signature might not exist! check in editorGui instead of editorguilayout
+            gradient = GradientFieldMethod.Invoke(null, new object[] { content, gradient, new GUILayoutOption[0] }) as Gradient;
         }
         else
         {
@@ -232,8 +223,7 @@ public class MapPropsInstanceValues {
         EditorGUIUtility.labelWidth = labelWidth;
     }
 
-
-    //TODO fixes
+    
     public MapData.PropInstance ApplyValues(MapData.PropInstance instance, Vector3 normal, float strength)
     {
         if (sizeState != DISABLED_STATE)
@@ -269,7 +259,7 @@ public class MapPropsInstanceValues {
         }
 
 
-        if (alignmentState != DISABLED_STATE)//TODO rename to normal aligned? //TODO do this on mesh build?
+        if (alignmentState != DISABLED_STATE)
         {
             float targetAlign = minAlignment;
             if (alignmentState == RANGE_STATE)

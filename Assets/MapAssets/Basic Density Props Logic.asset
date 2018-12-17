@@ -135,3 +135,5 @@ MonoBehaviour:
       m_Mode: 0
       m_NumColorKeys: 2
       m_NumAlphaKeys: 2
+  mapData: {fileID: 11400000, guid: 9304adef6d6d9cf4fbf9b93dbc9677aa, type: 2}
+  mapIndex: 0

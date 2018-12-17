@@ -8,6 +8,7 @@ interface IMathHandler<T>
     T WeightedSum(T value1, T value2, float weight2);
     T Blend(T value1, T value2, float t);
     T BarycentricInterpolation(T value1, T value2, T value3, Vector3 weights);
+    T Clamp01(T value);
 }
 
 public class FloatMath : IMathHandler<float>
@@ -36,6 +37,11 @@ public class FloatMath : IMathHandler<float>
     public float BarycentricInterpolation(float value1, float value2, float value3, Vector3 weights)
     {
         return value1 * weights.x + value2 * weights.y + value3 * weights.z;
+    }
+
+    public float Clamp01(float value)
+    {
+        return Mathf.Clamp01(value);
     }
 }
 
@@ -73,6 +79,15 @@ public class Vector4Math : IMathHandler<Vector4>
     {
         return value1 * weights.x + value2 * weights.y + value3 * weights.z;
     }
+
+    public Vector4 Clamp01(Vector4 value)
+    {
+        value.x = Mathf.Clamp01(value.x);
+        value.y = Mathf.Clamp01(value.y);
+        value.z = Mathf.Clamp01(value.z);
+        value.w = Mathf.Clamp01(value.w);
+        return value;
+    }
 }
 
 
@@ -108,5 +123,14 @@ public class ColorMath : IMathHandler<Color>
     public Color BarycentricInterpolation(Color value1, Color value2, Color value3, Vector3 weights)
     {
         return value1 * weights.x + value2 * weights.y + value3 * weights.z;
+    }
+
+    public Color Clamp01(Color value)
+    {
+        value.r = Mathf.Clamp01(value.r);
+        value.g = Mathf.Clamp01(value.g);
+        value.b = Mathf.Clamp01(value.b);
+        value.a = Mathf.Clamp01(value.a);
+        return value;
     }
 }

@@ -22,7 +22,8 @@ public class Brush
     private const string brushTexturesPath = "Assets/Editor/BrushTextures";
     private Texture2D[] brushTextures;
     private GUIContent[] brushTextureGUIContents;
-    
+
+    private const string brushMaterialName = "_BrushProjectorMaterial";
     Material brushProjectorMaterial;
     int mainTexID;
     int mainColorID;
@@ -47,18 +48,29 @@ public class Brush
             brushTextureGUIContents = new GUIContent[0];
         }
 
-        // Build Material
-        brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
+        // Find material or build if not yet created
+        brushProjectorMaterial = Array.Find(Resources.FindObjectsOfTypeAll<Material>(), (material) => material.name.Equals(brushMaterialName));
+        if (brushProjectorMaterial == null)
+        {
+            brushProjectorMaterial = new Material(Shader.Find("Hidden/BrushProjector"));
+        }
+        brushProjectorMaterial.name = brushMaterialName;
         brushProjectorMaterial.hideFlags = HideFlags.HideAndDontSave;
 
+        //int i = 0;
+        //Array.ForEach(Resources.FindObjectsOfTypeAll<Material>(), (m) => { if (m.name.Equals(brushMaterialName)) i++; });
+        //Debug.Log("Mat count " + i);
+        
         mainTexID = Shader.PropertyToID("_MainTex");
         mainColorID = Shader.PropertyToID("_MainColor");
         projMatrixID = Shader.PropertyToID("_ProjMatrix");
         opacityID = Shader.PropertyToID("_Opacity");
 
         brushProjectorMaterial.SetColor(mainColorID, Color.green);
-        //TODO free stuff eventually? check if materials remain between reloads?
     }
+    
+    //Unfortunatelly ~Brush() is not called in main thread, so old materials must be rescued
+    
     
     private int currentBrushTextureIndex;
     public Texture2D currentTexture {
@@ -159,11 +171,11 @@ public class Brush
         bool leftClick = Event.current.button == 0;
         bool focused = EditorWindow.focusedWindow == SceneView.currentDrawingSceneView;
 
-        if (pickingValue)//TODO ignore/disable pickingValue (inspector, ctrl+C, ...) when in smooth/average modes?
+        if (pickingValue)
         {
             if (type == EventType.Repaint)
             {
-                //TODO
+
             }
             else if (type == EventType.Layout)
             {//This will allow clicks to be eaten

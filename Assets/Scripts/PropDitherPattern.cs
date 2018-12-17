@@ -38,30 +38,5 @@ public class PropDitherPattern : ScriptableObject
     [HideInInspector]
     public PatternElement[] elements = new PatternElement[0];
 
-    //private byte[] pattern;
-    //public byte[] Pattern
-    //{
-    //    get { return pattern; }
-    //}
-
-    //public void GeneratePattern()
-    //{
-    //    if (pattern == null || pattern.Length != 256) pattern = new byte[256];
-
-    //    for (int i = 0; i < height; ++i)
-    //    {
-    //        for (int j = 0; j < width; ++j)
-    //        {
-    //            int index = i * width + j;
-    //            pattern[index] = (byte)((GenerateXValue(j) + GenerateYValue(i)) & 255);
-    //        }
-    //    }
-    //}
-
-    void OnValidate()
-    {
-        //GeneratePattern();
-    }
-
 }
 

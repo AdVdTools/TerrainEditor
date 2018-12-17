@@ -64,7 +64,6 @@
     <Compile Include="Assets\Editor\Scripts\Brush.cs" />
     <Compile Include="Assets\Editor\Scripts\FloatRangeEditor.cs" />
     <Compile Include="Assets\Editor\Scripts\MapEditor.cs" />
-    <Compile Include="Assets\Editor\Scripts\MapPropsEditor.cs" />
     <Compile Include="Assets\Editor\Scripts\MapPropsInstanceValues.cs" />
     <Compile Include="Assets\Editor\Scripts\MathHandlers.cs" />
     <Compile Include="Assets\Editor\Scripts\PropDitherPatternEditor.cs" />

@@ -38,8 +38,10 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
     VariantAttributes[] variantAttributes = new VariantAttributes[] {
         VariantAttributes.DefaultAttributes
     };
-    
-    public readonly Vector3 propsDirection = new Vector3(0, 1, 0);
+
+    [SerializeField] private MapData mapData;
+    [SerializeField] private int mapIndex;
+    private MapData.MapTexture mapTexture;
 
     public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues)
     {
@@ -70,10 +72,20 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         VariantAttributes attributes = variantAttributes[instanceData.variantIndex];
 
         instanceData.position = new Vector3(pos.x, attributes.yOffsetRange.GetValue(element.rand2), pos.y);
-        instanceData.alignment = attributes.alignmentRange.GetValue(element.rand0);// Vector3.Slerp(propsDirection, normal, attributes.alignmentRange.GetValue(element.rand0));//TODO alignment instead of direction, do direction on DoInstance(PropInstance)
+        instanceData.alignment = attributes.alignmentRange.GetValue(element.rand0);
         instanceData.rotation = attributes.rotationRange.GetValue(element.rand1);
-        instanceData.size = element.r * attributes.scaleRange.GetValue(densityValues.w);//TODO change size with density vs size map. Vector2 density map? (density, size), size map => 0..1 lerp to variant size range?
-        instanceData.tint = attributes.colorGradient != null ? attributes.colorGradient.Evaluate(element.rand3) : Color.white;
+        instanceData.size = element.r * attributes.scaleRange.GetValue(densityValues.w);
+        if (mapTexture != null && mapData != null)//TODO handle density maps like this? bring patterns here too? IEnumerator GetInstances?
+        {
+            instanceData.tint = mapTexture.SampleValue(pos.x, pos.y, mapData);
+        }
+        else if (attributes.colorGradient != null)
+        {
+            instanceData.tint = attributes.colorGradient.Evaluate(element.rand3);
+        }
+        else {
+            instanceData.tint = Color.white;
+        }
 
         return instanceData;
     }
@@ -81,5 +93,7 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
     void OnValidate()
     {
         if (variantAttributes.Length != 3) System.Array.Resize(ref variantAttributes, 3);
+
+        if (mapData != null && mapIndex >= 0 && mapIndex < mapData.mapTextures.Length) mapTexture = mapData.mapTextures[mapIndex];
     }
 }

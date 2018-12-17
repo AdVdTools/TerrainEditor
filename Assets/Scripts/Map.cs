@@ -75,6 +75,4 @@ public class Map : MonoBehaviour
     {
         meshFilter = GetComponent<MeshFilter>();
     }
-
-    //TODO Editor class that draws gizmos and handles sculpting
 }
