@@ -23,8 +23,7 @@ public class MeshResourceData : ScriptableObject
     [System.NonSerialized] public List<int> trianglesList = new List<int>();
 
     public readonly object dataLock = new object();
-
-    //TODO when to load
+    
     /// <summary>
     /// This method should not be called on background threads.
     /// Loading might lock users of the data for some time
@@ -44,18 +43,55 @@ public class MeshResourceData : ScriptableObject
             }
             verticesCount = mesh.vertexCount;
             indicesCount = (int)mesh.GetIndexCount(subMeshIndex);
-
-            //TODO should lists be cleared?
-
+            
             mesh.GetVertices(verticesList);
             mesh.GetNormals(normalsList);
             mesh.GetUVs(0, uvsList);
             mesh.GetColors(colorsList);
 
             mesh.GetTriangles(trianglesList, subMeshIndex);
-            //mesh.GetIndices(indicesList, subMesh);//TODO have many indices arrays / lists
+
+            // Remove unused vertices
+            RemoveUnusedVertices();
 
             dirty = false;
+        }
+    }
+
+    private void RemoveUnusedVertices()//TODO minimize list capacity?
+    {
+        bool hasColors = colorsList.Count == verticesCount;
+        int index;
+        for (index = 0; index < verticesCount; ++index)
+        {
+            bool found = false;
+            for (int i = 0; i < indicesCount; ++i) if (found = (trianglesList[i] == index)) break;
+            if (!found) break;
+        }
+        int newIndex = index;
+        if (index < verticesCount) for (index = newIndex + 1; index < verticesCount; ++index)
+            {
+                bool found = false;
+                int i;
+                for (i = 0; i < indicesCount; ++i) if (found = (trianglesList[i] == index)) break;
+                if (found)
+                {
+                    for (; i < indicesCount; ++i) if (trianglesList[i] == index) trianglesList[i] = newIndex;
+                    verticesList[newIndex] = verticesList[index];
+                    normalsList[newIndex] = normalsList[index];
+                    uvsList[newIndex] = uvsList[index];
+                    if (hasColors) colorsList[newIndex] = colorsList[index];
+                    newIndex++;
+                }
+            }
+        int verticesToRemove = index - newIndex;
+        if (verticesToRemove > 0)
+        {
+            verticesList.RemoveRange(newIndex, verticesToRemove);
+            normalsList.RemoveRange(newIndex, verticesToRemove);
+            uvsList.RemoveRange(newIndex, verticesToRemove);
+            if (hasColors) colorsList.RemoveRange(newIndex, verticesToRemove);
+            verticesCount = newIndex;
         }
     }
 
@@ -80,7 +116,6 @@ public class MeshResourceData : ScriptableObject
     void OnValidate()
     {
         dirty = true;
-        //if (MeshListsLoaded()) LoadMeshLists();//Reload TODO mind multithreading!! lock somehow?
     }
 }
 

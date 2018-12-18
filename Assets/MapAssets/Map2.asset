@@ -36,7 +36,7 @@ MonoBehaviour:
     texture: {fileID: 28731121047365632}
     format: 1
   instanceSets:
-  - label: 
+  - label: Grass
     instances:
     - position: {x: 15.082892, y: 0, z: 14.615351}
       alignment: 0
@@ -663,7 +663,7 @@ MonoBehaviour:
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
     count: 22
-  - label: 
+  - label: Trees
     instances:
     - position: {x: 4.240239, y: -0.0000010013582, z: 5.1076646}
       alignment: 0.7
@@ -671,41 +671,41 @@ MonoBehaviour:
       size: 0.2
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
-    - position: {x: 18.090351, y: 0, z: 1.3261178}
+    - position: {x: 12.160527, y: 0, z: 9.743809}
       alignment: 0
-      rotation: 238.60509
-      size: 0.2
-      tint: {r: 1, g: 1, b: 1, a: 1}
-      variantIndex: -1
-    - position: {x: 19.659807, y: 0, z: 1.0300853}
-      alignment: 0
-      rotation: 141.30072
-      size: 0.2
-      tint: {r: 1, g: 1, b: 1, a: 1}
-      variantIndex: -1
-    - position: {x: 19.659807, y: 0, z: 1.0300853}
-      alignment: 0
-      rotation: 141.30072
+      rotation: 201.93405
       size: 0.2
       tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: 0
-    - position: {x: 19.659807, y: 0, z: 1.0300853}
+    - position: {x: 17.05752, y: 0, z: 11.07069}
       alignment: 0
-      rotation: 141.30072
+      rotation: 8.941756
       size: 0.2
       tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: 0
-    - position: {x: 15.534523, y: 0, z: 1.6772622}
+    - position: {x: 10.341024, y: 0, z: 12.341499}
       alignment: 0
-      rotation: 118.91414
-      size: 0.2
+      rotation: 215.35797
+      size: 0.25
       tint: {r: 1, g: 1, b: 1, a: 1}
-      variantIndex: -1
-    - position: {x: 14.228283, y: 0, z: 14.188787}
+      variantIndex: 0
+    - position: {x: 9.173893, y: 0, z: 10.329737}
       alignment: 0
-      rotation: 246.21548
-      size: 1.1410261
-      tint: {r: 0, g: 0, b: 0, a: 0}
+      rotation: 26.73991
+      size: 0.15
+      tint: {r: 1, g: 1, b: 1, a: 1}
+      variantIndex: 0
+    - position: {x: 12.325432, y: 0, z: 7.419791}
+      alignment: 0
+      rotation: 356.99716
+      size: 0.15
+      tint: {r: 1, g: 1, b: 1, a: 1}
+      variantIndex: 0
+    - position: {x: 12.867862, y: 0, z: 4.6816382}
+      alignment: 0
+      rotation: 167.3064
+      size: 0.15
+      tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: -1
     - position: {x: 14.961466, y: 0, z: 14.21744}
       alignment: 0
@@ -1289,7 +1289,7 @@ MonoBehaviour:
       size: 0
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
-    count: 1
+    count: 6
   propsMeshesData:
   - pattern: {fileID: 11400000, guid: 3b4573685cd2dfe4abe3be9e6243a54e, type: 2}
     patternScale: 4
@@ -1299,9 +1299,9 @@ MonoBehaviour:
     variants:
     - meshResources:
       - data: {fileID: 11400000, guid: fbde771ad671d074e81dfc9390d3ca0f, type: 2}
-        sqrDistanceRange:
+        distanceRange:
           min: 0
-          max: 1000
+          max: 20
         targetSubMesh: 0
       propsDirection: {x: 0, y: 1, z: 0}
     propsLogic: {fileID: 11400000, guid: 988a125f81b3e3d4d90cf10443b74659, type: 2}
@@ -1317,14 +1317,14 @@ MonoBehaviour:
     variants:
     - meshResources:
       - data: {fileID: 11400000, guid: dca79f761d51ffe4fa89c610fcf25da9, type: 2}
-        sqrDistanceRange:
+        distanceRange:
           min: 0
-          max: 300
+          max: 20
         targetSubMesh: 0
       - data: {fileID: 11400000, guid: c932e85072ef7894c8e57261b4af409a, type: 2}
-        sqrDistanceRange:
+        distanceRange:
           min: 0
-          max: 300
+          max: 20
         targetSubMesh: 1
       propsDirection: {x: 0, y: 1, z: 0}
     propsLogic: {fileID: 11400000, guid: 988a125f81b3e3d4d90cf10443b74659, type: 2}

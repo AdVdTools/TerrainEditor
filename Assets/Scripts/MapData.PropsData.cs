@@ -20,7 +20,7 @@ public partial class MapData : ScriptableObject
     {
         public string label = "";
         [HideInInspector] [SerializeField] private PropInstance[] instances = new PropInstance[0];
-        [HideInInspector] [SerializeField] private int count;
+        [HideInInspector] [SerializeField] private int count;//TODO change to List?
         public PropInstance[] Instances { get { return instances; } }
         public int Count
         {
@@ -162,7 +162,7 @@ public partial class MapData : ScriptableObject
         public class MeshResource
         {
             public MeshResourceData data;
-            public FloatRange sqrDistanceRange = new FloatRange(0, 500);//TODO transition? use shader for that?
+            public FloatRange distanceRange = new FloatRange(0, 20);//TODO transition? use shader for that?
            
             public int targetSubMesh;
         }
@@ -226,7 +226,7 @@ public partial class MapData : ScriptableObject
                 {
                     //else, hope that someone is checking for updates and finishes the job
                     Debug.LogWarning("Update Ongoing");
-                    if (rebuildThread != null && !rebuildThread.IsAlive)
+                    if (rebuildThread == null || !rebuildThread.IsAlive)
                     {
                         Debug.Log("Thread is dead");
                         StopThread();
@@ -266,6 +266,7 @@ public partial class MapData : ScriptableObject
                         BeginPropsUpdate();
                     }
                 }
+                //TODO else check if thread is running?
             }
         }
 
@@ -477,7 +478,7 @@ public partial class MapData : ScriptableObject
             Vector2 position2D = new Vector2(position.x, position.z);
 
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
-            float sqrDist = (realPosition - pov).sqrMagnitude;
+            float distance = (realPosition - pov).magnitude * lodScale;
 
             Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
 
@@ -500,7 +501,7 @@ public partial class MapData : ScriptableObject
                     if (vertexIndex + meshData.verticesCount > verticesLengthLimit) break;
                     if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
 
-                    if (!meshResource.sqrDistanceRange.CheckInRange(sqrDist)) continue;
+                    if (!meshResource.distanceRange.CheckInRange(distance)) continue;
 
                     Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
                     for (int i = 0; i < meshData.verticesCount; ++i)
