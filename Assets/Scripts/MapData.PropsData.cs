@@ -138,7 +138,9 @@ public partial class MapData : ScriptableObject
         private int densityMapIndex = -1;
 
         private Vector3 currPOV;
-        private float redrawThreshold = 5f;//TODO serialize?
+
+        [SerializeField]
+        private float redrawThreshold = 5f;
 
         private enum UpdateState { Idle, Updating, Ready }
         private readonly object updateStateLock = new object();
@@ -211,7 +213,7 @@ public partial class MapData : ScriptableObject
                 {
                     //Begin Vertices/Indices update
                     this.mapData = mapData;
-                    this.pov = pov;
+                    this.pov = pov;//TODO transform pov to local here? or not
                     this.lodScale = lodScale;
                     LoadMeshLists();
                     currentUpdateState = UpdateState.Updating;
@@ -257,7 +259,7 @@ public partial class MapData : ScriptableObject
                     {
                         currentUpdateState = UpdateState.Updating;
                         this.mapData = mapData;
-                        this.pov = pov;
+                        this.pov = pov;//TODO transform pov to local here? or not
                         this.lodScale = lodScale;
                         LoadMeshLists();
 

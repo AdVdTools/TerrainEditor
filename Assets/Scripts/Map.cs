@@ -11,9 +11,12 @@ public class Map : MonoBehaviour
     
     [SerializeField] MeshFilter[] propsMeshFilters = new MeshFilter[0];
     [SerializeField] Transform povTransform;
+    
+    [SerializeField] float lodScale = 1f;
 
     public MapData Data { get { return mapData; } }
-    public Transform POVTransform { get { return povTransform; } }
+    public Transform POVTransform { get { return povTransform; } set { povTransform = value; } }
+    public float LODScale { get { return lodScale; } }
 
     // Use this for initialization
     void Start()
@@ -24,13 +27,18 @@ public class Map : MonoBehaviour
             Camera mainCam = Camera.main;
             if (mainCam != null) povTransform = mainCam.transform;
         }
+
         Refresh();
+        RefreshProps();
     }
 
     // Update is called once per frame
     void Update()
     {
-
+        if (mapData != null && povTransform != null)//TODO avoid refresh from editor while this is running?
+        {
+            mapData.RefreshPropMeshesAsync(transform.InverseTransformPoint(povTransform.position), lodScale);
+        }
     }
 
     [ContextMenu("Refresh Mesh")]
@@ -80,5 +88,7 @@ public class Map : MonoBehaviour
     private void OnValidate()
     {
         meshFilter = GetComponent<MeshFilter>();
+
+        lodScale = Mathf.Clamp(lodScale, 0.001f, 1000);
     }
 }

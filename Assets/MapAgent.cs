@@ -15,12 +15,14 @@ public class MapAgent : MonoBehaviour {
     [SerializeField] private float maxSpeed = 10f;
     [SerializeField] private float accelSmoothTime = 1f;
 
-    // Use this for initialization
-    void Start () {
+    
+    void Awake () {
         Input.simulateMouseWithTouches = false;
         //TODO move input somewhere else?
         Camera mainCam = Camera.main;
         if (mainCam != null) camTransform = mainCam.transform;
+
+        if (map != null) map.POVTransform = this.transform;
     }
 	
 	// Update is called once per frame
@@ -33,7 +35,7 @@ public class MapAgent : MonoBehaviour {
             float terrainHeight = map.Data.SampleHeight(localPosition.x, localPosition.z);
 
             float elevation = localPosition.y - distanceToFeet - terrainHeight;
-            Debug.Log(elevation + " " + mapUp);
+            //Debug.Log(elevation + " " + mapUp);
             transform.position -= mapUp * elevation;
 
             Vector2 screenCenter = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);

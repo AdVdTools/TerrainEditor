@@ -219,6 +219,7 @@ MonoBehaviour:
   - {fileID: 775518267}
   - {fileID: 1776876675}
   povTransform: {fileID: 0}
+  lodScale: 1
 --- !u!33 &413654774
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -763,6 +764,7 @@ MonoBehaviour:
   propsMeshFilters:
   - {fileID: 1349917891}
   povTransform: {fileID: 0}
+  lodScale: 1
 --- !u!33 &1536647478
 MeshFilter:
   m_ObjectHideFlags: 0

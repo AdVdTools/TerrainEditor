@@ -22,7 +22,6 @@ public class MapEditor : Editor {
         new GUIContent("Height"), new GUIContent("Textures"), new GUIContent("Props")/*, new GUIContent("Select Props")*/
     };
     
-    float lodScale = 1f;
     private static MapPropsInstanceValues instanceValues = new MapPropsInstanceValues();
     private static bool autoApplyValues = false;
     private static int currentInstanceSetIndex;
@@ -94,7 +93,6 @@ public class MapEditor : Editor {
     readonly GUIContent mapTextureGUIContent = new GUIContent("Map Texture");
 
     readonly GUIContent pacingGUIContent = new GUIContent("Pacing");
-    readonly GUIContent lodScaleGUIContent = new GUIContent("LOD Scale");
 
     readonly GUIContent displayMapTextureGUIContent = new GUIContent("Display Map Texture");
     readonly GUIContent clampMapValuesGUIContent = new GUIContent("Clamp Map Values");
@@ -110,10 +108,7 @@ public class MapEditor : Editor {
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
-
-        lodScale = EditorGUILayout.FloatField(lodScaleGUIContent, lodScale);
-        lodScale = Mathf.Clamp(lodScale, 0.001f, 1000);
-
+        
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button(rebuildTerrainGUIContent))
         {
@@ -846,7 +841,7 @@ public class MapEditor : Editor {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshes(pov, lodScale);
+        data.RefreshPropMeshes(pov, map.LODScale);
     }
 
     bool afterMeshUpdateRefreshPending = false;
@@ -858,7 +853,7 @@ public class MapEditor : Editor {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshesAsync(pov, lodScale);
+        data.RefreshPropMeshesAsync(pov, map.LODScale);
 
         if (data.PropMeshesRebuildOngoing())
         {
