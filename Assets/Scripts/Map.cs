@@ -19,6 +19,12 @@ public class Map : MonoBehaviour
     void Start()
     {
         //TODO get main camera as pov if none selected?
+        if (povTransform == null)
+        {
+            Camera mainCam = Camera.main;
+            if (mainCam != null) povTransform = mainCam.transform;
+        }
+        Refresh();
     }
 
     // Update is called once per frame

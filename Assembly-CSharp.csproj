@@ -61,6 +61,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\FollowBehaviour.cs" />
+    <Compile Include="Assets\MapAgent.cs" />
     <Compile Include="Assets\Scripts\BasicDensityPropsLogic.cs" />
     <Compile Include="Assets\Scripts\FloatRange.cs" />
     <Compile Include="Assets\Scripts\Map.cs" />

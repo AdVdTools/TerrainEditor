@@ -362,14 +362,8 @@ public partial class MapData : ScriptableObject
 
         void PropsUpdate()
         {
-            if (mapData.heights == null || mapData.normals == null)
-            {
-                Debug.LogError("Terrain might not be loaded");
-            }
-
             updateStopWatch.Reset();
             updateStopWatch.Start();
-            //TODO measure times
 
             if (vertices == null) vertices = new List<Vector3>();
             if (normals == null) normals = new List<Vector3>();
