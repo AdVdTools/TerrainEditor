@@ -729,8 +729,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 2084396066}
-  camHeight: 4
-  camDistance: 10
+  camHeight: 5
+  camDistance: 5
 --- !u!1 &1536647476
 GameObject:
   m_ObjectHideFlags: 0
