@@ -69,7 +69,9 @@ public class MeshResourceData : ScriptableObject
             if (!found) break;
         }
         int newIndex = index;
-        if (index < verticesCount) for (index = newIndex + 1; index < verticesCount; ++index)
+        if (index < verticesCount)
+        {
+            for (index = newIndex + 1; index < verticesCount; ++index)
             {
                 bool found = false;
                 int i;
@@ -84,6 +86,7 @@ public class MeshResourceData : ScriptableObject
                     newIndex++;
                 }
             }
+        }
         int verticesToRemove = index - newIndex;
         if (verticesToRemove > 0)
         {

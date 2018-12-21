@@ -2,6 +2,7 @@
 using UnityEditor;
 using System.Threading;
 using System;
+using System.Collections.Generic;
 
 [CustomEditor(typeof(Map))]
 public class MapEditor : Editor {
@@ -783,10 +784,11 @@ public class MapEditor : Editor {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         
         int instanceCount = instanceSet.Count;
+        List<MapData.PropInstance> instances = instanceSet.Instances;
         switch (currentBrush.mode)
         {
             case Brush.Mode.Add:
-                instanceSet.EnsureCapacity(instanceSet.Count + 1);
+                //instanceSet.EnsureCapacity(instanceSet.Count + 1);
 
                 if (Vector3.Distance(lastInstancePlacing, intersection) > currentBrush.floatValue)
                 {
@@ -803,21 +805,23 @@ public class MapEditor : Editor {
                     };
                     Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                     instance = instanceValues.ApplyValues(instance, normal, 1f);
-                    instanceSet.Instances[instanceCount] = instance;
-                    instanceSet.Count = instanceCount = instanceCount + 1;
+                    instances.Add(instance);
+                    //instanceSet.Count = instanceCount = instanceCount + 1;
                 }
 
                 break;
             case Brush.Mode.Substract:
-                MapData.PropInstance[] instances = instanceSet.Instances;
+                //List<MapData.PropInstance> instances = instanceSet.Instances;
                 for (int index = 0; index < instanceCount; ++index)
                 {
-                    Vector3 position = data.GetRealInstancePosition(instances[index].position);
+                    MapData.PropInstance instance = instances[index];
+                    Vector3 position = data.GetRealInstancePosition(instance.position);
                     Vector3 projOffset = projMatrix.MultiplyPoint(position);
                     float sqrDist = projOffset.sqrMagnitude;
                     if (sqrDist <= 1f) 
                     {
-                        instances[index].variantIndex = -1;
+                        instance.variantIndex = -1;
+                        instances[index] = instance;
                     }
                 }
                 instanceSet.RemoveMarked();
@@ -849,7 +853,9 @@ public class MapEditor : Editor {
     void RebuildPropMeshesAsync(bool forceDirtying)
     {
         if (forceDirtying) data.PropMeshesSetDirty();
-        
+
+        if (EditorApplication.isPlaying) return;//Let Map class do the rebuilding
+
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
@@ -877,12 +883,14 @@ public class MapEditor : Editor {
     #region Selection
     void SelectionOnSceneHandler(MapData.InstanceSet instanceSet)
     {
-        if (instanceSelection != null && instanceSelection.Length >= instanceSet.Count)
+        int instanceCount = instanceSet.Count;
+        List<MapData.PropInstance> instances = instanceSet.Instances;
+        if (instanceSelection != null && instanceSelection.Length >= instanceCount)
         {
             Vector3 meanPosition = default(Vector3);
-            for (int i = 0; i < instanceSet.Count; ++i)
+            for (int i = 0; i < instanceCount; ++i)
             {
-                MapData.PropInstance inst = instanceSet.Instances[i];
+                MapData.PropInstance inst = instances[i];
                 Vector3 position = data.GetRealInstancePosition(inst.position);
                 float handleSize = HandleUtility.GetHandleSize(position) * 0.05f;
 
@@ -906,28 +914,41 @@ public class MapEditor : Editor {
                     Undo.RegisterCompleteObjectUndo(data, "Props Move");
 
                     Vector3 deltaPosition = newPosition - meanPosition;
-                    MapData.PropInstance[] instances = instanceSet.Instances;
-                    for (int index = 0; index < instanceSet.Count; ++index)//No need for parallelization here
+                    for (int index = 0; index < instanceCount; ++index)//No need for parallelization here
                     {
-                        if (instanceSelection[index]) instances[index].position += deltaPosition;
+                        if (instanceSelection[index])
+                        {
+                            MapData.PropInstance instance = instances[index];
+                            instance.position += deltaPosition;
+                            instances[index] = instance;
+                        }
                     }
                     
                     RebuildPropMeshesAsync(true);
                 }
             }
         }
-        if (Event.current.type == EventType.KeyDown && Event.current.shift && Event.current.keyCode == KeyCode.A)
+        if (Event.current.type == EventType.KeyDown)
         {
-            if (instanceSelection != null && Array.TrueForAll(instanceSelection, selected => selected))// All selected
+            if (Event.current.shift && Event.current.keyCode == KeyCode.A)
             {
-                ResetSelection();
+                if (instanceSelection != null && Array.TrueForAll(instanceSelection, selected => selected))// All selected
+                {
+                    ResetSelection();
+                }
+                else
+                {
+                    SelectAll();
+                }
+                Repaint();
+                Event.current.Use();
             }
-            else
+            else if (Event.current.keyCode == KeyCode.Delete)
             {
-                SelectAll();
+                DeleteSelection(instanceSet);
+                Repaint();
+                Event.current.Use();
             }
-            Repaint();
-            Event.current.Use();
         }
     }
 
@@ -974,7 +995,7 @@ public class MapEditor : Editor {
     {
         Matrix4x4 projMatrix = currentBrush.GetProjectionMatrix(intersection, map.transform.localToWorldMatrix, SceneView.currentDrawingSceneView.camera);
         int instanceCount = instanceSet.Count;
-        MapData.PropInstance[] instances = instanceSet.Instances;
+        List<MapData.PropInstance> instances = instanceSet.Instances;
 
         bool shift = Event.current.shift;
         bool ctrl = Event.current.control;
@@ -1036,19 +1057,20 @@ public class MapEditor : Editor {
     void ApplyPropertiesToSelection(MapData.InstanceSet instanceSet)
     {
         int instanceCount = instanceSet.Count;
+        List<MapData.PropInstance> instances = instanceSet.Instances;
 
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
         if (instanceSelection == null) return;//Could not initialize
 
-        for (int index = 0; index < instanceSet.Count; ++index)
+        for (int index = 0; index < instanceCount; ++index)
         {
             if (instanceSelection[index])
             {
-                MapData.PropInstance instance = instanceSet.Instances[index];
+                MapData.PropInstance instance = instances[index];
                 Vector3 normal = data.SampleNormals(instance.position.x, instance.position.z);
                 instance = instanceValues.ApplyValues(instance, normal, 1f);
                 
-                instanceSet.Instances[index] = instance;
+                instances[index] = instance;
             }
         }
 
@@ -1058,15 +1080,18 @@ public class MapEditor : Editor {
     void DeleteSelection(MapData.InstanceSet instanceSet)
     {
         int instanceCount = instanceSet.Count;
+        List<MapData.PropInstance> instances = instanceSet.Instances;
 
         if (instanceSelection == null || instanceSelection.Length != instanceCount) InitializeSelection();
         if (instanceSelection == null) return;//Could not initialize
 
-        for (int index = 0; index < instanceSet.Count; ++index)
+        for (int index = 0; index < instanceCount; ++index)
         {
+            MapData.PropInstance instance = instances[index];
             if (instanceSelection[index])
             {
-                instanceSet.Instances[index].variantIndex = -1;
+                instance.variantIndex = -1;
+                instances[index] = instance;
             }
         }
 

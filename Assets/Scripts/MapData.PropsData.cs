@@ -19,39 +19,41 @@ public partial class MapData : ScriptableObject
     public class InstanceSet
     {
         public string label = "";
-        [HideInInspector] [SerializeField] private PropInstance[] instances = new PropInstance[0];
-        [HideInInspector] [SerializeField] private int count;//TODO change to List?
-        public PropInstance[] Instances { get { return instances; } }
+        [HideInInspector] [SerializeField] private List<PropInstance> instances = new List<PropInstance>();
+        //[HideInInspector] [SerializeField] private int count;//TODO change to List?
+        public List<PropInstance> Instances { get { return instances; } }
         public int Count
         {
-            get { return count; }
-            set {
-                EnsureCapacity(value);
-                count = value;
-            }
+            get { return instances.Count; }
+            //get { return count; }
+            //set {
+            //    EnsureCapacity(value);
+            //    count = value;
+            //}
         }
-        public void EnsureCapacity(int capacity)
-        {
-            if (capacity > instances.Length) Resize(capacity);
-        }
-        public void Minimize()
-        {
-            Resize(count);
-        }
-        public void Resize(int newSize)
-        {
-            if (instances.Length != newSize) System.Array.Resize(ref instances, newSize);
-        }
+        //public void EnsureCapacity(int capacity)
+        //{
+        //    if (capacity > instances.Length) Resize(capacity);
+        //}
+        //public void Minimize()
+        //{
+        //    Resize(count);
+        //}
+        //public void Resize(int newSize)
+        //{
+        //    if (instances.Length != newSize) System.Array.Resize(ref instances, newSize);
+        //}
         public void RemoveMarked()
         {
-            int index = 0;
-            while (index < count && instances[index].variantIndex >= 0) ++index;
-            for (int i = index + 1; i < count; ++i)
-            {
-                PropInstance inst = instances[i];
-                if (inst.variantIndex >= 0) instances[index++] = inst;
-            }
-            count = index;
+            //int index = 0;
+            //while (index < count && instances[index].variantIndex >= 0) ++index;
+            //for (int i = index + 1; i < count; ++i)
+            //{
+            //    PropInstance inst = instances[i];
+            //    if (inst.variantIndex >= 0) instances[index++] = inst;
+            //}
+            //count = index;
+            instances.RemoveAll((instance) => instance.variantIndex < 0);
         }
 
         public string GetInstanceSetName(int index)
@@ -395,7 +397,7 @@ public partial class MapData : ScriptableObject
             {
                 InstanceSet instanceSet = mapData.instanceSets[instanceSetIndex];
                 int instanceCount = instanceSet.Count;
-                PropInstance[] instances = instanceSet.Instances;//Keep reference to array in case another thread changes it (only the editor should change it)
+                List<PropInstance> instances = instanceSet.Instances;//We could sync this, but it should not be a problem outside the edtir
 
                 for (int i = 0; i < instanceCount; ++i)
                 {

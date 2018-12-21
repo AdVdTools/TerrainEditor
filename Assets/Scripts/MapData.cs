@@ -139,7 +139,7 @@ public partial class MapData : ScriptableObject
         {
             return (normals[indices.x] * barycentricCoordinate.x +
                 normals[indices.y] * barycentricCoordinate.y +
-                normals[indices.z] * barycentricCoordinate.z).normalized;//TODO should be normalized?
+                normals[indices.z] * barycentricCoordinate.z).normalized;
         }
         else
         {
@@ -165,7 +165,7 @@ public partial class MapData : ScriptableObject
     [ContextMenu("RebuildTerrainMesh")]
     public Mesh RefreshTerrainMesh()
     {
-        return RebuildParallel(1);//TODO Y?
+        return RebuildParallel(8);
     }
 
     private void OnEnable()
@@ -198,8 +198,7 @@ public partial class MapData : ScriptableObject
     {
         ReadTexture(heightTexture, ref heights);//ReadTexture ensures a properly sized array
     }
-
-    //TODO reestructure cs files? .subassets instead of .maptexture?
+    
 #if UNITY_EDITOR
     public void ValidateSubassets()
     {
