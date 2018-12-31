@@ -188,6 +188,7 @@ public partial class MapData : ScriptableObject
         Mesh mesh;
         List<Vector3> vertices;
         List<Vector3> normals;
+        List<Vector4> tangents;
         List<Vector2> uvs;
         List<Vector2> uvs2;//Common sampling point and pivot for each instance
         List<Color> colors;
@@ -371,6 +372,7 @@ public partial class MapData : ScriptableObject
 
             if (vertices == null) vertices = new List<Vector3>();
             if (normals == null) normals = new List<Vector3>();
+            if (tangents == null) tangents = new List<Vector4>();
             if (uvs == null) uvs = new List<Vector2>();
             if (uvs2 == null) uvs2 = new List<Vector2>();
             if (colors == null) colors = new List<Color>();
@@ -385,6 +387,7 @@ public partial class MapData : ScriptableObject
             // Clear lists
             vertices.Clear();
             normals.Clear();
+            tangents.Clear();
             uvs.Clear();
             uvs2.Clear();
             colors.Clear();
@@ -512,13 +515,44 @@ public partial class MapData : ScriptableObject
                         Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]).normalized;
                         normals.Add(normal);
                     }
-                    for (int i = 0; i < meshData.verticesCount; ++i)
+                    if (meshData.tangentsList.Count == meshData.verticesCount)//If it has tangents
                     {
-                        Vector2 uv = meshData.uvsList[i];
-                        uvs.Add(uv);
-                        uvs2.Add(position2D);
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            Vector4 origTangent = meshData.tangentsList[i];
+                            Vector4 tangent = matrix.MultiplyVector(origTangent).normalized * origTangent.w;
+                            tangent.w = 1;
+                            tangents.Add(tangent);
+                        }
                     }
-                    if (meshData.colorsList.Count == meshData.verticesCount)//If colors loaded
+                    else
+                    {
+                        Vector4 rightTangent = matrix.MultiplyVector(new Vector3(1, 0, 0)).normalized;
+                        rightTangent.w = 1;
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            tangents.Add(rightTangent);
+                        }
+                    }
+                    if (meshData.uvsList.Count == meshData.verticesCount)//If uvs loaded
+                    {
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            Vector2 uv = meshData.uvsList[i];
+                            uvs.Add(uv);
+                            uvs2.Add(position2D);
+                        }
+                    }
+                    else
+                    {
+                        Vector2 zero = default(Vector2);
+                        for (int i = 0; i < meshData.verticesCount; ++i)
+                        {
+                            uvs.Add(zero);
+                            uvs2.Add(position2D);
+                        }
+                    }
+                    if (meshData.colorsList.Count == meshData.verticesCount)//If colors loaded, TODO create arrays in mesh resource and assume here? same for uvs?
                     {
                         for (int i = 0; i < meshData.verticesCount; ++i)
                         {
@@ -568,11 +602,12 @@ public partial class MapData : ScriptableObject
 
             mesh.SetVertices(vertices);//mesh.vertices = vertices;
             mesh.SetNormals(normals);//mesh.normals = normals;
+            mesh.SetTangents(tangents);//mesh.tangents = tangents;
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
             mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
             mesh.SetColors(colors);//mesh.colors = colors;
 
-            Debug.Log("BTW: "+updateDuration);
+            Debug.Log("BTW: " + updateDuration);
 
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)

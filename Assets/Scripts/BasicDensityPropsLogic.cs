@@ -2,31 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[System.Serializable]
-public struct VariantAttributes //For density maps only
-{
-    public FloatRange scaleRange;
-    public FloatRange alignmentRange;
-    public FloatRange rotationRange;
-    public FloatRange yOffsetRange;
-    public Gradient colorGradient;
-
-    public static VariantAttributes DefaultAttributes
-    {
-        get
-        {
-            return new VariantAttributes()
-            {
-                scaleRange = new FloatRange(1f, 1f),
-                alignmentRange = new FloatRange(0.2f, 0.5f),
-                rotationRange = new FloatRange(-180f, 180f),
-                yOffsetRange = new FloatRange(0f, 0f),
-                colorGradient = new Gradient()
-            };
-        }
-    }
-}
-
 /// <summary>
 /// XYZ: variants densities
 /// W: size
@@ -34,6 +9,31 @@ public struct VariantAttributes //For density maps only
 [CreateAssetMenu(menuName = "DensityPropsLogic/Basic", fileName = "Basic Density Props Logic")]
 public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsLogic
 {
+    [System.Serializable]
+    private struct VariantAttributes //For density maps only
+    {
+        public FloatRange scaleRange;
+        public FloatRange alignmentRange;
+        public FloatRange rotationRange;
+        public FloatRange yOffsetRange;
+        public Gradient colorGradient;
+
+        public static VariantAttributes DefaultAttributes
+        {
+            get
+            {
+                return new VariantAttributes()
+                {
+                    scaleRange = new FloatRange(1f, 1f),
+                    alignmentRange = new FloatRange(0.2f, 0.5f),
+                    rotationRange = new FloatRange(-180f, 180f),
+                    yOffsetRange = new FloatRange(0f, 0f),
+                    colorGradient = new Gradient()
+                };
+            }
+        }
+    }
+
     [SerializeField]
     VariantAttributes[] variantAttributes = new VariantAttributes[] {
         VariantAttributes.DefaultAttributes

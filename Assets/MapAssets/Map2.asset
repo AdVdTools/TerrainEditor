@@ -335,39 +335,51 @@ MonoBehaviour:
   - label: Trees
     instances:
     - position: {x: 4.240239, y: -0.0000010013582, z: 5.1076646}
-      alignment: 0.7
+      alignment: 0.77998745
       rotation: 90.29703
-      size: 0.2
+      size: 0.6765248
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
     - position: {x: 10.341024, y: 0, z: 12.341499}
-      alignment: 0
+      alignment: 0.88329375
       rotation: 215.35797
-      size: 0.25
+      size: 0.58374035
       tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: 0
     - position: {x: 10.497681, y: 0, z: 7.460894}
-      alignment: 0
+      alignment: 0.43865734
       rotation: 356.99716
-      size: 0.15
+      size: 0.6257037
       tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: 0
     - position: {x: 17.31704, y: 0, z: 10.120788}
-      alignment: 0
+      alignment: 0.7380006
       rotation: 179.38478
-      size: 0.34
+      size: 0.5032658
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
     - position: {x: 0, y: 0, z: 0}
-      alignment: 0
+      alignment: 0.8038554
       rotation: 0
-      size: 0
+      size: 0.53769916
       tint: {r: 0, g: 0, b: 0, a: 0}
       variantIndex: 0
     - position: {x: 9.083335, y: 0, z: 11.059195}
-      alignment: 0
+      alignment: 0.6005512
       rotation: 305.44028
-      size: 0.22
+      size: 0.5173345
+      tint: {r: 1, g: 1, b: 1, a: 1}
+      variantIndex: 0
+    - position: {x: 11.894096, y: 0, z: 11.2284565}
+      alignment: 0.3785115
+      rotation: 284.75525
+      size: 0.4472999
+      tint: {r: 1, g: 1, b: 1, a: 1}
+      variantIndex: 0
+    - position: {x: 12.14604, y: 0, z: 9.67304}
+      alignment: 0.6629074
+      rotation: 134.49493
+      size: 0.59546524
       tint: {r: 1, g: 1, b: 1, a: 1}
       variantIndex: 0
   propsMeshesData:
@@ -379,7 +391,7 @@ MonoBehaviour:
     redrawThreshold: 5
     variants:
     - meshResources:
-      - data: {fileID: 11400000, guid: fbde771ad671d074e81dfc9390d3ca0f, type: 2}
+      - data: {fileID: 11400000, guid: 7df2047b6f73a3943a1b6294bcb50080, type: 2}
         distanceRange:
           min: 0
           max: 20
@@ -389,7 +401,7 @@ MonoBehaviour:
     verticesLengthLimit: 14000
     trianglesLengthLimit: 42000
     materials:
-    - {fileID: 2100000, guid: 0666ed421e3d1f146a986f726e7354c1, type: 2}
+    - {fileID: 2100000, guid: 78c3b044cfea3c343ac262441e4d63b3, type: 2}
   - pattern: {fileID: 11400000, guid: 3b4573685cd2dfe4abe3be9e6243a54e, type: 2}
     patternScale: 16
     maxCellOffset: 5
@@ -398,12 +410,12 @@ MonoBehaviour:
     redrawThreshold: 5
     variants:
     - meshResources:
-      - data: {fileID: 11400000, guid: dca79f761d51ffe4fa89c610fcf25da9, type: 2}
+      - data: {fileID: 11400000, guid: 03cdd973bf04269498b3ee7d420964d4, type: 2}
         distanceRange:
           min: 0
           max: 20
         targetSubMesh: 0
-      - data: {fileID: 11400000, guid: c932e85072ef7894c8e57261b4af409a, type: 2}
+      - data: {fileID: 11400000, guid: ae7b2f281e9013349a618d6b3b7aeb5f, type: 2}
         distanceRange:
           min: 0
           max: 20
@@ -413,8 +425,8 @@ MonoBehaviour:
     verticesLengthLimit: 14000
     trianglesLengthLimit: 42000
     materials:
-    - {fileID: 2100000, guid: bb8b16d738f86ef4aa304d6e668e853d, type: 2}
-    - {fileID: 2100000, guid: 7e56b6e37c078ed47b6d0e9d9249ea9f, type: 2}
+    - {fileID: 2100002, guid: b5883410fd99a69478e8d5231675dda9, type: 3}
+    - {fileID: 2100000, guid: 78c3b044cfea3c343ac262441e4d63b3, type: 2}
 --- !u!28 &28091074513309832
 Texture2D:
   m_ObjectHideFlags: 0

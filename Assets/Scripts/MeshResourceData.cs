@@ -18,6 +18,7 @@ public class MeshResourceData : ScriptableObject
 
     [System.NonSerialized] public List<Vector3> verticesList = new List<Vector3>();
     [System.NonSerialized] public List<Vector3> normalsList = new List<Vector3>();
+    [System.NonSerialized] public List<Vector4> tangentsList = new List<Vector4>();
     [System.NonSerialized] public List<Vector2> uvsList = new List<Vector2>();
     [System.NonSerialized] public List<Color> colorsList = new List<Color>();
     [System.NonSerialized] public List<int> trianglesList = new List<int>();
@@ -46,6 +47,7 @@ public class MeshResourceData : ScriptableObject
             
             mesh.GetVertices(verticesList);
             mesh.GetNormals(normalsList);
+            mesh.GetTangents(tangentsList);
             mesh.GetUVs(0, uvsList);
             mesh.GetColors(colorsList);
 
@@ -81,6 +83,7 @@ public class MeshResourceData : ScriptableObject
                     for (; i < indicesCount; ++i) if (trianglesList[i] == index) trianglesList[i] = newIndex;
                     verticesList[newIndex] = verticesList[index];
                     normalsList[newIndex] = normalsList[index];
+                    tangentsList[newIndex] = tangentsList[index];
                     uvsList[newIndex] = uvsList[index];
                     if (hasColors) colorsList[newIndex] = colorsList[index];
                     newIndex++;
@@ -92,6 +95,7 @@ public class MeshResourceData : ScriptableObject
         {
             verticesList.RemoveRange(newIndex, verticesToRemove);
             normalsList.RemoveRange(newIndex, verticesToRemove);
+            tangentsList.RemoveRange(newIndex, verticesToRemove);
             uvsList.RemoveRange(newIndex, verticesToRemove);
             if (hasColors) colorsList.RemoveRange(newIndex, verticesToRemove);
             verticesCount = newIndex;
@@ -108,6 +112,7 @@ public class MeshResourceData : ScriptableObject
 
             verticesList = new List<Vector3>();
             normalsList = new List<Vector3>();
+            tangentsList = new List<Vector4>();
             uvsList = new List<Vector2>();
             colorsList = new List<Color>();
             trianglesList = new List<int>();

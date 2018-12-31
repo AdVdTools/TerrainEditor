@@ -72,6 +72,8 @@ public class MapEditor : Editor {
         Debug.LogWarning("OnDisable");
 
         if (mapTextureMaterial != null) DestroyImmediate(mapTextureMaterial, true);
+
+        if (editing) Tools.hidden = false;
     }
 
     private void OnUndoRedo()
