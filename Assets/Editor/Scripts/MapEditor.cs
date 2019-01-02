@@ -330,7 +330,7 @@ public class MapEditor : Editor {
                 repaintPeriod += (repaintStopWatch.ElapsedMilliseconds - repaintPeriod) * 0.5f;
                 repaintStopWatch.Reset();
                 repaintStopWatch.Start();
-                
+
                 RebuildPropMeshesAsync(false);
             }
 
@@ -847,7 +847,8 @@ public class MapEditor : Editor {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshes(pov, map.LODScale);
+        Matrix4x4 localToWorld = map.transform.localToWorldMatrix;
+        data.RefreshPropMeshes(pov, map.LODScale, localToWorld);
     }
 
     bool afterMeshUpdateRefreshPending = false;
@@ -861,7 +862,8 @@ public class MapEditor : Editor {
         Transform povTransform = map.POVTransform;
         if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
         Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
-        data.RefreshPropMeshesAsync(pov, map.LODScale);
+        Matrix4x4 localToWorld = map.transform.localToWorldMatrix;
+        data.RefreshPropMeshesAsync(pov, map.LODScale, localToWorld);
 
         if (data.PropMeshesRebuildOngoing())
         {
@@ -875,6 +877,17 @@ public class MapEditor : Editor {
             afterMeshUpdateRefreshPending = false;
         }
     }
+
+    //void DrawPropMeshes()
+    //{
+    //    if (EditorApplication.isPlaying) return;//Let Map class do the drawing
+
+    //    Transform povTransform = map.POVTransform;
+    //    if (povTransform == null && SceneView.currentDrawingSceneView != null) povTransform = SceneView.currentDrawingSceneView.camera.transform;
+    //    Vector3 pov = povTransform != null ? map.transform.InverseTransformPoint(povTransform.position) : default(Vector3);
+    //    Matrix4x4 localToWorld = map.transform.localToWorldMatrix;
+    //    data.DrawProps(pov, map.LODScale, localToWorld);
+    //}
 
     void SetPropsDirtyAndRepaintScene()
     {

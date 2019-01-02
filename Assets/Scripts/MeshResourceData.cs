@@ -11,6 +11,9 @@ public class MeshResourceData : ScriptableObject
     [SerializeField] private Mesh mesh;
     [SerializeField] private int subMeshIndex;
 
+    public Mesh sharedMesh { get { return mesh; } }
+    public int SubMeshIndex { get { return subMeshIndex; } }
+
     private bool dirty = false;//Whether lists should be reloaded
 
     public int verticesCount { get; private set; }

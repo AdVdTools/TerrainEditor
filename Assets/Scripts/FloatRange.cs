@@ -18,6 +18,11 @@ public struct FloatRange
         return value >= min && value <= max;
     }
 
+    public bool CheckInSqrRange(float sqrValue)
+    {
+        return sqrValue >= min * min && sqrValue <= max * max;
+    }
+
     public float GetValue(float rand)
     {
         return min + rand * (max - min);

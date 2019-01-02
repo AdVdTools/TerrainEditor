@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[ExecuteInEditMode]
 [RequireComponent(typeof(MeshFilter))]
 public class Map : MonoBehaviour
 {
@@ -24,8 +25,11 @@ public class Map : MonoBehaviour
         //TODO get main camera as pov if none selected?
         if (povTransform == null)
         {
-            Camera mainCam = Camera.main;
-            if (mainCam != null) povTransform = mainCam.transform;
+            if (!Utils.IsEditMode)
+            {
+                Camera mainCam = Camera.main;
+                if (mainCam != null) povTransform = mainCam.transform;
+            }
         }
 
         Refresh();
@@ -35,9 +39,17 @@ public class Map : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (mapData != null && povTransform != null)//TODO avoid refresh from editor while this is running?
-        {
-            mapData.RefreshPropMeshesAsync(transform.InverseTransformPoint(povTransform.position), lodScale);
+        if (mapData != null) {
+            if (povTransform != null)//TODO avoid refresh from editor while this is running?
+            {
+                if (!Utils.IsEditMode)
+                {
+                    Matrix4x4 localToWorld = transform.localToWorldMatrix;
+                    mapData.RefreshPropMeshesAsync(transform.InverseTransformPoint(povTransform.position), lodScale, localToWorld);
+                }//TODO else follow editcam?, let the editor do the work?, TODO implement disable on multiple failures + callback to handle both in game and in editor
+            }
+
+            mapData.DrawPropMeshes();
         }
     }
 
@@ -55,7 +67,7 @@ public class Map : MonoBehaviour
     }
 
     [ContextMenu("Refresh Props Meshes")]
-    public void RefreshProps()
+    public void RefreshProps()//TODO remove mesh assign?
     {
         if (mapData != null)
         {
@@ -65,7 +77,8 @@ public class Map : MonoBehaviour
             Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
             pov = transform.InverseTransformPoint(pov);
             //Debug.Log(pov);
-            mapData.RefreshPropMeshes(pov, 1f);
+            Matrix4x4 localToWorld = transform.localToWorldMatrix;
+            mapData.RefreshPropMeshes(pov, 1f, localToWorld);//TODO this is used to ensure meshes mostly
             int count = Mathf.Min(propsMeshData.Length, propsMeshFilters.Length);
             for (int i = 0; i < count; ++i)
             {
