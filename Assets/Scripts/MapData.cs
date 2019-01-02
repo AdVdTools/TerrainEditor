@@ -5,6 +5,7 @@ using System.Threading;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Profiling;
+using UnityEngine.Rendering;
 
 [Serializable]
 [CreateAssetMenu(fileName = "Map")]
@@ -16,6 +17,12 @@ public partial class MapData : ScriptableObject
     private float[] heights = new float[0];
 
     [HideInInspector] [SerializeField] private Texture2D heightTexture;
+
+    
+    //[SerializeField]//TODO assign to renderer? ConfigureRenderer(Renderer) method? assign materials too
+    //private ShadowCastingMode castShadows = ShadowCastingMode.Off;
+    //[SerializeField]
+    //private bool receiveShadows = false;
 
     [SerializeField] private Material terrainMaterial;
 
@@ -403,7 +410,7 @@ public partial class MapData : ScriptableObject
         public ManualResetEvent mre;
     }
 
-    public Mesh RebuildParallel(int threads)
+    public Mesh RebuildParallel(int threads)//TODO async rebuild might be needed eventually
     {
         if (terrainMesh == null)
         {

@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 [ExecuteInEditMode]
 [RequireComponent(typeof(MeshFilter))]
 public class Map : MonoBehaviour
 {
     [SerializeField] MapData mapData;
-    MeshFilter meshFilter;
     
-    [SerializeField] MeshFilter[] propsMeshFilters = new MeshFilter[0];
     [SerializeField] Transform povTransform;
     
     [SerializeField] float lodScale = 1f;
@@ -19,7 +14,7 @@ public class Map : MonoBehaviour
     public Transform POVTransform { get { return povTransform; } set { povTransform = value; } }
     public float LODScale { get { return lodScale; } }
 
-    // Use this for initialization
+
     void Start()
     {
         //TODO get main camera as pov if none selected?
@@ -54,54 +49,45 @@ public class Map : MonoBehaviour
     }
 
     [ContextMenu("Refresh Mesh")]
-    public void Refresh()
+    public void Refresh()//TODO remove renderer and filter? 
     {
         if (mapData != null)
         {
+            MeshFilter meshFilter = GetComponent<MeshFilter>();
             meshFilter.sharedMesh = mapData.RefreshTerrainMesh();
-            
+
             MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
             if (meshRenderer != null) meshRenderer.sharedMaterial = mapData.TerrainMaterial;
         }
-        else meshFilter.sharedMesh = null;
+        else
+        {
+            MeshFilter meshFilter = GetComponent<MeshFilter>();
+            meshFilter.sharedMesh = null;
+        }
     }
 
     [ContextMenu("Refresh Props Meshes")]
-    public void RefreshProps()//TODO remove mesh assign?
+    public void RefreshProps()
     {
         if (mapData != null)
         {
             MapData.PropsMeshData[] propsMeshData = mapData.propsMeshesData;
             Transform povTransform = this.povTransform;
-            if (povTransform == null) { Camera mainCam = Camera.main; povTransform = mainCam != null ? mainCam.transform : null; }
+            if (povTransform == null)
+            {
+                Camera mainCam = Camera.main;
+                if (mainCam != null) povTransform = mainCam.transform;
+            }
             Vector3 pov = povTransform != null ? povTransform.position : default(Vector3);
             pov = transform.InverseTransformPoint(pov);
             //Debug.Log(pov);
             Matrix4x4 localToWorld = transform.localToWorldMatrix;
             mapData.RefreshPropMeshes(pov, 1f, localToWorld);//TODO this is used to ensure meshes mostly
-            int count = Mathf.Min(propsMeshData.Length, propsMeshFilters.Length);
-            for (int i = 0; i < count; ++i)
-            {
-                MeshFilter meshFilter = propsMeshFilters[i];
-                meshFilter.sharedMesh = propsMeshData[i].sharedMesh;
-                MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
-                meshRenderer.sharedMaterials = propsMeshData[i].sharedMaterials;
-            }
-        }
-        else
-        {
-            for (int i = 0; i < propsMeshFilters.Length; ++i)
-            {
-                MeshFilter meshFilter = propsMeshFilters[i];
-                meshFilter.sharedMesh = null;
-            }
         }
     }
 
     private void OnValidate()
     {
-        meshFilter = GetComponent<MeshFilter>();
-
         lodScale = Mathf.Clamp(lodScale, 0.001f, 1000);
     }
 }

@@ -23,39 +23,14 @@ public partial class MapData : ScriptableObject
     {
         public string label = "";
         [HideInInspector] [SerializeField] private List<PropInstance> instances = new List<PropInstance>();
-        //[HideInInspector] [SerializeField] private int count;//TODO change to List?
         public List<PropInstance> Instances { get { return instances; } }
         public int Count
         {
             get { return instances.Count; }
-            //get { return count; }
-            //set {
-            //    EnsureCapacity(value);
-            //    count = value;
-            //}
         }
-        //public void EnsureCapacity(int capacity)
-        //{
-        //    if (capacity > instances.Length) Resize(capacity);
-        //}
-        //public void Minimize()
-        //{
-        //    Resize(count);
-        //}
-        //public void Resize(int newSize)
-        //{
-        //    if (instances.Length != newSize) System.Array.Resize(ref instances, newSize);
-        //}
+
         public void RemoveMarked()
         {
-            //int index = 0;
-            //while (index < count && instances[index].variantIndex >= 0) ++index;
-            //for (int i = index + 1; i < count; ++i)
-            //{
-            //    PropInstance inst = instances[i];
-            //    if (inst.variantIndex >= 0) instances[index++] = inst;
-            //}
-            //count = index;
             instances.RemoveAll((instance) => instance.variantIndex < 0);
         }
 
@@ -71,12 +46,6 @@ public partial class MapData : ScriptableObject
     {
         instancePosition.y += SampleHeight(instancePosition.x, instancePosition.z);
         return instancePosition;
-    }
-    
-    [ContextMenu("RebuildPropsMeshes")]
-    public void RefreshPropMeshes()
-    {
-        RefreshPropMeshes(default(Vector3), 1f, Matrix4x4.identity);//TODO this is just a method that ensures the existence of the meshes..
     }
     
     public void RefreshPropMeshes(Vector3 pov, float lodScale, Matrix4x4 localToWorld)
@@ -103,7 +72,7 @@ public partial class MapData : ScriptableObject
     /// <summary>
     /// Uses Graphics.DrawMesh calls!
     /// </summary>
-    public void DrawPropMeshes()//TODO this should be called in edit mode somehow..
+    public void DrawPropMeshes()
     {
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
@@ -147,10 +116,7 @@ public partial class MapData : ScriptableObject
 
         [SerializeField]
         private float maxCellOffset = 5f;
-
-        [SerializeField]
-        private FloatRange distanceRange = new FloatRange(0, 20);//TODO transition? use shader for that?
-
+        
 
         [SerializeField]
         private int instanceSetIndex = -1;
@@ -168,7 +134,7 @@ public partial class MapData : ScriptableObject
         private bool shouldThreadRun = false;
         private bool dirty = false;
 
-        public Variant[] variants = new Variant[1];
+        [SerializeField] private Variant[] variants = new Variant[1];
 
         public DensityPropsLogic propsLogic;
 
@@ -178,6 +144,8 @@ public partial class MapData : ScriptableObject
             public MeshResource[] meshResources = new MeshResource[1];// For both LODs and instance components
 
             public Vector3 propsDirection = Vector3.up;
+
+            public FloatRange distanceRange = new FloatRange(0, 20);//TODO transition? use shader for that?
         }
 
         [System.Serializable]
@@ -199,9 +167,15 @@ public partial class MapData : ScriptableObject
 
         [Range(1, 1023)]
         [SerializeField] int variantInstanceLimit = 1000;
+        
 
-        public Material[] sharedMaterials { get { return materials; } }
+        [SerializeField]
+        private ShadowCastingMode castShadows = ShadowCastingMode.Off;
+        [SerializeField]
+        private bool receiveShadows = false;
+
         [SerializeField] Material[] materials;
+        public Material[] sharedMaterials { get { return materials; } }
 
         public Mesh sharedMesh { get { return mesh; } }
 
@@ -217,7 +191,7 @@ public partial class MapData : ScriptableObject
 #else
         private struct VariantInstancesData
         {
-            private static int _ColorPropertyID = Shader.PropertyToID("_Color");//TODO does this work here?
+            private static int _ColorPropertyID = Shader.PropertyToID("_Color");
 
             //Background workspace
             private List<Matrix4x4> _instanceMatrices;
@@ -226,6 +200,9 @@ public partial class MapData : ScriptableObject
             public List<Matrix4x4> instanceMatrices;
             public MaterialPropertyBlock instanceProperties;
 
+            /// <summary>
+            /// Called from the building thread
+            /// </summary>
             public int InternalCount { get { return _instanceMatrices.Count; } }
 
             /// <summary>
@@ -238,9 +215,6 @@ public partial class MapData : ScriptableObject
                 else if (_instanceMatrices.Capacity != capacity) _instanceMatrices.Capacity = capacity;
                 if (_instanceColors == null) _instanceColors = new List<Vector4>(capacity);
                 else if (_instanceColors.Capacity != capacity) _instanceColors.Capacity = capacity;
-
-                //TODO make sure everything is used in its proper thread and time!
-                //TODO comment
                 
                 _instanceMatrices.Clear();
                 _instanceColors.Clear();
@@ -277,9 +251,20 @@ public partial class MapData : ScriptableObject
 #endif
 
         MapData mapData;
-        Matrix4x4 localToWorld;//TODO split in "bkg working data" (for building) and "current mesh data" (for drawing)
-        Vector3 pov;//TODO include pov and lod in the split? update "current" on updatemesh (or equivalent)
+
+        // Building thread parameters
+        Matrix4x4 _localToWorld;
+        Vector3 _pov;
+        float _lodScale = 1f;
+
+        // Drawing (Main) thread parameters
+        Matrix4x4 localToWorld = Matrix4x4.identity;
+        Vector3 pov = Vector3.zero;
         float lodScale = 1f;
+
+        public Matrix4x4 CurrentLocalToWorld { get { return localToWorld; } }
+        public Vector3 CurrentPOV { get { return pov; } }
+        public float CurrentLODScale { get { return lodScale; } }
 
         public void SetDirty()
         {
@@ -299,16 +284,16 @@ public partial class MapData : ScriptableObject
                 {
                     //Begin Vertices/Indices update
                     this.mapData = mapData;
-                    this.localToWorld = localToWorld;
-                    this.pov = pov;//TODO transform pov to local here? or not
-                    this.lodScale = lodScale;
+                    _localToWorld = localToWorld;
+                    _pov = pov;
+                    _lodScale = lodScale;
 
 #if !GPU_INSTANCING
                     LoadMeshLists();
                     InitializeLists();
                     currentUpdateState = UpdateState.Updating;
                     Debug.Log("ForceUpdate");
-                    PropsUpdate();//TODO toggle?
+                    PropsUpdate();
                     UpdateMesh();
 #else
                     InitializeVariantsInstancesData();
@@ -317,6 +302,10 @@ public partial class MapData : ScriptableObject
                     PropsBuildData();
                     RetrieveInstanceData();
 #endif
+
+                    this.localToWorld = _localToWorld;
+                    this.pov = _pov;
+                    this.lodScale = _lodScale;
 
                     currentUpdateState = UpdateState.Idle;
                     currPOV = pov;
@@ -355,13 +344,16 @@ public partial class MapData : ScriptableObject
 #else
                     RetrieveInstanceData();
 #endif
+                    this.localToWorld = _localToWorld;
+                    this.pov = _pov;
+                    this.lodScale = _lodScale;
 
                     currentUpdateState = UpdateState.Idle;
                 }
 
                 if (currentUpdateState == UpdateState.Idle)
                 {
-                    if (Vector3.SqrMagnitude(pov - this.pov) > redrawThreshold * redrawThreshold)
+                    if (Vector3.SqrMagnitude(pov - _pov) > redrawThreshold * redrawThreshold)
                     {
                         dirty = true;
                     }
@@ -369,9 +361,9 @@ public partial class MapData : ScriptableObject
                     {
                         currentUpdateState = UpdateState.Updating;
                         this.mapData = mapData;
-                        this.localToWorld = localToWorld;
-                        this.pov = pov;//TODO transform pov to local here? or not
-                        this.lodScale = lodScale;
+                        _localToWorld = localToWorld;
+                        _pov = pov;
+                        _lodScale = lodScale;
 
 #if !GPU_INSTANCING
                         LoadMeshLists();
@@ -550,8 +542,8 @@ public partial class MapData : ScriptableObject
                 PropDitherPattern.PatternElement[] elements = pattern.elements;
                 int elementsLength = elements.Length;
 
-                int povCellX = Mathf.RoundToInt(pov.x / patternScale);
-                int povCellY = Mathf.RoundToInt(pov.z / patternScale);
+                int povCellX = Mathf.RoundToInt(_pov.x / patternScale);
+                int povCellY = Mathf.RoundToInt(_pov.z / patternScale);
 
                 MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
 
@@ -627,8 +619,8 @@ public partial class MapData : ScriptableObject
                 PropDitherPattern.PatternElement[] elements = pattern.elements;
                 int elementsLength = elements.Length;
 
-                int povCellX = Mathf.RoundToInt(pov.x / patternScale);
-                int povCellY = Mathf.RoundToInt(pov.z / patternScale);
+                int povCellX = Mathf.RoundToInt(_pov.x / patternScale);
+                int povCellY = Mathf.RoundToInt(_pov.z / patternScale);
 
                 MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
 
@@ -701,19 +693,20 @@ public partial class MapData : ScriptableObject
         //TODO more submeshes?
         void PropsDraw()
         {
+            //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property 
+
             int materialsLength = materials.Length;
             for (int i = 0; i < materialsLength; ++i)
             {
-                Graphics.DrawMesh(mesh, localToWorld, materials[i], 0, null, i, null, ShadowCastingMode.Off, true, null, LightProbeUsage.Off);
+                Graphics.DrawMesh(mesh, localToWorld, materials[i], 0, null, i, null, castShadows, receiveShadows, null, LightProbeUsage.Off);
             }
         }
 #else
         /// <summary>
         /// Call Graphics.DrawMesh in main thread and rely on gpu instancing material?
         /// </summary>
-        void PropsDrawInstanced()//TODO draw meshes with Graphics.DrawMesh if GPU_INSTANCING disabled?
+        void PropsDrawInstanced()
         {
-            /*DrawMesh*/
             //int colorPropertyID = Shader.PropertyToID("_Color");//TODO cache further?
             //MaterialPropertyBlock properties = new MaterialPropertyBlock();//TODO save this allocation? but clear in here
             
@@ -734,8 +727,9 @@ public partial class MapData : ScriptableObject
                 }
                 if (instancesData.instanceMatrices.Count == 0) continue;
                 //MaterialPropertyBlock properties = new MaterialPropertyBlock();// store in VariantInstancesData?, save one of the lists, have the aux matrix list in there too?
+                //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property
 
-                /*DrawMeshInstanced*/
+
                 //TODO test on device/android
                 for (int r = 0; r < variant.meshResources.Length; ++r)
                 {
@@ -743,124 +737,10 @@ public partial class MapData : ScriptableObject
                     MeshResourceData meshData = meshResource.data;
                     if (meshData == null) continue;
 
-                    //TODO shadows options for both gpu instanced and mesh renderers, and configurable properties added? (color/lodBlend?)
-                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, instancesData.instanceProperties, ShadowCastingMode.Off, true, 0, null, LightProbeUsage.Off);
+                    //TODO configurable properties added? (color/lodBlend?/pov+lodScale)
+                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, instancesData.instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
                 }
-
-                /*DrawMesh*/
-                //int instanceCount = instancesData.instanceMatrices.Count;
-                //for (int instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex)
-                //{
-                //    properties.SetColor(colorPropertyID, instancesData.instanceColors[instanceIndex]);
-
-                //    Matrix4x4 matrix = instancesData.instanceMatrices[instanceIndex];
-
-                //    for (int r = 0; r < variant.meshResources.Length; ++r)
-                //    {
-                //        MeshResource meshResource = variant.meshResources[r];
-                //        MeshResourceData meshData = meshResource.data;
-                //        if (meshData == null) continue;
-                        
-                //        //TODO shadows options for both gpu instanced and mesh renderers
-                //        Graphics.DrawMesh(meshData.sharedMesh, matrix, materials[meshResource.targetSubMesh], 0, null, meshData.SubMeshIndex, properties, false, true, false);
-                //    }
-                //}
             }
-
-            //int colorPropertyID = Shader.PropertyToID("_Color");
-            //MaterialPropertyBlock properties = new MaterialPropertyBlock();//TODO save this allocation?
-            //Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
-
-            //properties.SetColor(colorPropertyID, instance.tint);
-
-            //for (int r = 0; r < variant.meshResources.Length; ++r)
-            //{
-            //    MeshResource meshResource = variant.meshResources[r];
-            //    MeshResourceData meshData = meshResource.data;
-            //    if (meshData == null) continue;
-            //    lock (meshData.dataLock)
-            //    {
-            //        if (!meshResource.distanceRange.CheckInRange(distance)) continue;
-
-            //        Graphics.DrawMesh(meshData.sharedMesh, localToWorld * matrix, materials[meshResource.targetSubMesh], 0, null, meshData.SubMeshIndex, properties, false, true, false);
-            //    }
-            //}
-        
-    
-
-
-            //updateStopWatch.Reset();
-            //updateStopWatch.Start();
-
-            //if (instanceSetIndex >= 0 && instanceSetIndex < mapData.instanceSets.Length)
-            //{
-            //    InstanceSet instanceSet = mapData.instanceSets[instanceSetIndex];
-            //    int instanceCount = instanceSet.Count;
-            //    List<PropInstance> instances = instanceSet.Instances;//We could sync this, but it should not be a problem outside the edtir
-
-            //    for (int i = 0; i < instanceCount; ++i)
-            //    {
-            //        PropInstance instance = instances[i];
-
-            //        DrawInstance(instance);
-            //    }
-            //}
-
-
-            //if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.mapTextures.Length)
-            //{
-            //    PropDitherPattern.PatternElement[] elements = pattern.elements;
-            //    int elementsLength = elements.Length;
-
-            //    int povCellX = Mathf.RoundToInt(pov.x / patternScale);
-            //    int povCellY = Mathf.RoundToInt(pov.z / patternScale);
-
-            //    MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
-
-            //    DensityPropsLogic currentPropsLogic = propsLogic;
-            //    //System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance> BuildInstanceData = currentPropsLogic.BuildInstanceData;//No apparent improvement
-
-            //    Vector2 elementPosition;
-            //    Vector4 densityValues;
-            //    for (int e = 0; e < elements.Length; ++e)
-            //    {
-            //        float elementRand = (float)(e + 1) / elementsLength;
-
-            //        elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
-            //        densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-            //        DrawInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-            //    }
-
-            //    for (int offset = 1; offset <= maxCellOffset; ++offset)
-            //    {
-            //        //int sideLength = offset * 2;
-            //        for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
-            //        {
-            //            for (int e = 0; e < elements.Length; ++e)
-            //            {
-            //                float elementRand = (float)(e + 1) / elementsLength;
-
-            //                elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
-            //                densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-            //                DrawInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-            //                elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
-            //                densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-            //                DrawInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-            //                elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
-            //                densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-            //                DrawInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-            //                elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
-            //                densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-            //                DrawInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-            //            }
-            //        }
-            //    }
-            //}
-
-            //updateStopWatch.Stop();
-            //updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
-
-            //Debug.Log("PropsDraw: " + updateDuration);
         }
 #endif
 
@@ -879,9 +759,9 @@ public partial class MapData : ScriptableObject
             Vector2 position2D = new Vector2(position.x, position.z);
 
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
-            float sqrDistance = (realPosition - pov).sqrMagnitude * lodScale * lodScale;
+            float sqrDistance = (realPosition - _pov).sqrMagnitude * _lodScale * _lodScale;
 
-            if (!distanceRange.CheckInSqrRange(sqrDistance)) return;
+            if (!variant.distanceRange.CheckInSqrRange(sqrDistance)) return;
 
             Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
 
@@ -997,9 +877,9 @@ public partial class MapData : ScriptableObject
             Vector2 position2D = new Vector2(position.x, position.z);
 
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
-            float sqrDistance = (realPosition - pov).sqrMagnitude * lodScale * lodScale;
+            float sqrDistance = (realPosition - _pov).sqrMagnitude * _lodScale * _lodScale;
             
-            if (!distanceRange.CheckInSqrRange(sqrDistance)) return;
+            if (!variant.distanceRange.CheckInSqrRange(sqrDistance)) return;
 
             Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
 
@@ -1010,47 +890,10 @@ public partial class MapData : ScriptableObject
 
             Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
             
-            instancesData.AddInstance(localToWorld * matrix, tint);
+            instancesData.AddInstance(_localToWorld * matrix, tint);
         }
 #endif
-        //void DrawInstance(PropInstance instance)
-        //{
-        //    TODO?
-        //    //if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
-        //    //Variant variant = variants[instance.variantIndex];
-
-        //    //Vector3 position = instance.position;
-        //    //Vector2 position2D = new Vector2(position.x, position.z);
-
-        //    //Vector3 realPosition = mapData.GetRealInstancePosition(position);
-        //    //float distance = (realPosition - pov).magnitude * lodScale;
-
-        //    //Vector3 terrainNormal = mapData.SampleNormals(realPosition.x, realPosition.z);
-
-        //    //Vector3 direction = Vector3.Slerp(variant.propsDirection, terrainNormal, instance.alignment);
-        //    //float rotation = instance.rotation;
-        //    //float size = instance.size;
-        //    //Color tint = instance.tint;
-
-        //    //int colorPropertyID = Shader.PropertyToID("_Color");
-        //    //MaterialPropertyBlock properties = new MaterialPropertyBlock();//TODO save this allocation?
-        //    //Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
-
-        //    //properties.SetColor(colorPropertyID, instance.tint);
-
-        //    //for (int r = 0; r < variant.meshResources.Length; ++r)
-        //    //{
-        //    //    MeshResource meshResource = variant.meshResources[r];
-        //    //    MeshResourceData meshData = meshResource.data;
-        //    //    if (meshData == null) continue;
-        //    //    lock (meshData.dataLock)
-        //    //    {
-        //    //        if (!meshResource.distanceRange.CheckInRange(distance)) continue;
-                    
-        //    //        Graphics.DrawMesh(meshData.sharedMesh, localToWorld * matrix, materials[meshResource.targetSubMesh], 0, null, meshData.SubMeshIndex, properties, false, true, false);
-        //    //    }
-        //    //}
-        //}
+        
 
 #if !GPU_INSTANCING
         void UpdateMesh()
