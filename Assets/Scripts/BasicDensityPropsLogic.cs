@@ -43,14 +43,14 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
     [SerializeField] private int mapIndex;
     private MapData.MapTexture mapTexture;
 
-    public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues)
+    public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, PropDitherPattern.PatternElement element, Vector4 densityValues)
     {
         MapData.PropInstance instanceData = default(MapData.PropInstance);
         instanceData.variantIndex = -1;//Null instance
 
         float densitySum = densityValues.x + densityValues.y + densityValues.z;
         
-        if (elementRand > densitySum) return instanceData;//Density filter
+        if (element.densityRand > densitySum) return instanceData;//Density filter
         
         Vector3 densityLimits = densityValues;
         if (densitySum > 1f) {
@@ -59,9 +59,9 @@ public sealed class BasicDensityPropsLogic : MapData.PropsMeshData.DensityPropsL
         densityLimits.y += densityLimits.x;
         densityLimits.z += densityLimits.y;
 
-        if (elementRand <= densityLimits.x) instanceData.variantIndex = 0;
-        else if (elementRand <= densityLimits.y) instanceData.variantIndex = 1;
-        else if (elementRand <= densityLimits.z) instanceData.variantIndex = 2;
+        if (element.densityRand <= densityLimits.x) instanceData.variantIndex = 0;
+        else if (element.densityRand <= densityLimits.y) instanceData.variantIndex = 1;
+        else if (element.densityRand <= densityLimits.z) instanceData.variantIndex = 2;
         else return instanceData;//Null instance still
 
         if (variantAttributes.Length <= instanceData.variantIndex)

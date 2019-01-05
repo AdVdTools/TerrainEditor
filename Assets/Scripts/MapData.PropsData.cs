@@ -115,7 +115,7 @@ public partial class MapData : ScriptableObject
         private float patternScale = 1f;
 
         [SerializeField]
-        private float maxCellOffset = 5f;
+        private int maxCellOffset = 5;
         
 
         [SerializeField]
@@ -158,7 +158,7 @@ public partial class MapData : ScriptableObject
 
         public abstract class DensityPropsLogic : ScriptableObject
         {
-            public abstract PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues);
+            public abstract PropInstance BuildInstanceData(Vector2 pos, PropDitherPattern.PatternElement element, Vector4 densityValues);
         }
 
 
@@ -209,7 +209,7 @@ public partial class MapData : ScriptableObject
             /// Called from the main thread before the work on the building thread starts.
             /// Do NOT change capacity for each list independently!
             /// </summary>
-            public void Initialize(int capacity)//TODO try growing size?
+            public void Initialize(int capacity)
             {
                 if (_instanceMatrices == null) _instanceMatrices = new List<Matrix4x4>(capacity);
                 else if (_instanceMatrices.Capacity != capacity) _instanceMatrices.Capacity = capacity;
@@ -233,7 +233,7 @@ public partial class MapData : ScriptableObject
                 instanceProperties.Clear();
 
                 instanceMatrices.AddRange(_instanceMatrices);
-                instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);
+                instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);//TODO this might be causing hiccups when the list count increases
             }
 
             /// <summary>
@@ -432,6 +432,7 @@ public partial class MapData : ScriptableObject
                     Debug.LogWarning("Stopped Thread");
                 });
                 rebuildThread.IsBackground = true;//End when main thread ends
+                //rebuildThread.Priority = System.Threading.ThreadPriority.AboveNormal;//Not implemented in this version of Mono
                 shouldThreadRun = true;
                 rebuildThread.Start();
                 Debug.LogWarning("Started Thread");
@@ -554,11 +555,11 @@ public partial class MapData : ScriptableObject
                 Vector4 densityValues;
                 for (int e = 0; e < elements.Length; ++e)
                 {
-                    float elementRand = (float)(e + 1) / elementsLength;
+                    PropDitherPattern.PatternElement element = elements[e];
 
-                    elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
+                    elementPosition = GetElementPosition(povCellX, povCellY, element);
                     densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
+                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
                 }
                 
                 for (int offset = 1; offset <= maxCellOffset; ++offset)
@@ -568,20 +569,20 @@ public partial class MapData : ScriptableObject
                     {
                         for (int e = 0; e < elements.Length; ++e)
                         {
-                            float elementRand = (float)(e + 1) / elementsLength;
+                            PropDitherPattern.PatternElement element = elements[e];
 
-                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
+                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues), ref vertexIndex, ref indexIndex);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
                         }
                     }
                 }
@@ -627,65 +628,47 @@ public partial class MapData : ScriptableObject
                 DensityPropsLogic currentPropsLogic = propsLogic;
                 //System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance> BuildInstanceData = currentPropsLogic.BuildInstanceData;//No apparent improvement
 
+                
                 Vector2 elementPosition;
                 Vector4 densityValues;
-                for (int e = 0; e < elements.Length; ++e)
+                for (int e = 0; e < elementsLength; ++e)
                 {
-                    float elementRand = (float)(e + 1) / elementsLength;
+                    PropDitherPattern.PatternElement element = elements[e];
 
-                    elementPosition = GetElementPosition(povCellX, povCellY, elements[e]);
+                    elementPosition = GetElementPosition(povCellX, povCellY, element);
                     densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                    densityValues = Vector4.one;//TODO test, remove
-                    DoInstance(/*new PropInstance() { variantIndex = 4, size = 0.1f, position = new Vector3(elementPosition.x, 1f, elementPosition.y) }*/ currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
+                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues));
                 }
 
                 for (int offset = 1; offset <= maxCellOffset; ++offset)
                 {
-                    //int sideLength = offset * 2;
                     for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
                     {
-                        for (int e = 0; e < elements.Length; ++e)
+                        for (int e = 0; e < elementsLength; ++e)
                         {
-                            float elementRand = (float)(e + 1) / elementsLength;
-
-                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, elements[e]);
+                            PropDitherPattern.PatternElement element = elements[e];
+                            
+                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            densityValues = Vector4.one;//TODO test, remove
-                            DoInstance(/*new PropInstance() { variantIndex = 0, size = 0.1f, position = new Vector3(elementPosition.x, 1f, elementPosition.y) }*/ currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues) );
-                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues) );
+                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            densityValues = Vector4.one;//TODO test, remove
-                            DoInstance(/*new PropInstance() { variantIndex = 1, size = 0.1f, position = new Vector3(elementPosition.x, 1f, elementPosition.y) }*/ currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues) );
-                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues) );
+                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            densityValues = Vector4.one;//TODO test, remove
-                            DoInstance(/*new PropInstance() { variantIndex = 2, size = 0.1f, position = new Vector3(elementPosition.x, 1f, elementPosition.y) }*/ currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
-                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, elements[e]);
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues));
+                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, element);
                             densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            densityValues = Vector4.one;//TODO test, remove
-                            DoInstance(/*new PropInstance() { variantIndex = 3, size = 0.1f, position = new Vector3(elementPosition.x, 1f, elementPosition.y) }*/ currentPropsLogic.BuildInstanceData(elementPosition, elementRand, elements[e], densityValues));
+                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues));
                         }
                     }
                 }
             }
 
-            // 0. Base loop, GetElementPosition, null instance:                              ~30 ms
-            // 1. Base loop, GetElementPosition + DoInstance:                             60-110 ms (+ ~45 ms)
-            // 2. Base loop, GetElementPosition + density sample, null instance:          40-100 ms (+ ~35 ms)
-            // 3. Base loop, GetElementPosition + density sample + DoInstance:          ~160+-40 ms (+ ~130 ms) 3. > 2. + 1.
-            // 4. Full loop, including BuildInstanceData (may vary), null instance:       ~45-50 ms (+ ~20 ms) this should be slower than 2.!
-            // 5. Full loop, including BuildInstanceData (may vary) + DoInstance:  ~130-185-280+ ms (+ ~155 ms)
-
-
-            // DoInstance includes height and normal sample + 2 list adds + other operations
-            // Sampling math can be reused! or samplings can be merged in a single call
-
-            // TODO faster sampling?
-
             updateStopWatch.Stop();
             updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
 
-            Debug.Log("PropsInstanceDataBuild: " + updateDuration);
+            //Debug.Log("PropsInstanceDataBuild: " + updateDuration);
         }
 #endif
 
@@ -728,16 +711,14 @@ public partial class MapData : ScriptableObject
                 if (instancesData.instanceMatrices.Count == 0) continue;
                 //MaterialPropertyBlock properties = new MaterialPropertyBlock();// store in VariantInstancesData?, save one of the lists, have the aux matrix list in there too?
                 //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property
-
-
-                //TODO test on device/android
+                
                 for (int r = 0; r < variant.meshResources.Length; ++r)
                 {
                     MeshResource meshResource = variant.meshResources[r];
                     MeshResourceData meshData = meshResource.data;
                     if (meshData == null) continue;
 
-                    //TODO configurable properties added? (color/lodBlend?/pov+lodScale)
+                    //TODO configurable properties added? define? (color/lodBlend?/pov+lodScale)
                     Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, instancesData.instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
                 }
             }
@@ -866,7 +847,6 @@ public partial class MapData : ScriptableObject
 #else
         void DoInstance(PropInstance instance)
         {
-            //return;//TODO TEST
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
             Variant variant = variants[instance.variantIndex];
 
@@ -875,7 +855,7 @@ public partial class MapData : ScriptableObject
 
             Vector3 position = instance.position;
             Vector2 position2D = new Vector2(position.x, position.z);
-
+            
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDistance = (realPosition - _pov).sqrMagnitude * _lodScale * _lodScale;
             
@@ -893,7 +873,7 @@ public partial class MapData : ScriptableObject
             instancesData.AddInstance(_localToWorld * matrix, tint);
         }
 #endif
-        
+
 
 #if !GPU_INSTANCING
         void UpdateMesh()
@@ -918,7 +898,7 @@ public partial class MapData : ScriptableObject
             mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
             mesh.SetColors(colors);//mesh.colors = colors;
 
-            Debug.Log("BTW: " + updateDuration);
+            //Debug.Log("BTW: " + updateDuration);
 
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)
@@ -940,12 +920,35 @@ public partial class MapData : ScriptableObject
             }
         }
 #endif
+
+#if DEBUG
+        public string GetDebug()
+        {
+            return string.Format("{0} ms", updateDuration);
+        }
+#endif
     }
+
+#if DEBUG
+    string[] debugLines;
+    public string[] GetDebug()
+    {
+        int propsMeshesDataLength = propsMeshesData.Length;
+        if (debugLines == null || debugLines.Length != propsMeshesDataLength) debugLines = new string[propsMeshesDataLength];
+        for(int i = 0; i < propsMeshesDataLength; ++i)
+        {
+            PropsMeshData pmd = propsMeshesData[i];
+
+            debugLines[i] = pmd.GetDebug();
+        }
+        return debugLines;
+    }
+#endif
 
 
     void PropsDataOnEnable()
     {
-        for (int i = 0; i < propsMeshesData.Length; ++i) propsMeshesData[i].StopThread();
+        //for (int i = 0; i < propsMeshesData.Length; ++i) propsMeshesData[i].StopThread();//TODO test if still needed
         //Things should at least start idle
     }
 
@@ -954,8 +957,10 @@ public partial class MapData : ScriptableObject
         for (int i = 0; i < propsMeshesData.Length; ++i) propsMeshesData[i].StopThread();
     }
 
+#if UNITY_EDITOR
     void PropsDataOnValidate()
     {
-        //TODO load mapTextures referenced by prop meshes data (avoid redundant loading, here and with mesh color) (if !EDITOR?)
+
     }
+#endif
 }

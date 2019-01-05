@@ -57,7 +57,7 @@ public class Map : MonoBehaviour
             meshFilter.sharedMesh = mapData.RefreshTerrainMesh();
 
             MeshRenderer meshRenderer = meshFilter.GetComponent<MeshRenderer>();
-            if (meshRenderer != null) meshRenderer.sharedMaterial = mapData.TerrainMaterial;
+            if (meshRenderer != null) mapData.ConfigureRenderer(meshRenderer);
         }
         else
         {
@@ -85,6 +85,27 @@ public class Map : MonoBehaviour
             mapData.RefreshPropMeshes(pov, 1f, localToWorld);//TODO this is used to ensure meshes mostly
         }
     }
+
+#if DEBUG
+    readonly string[] defaultMessage = new string[] { "No map data" };
+    void OnGUI()
+    {
+        int w = Screen.width, h = Screen.height;
+        int fontSize = h / 20;
+
+        GUIStyle style = new GUIStyle();
+
+        Rect rect = new Rect(0, 0, w, h - fontSize);
+        style.alignment = TextAnchor.LowerCenter;
+        style.fontSize = fontSize;
+        style.normal.textColor = new Color(0.0f, 0.0f, 0.5f, 1.0f);
+
+        var debugData = mapData != null ? mapData.GetDebug() : defaultMessage;
+
+        string text = string.Format("{0}", string.Join("\n", debugData));
+        GUI.Label(rect, text, style);
+    }
+#endif
 
     private void OnValidate()
     {

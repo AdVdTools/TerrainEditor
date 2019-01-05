@@ -16,8 +16,13 @@ public class PropDitherPattern : ScriptableObject
     {
         public Vector2 pos;
         public float r;
+        
+        /// <summary>
+        /// Element order matches densityRand order.
+        /// 0..1, 0 not included.
+        /// </summary>
+        public float densityRand;
 
-        //TODO other data, rands (for z, rotation, alignment)
         /// <summary>
         /// Alignment
         /// </summary>

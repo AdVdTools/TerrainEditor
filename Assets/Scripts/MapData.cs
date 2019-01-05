@@ -18,13 +18,14 @@ public partial class MapData : ScriptableObject
 
     [HideInInspector] [SerializeField] private Texture2D heightTexture;
 
-    
-    //[SerializeField]//TODO assign to renderer? ConfigureRenderer(Renderer) method? assign materials too
-    //private ShadowCastingMode castShadows = ShadowCastingMode.Off;
-    //[SerializeField]
-    //private bool receiveShadows = false;
 
-    [SerializeField] private Material terrainMaterial;
+    [SerializeField]
+    private ShadowCastingMode castShadows = ShadowCastingMode.Off;
+    [SerializeField]
+    private bool receiveShadows = false;
+
+    [SerializeField]
+    private Material terrainMaterial;
 
 
     public float[] Heights { get { return heights; } }
@@ -33,6 +34,13 @@ public partial class MapData : ScriptableObject
     public int MeshColorMapIndex { get { return meshColorMapIndex; } }
     public Material TerrainMaterial { get { return terrainMaterial; } }
     
+
+    public void ConfigureRenderer(Renderer renderer)
+    {
+        renderer.sharedMaterial = terrainMaterial;
+        renderer.shadowCastingMode = castShadows;
+        renderer.receiveShadows = receiveShadows;
+    }
 
     public const float sqrt3 = 1.7320508f;
     public const float cos30 = 0.8660254f;
@@ -78,10 +86,13 @@ public partial class MapData : ScriptableObject
         barycentricCoordinate = default(Vector3);
 
         Vector2 normalizedCoords = new Vector2(x / sqrt3, y / 1.5f);
-        int oddToEven = Mathf.FloorToInt(normalizedCoords.y) & 1;
-        normalizedCoords.x += -Mathf.PingPong(normalizedCoords.y, 1f) * 0.5f;
-        
+
         int i = Mathf.FloorToInt(normalizedCoords.y);
+
+        int oddToEven = i & 1;
+        float pingpong = (normalizedCoords.y - i) * (1 - 2 * oddToEven) + oddToEven;//Mathf.PingPong(normalizedCoords.y, 1f)
+        normalizedCoords.x -= pingpong * 0.5f;
+
         int j = Mathf.FloorToInt(normalizedCoords.x);
 
         if (i < 0 || i >= depth - 1) return false;
@@ -164,6 +175,7 @@ public partial class MapData : ScriptableObject
     Mesh terrainMesh;
     Vector3[] vertices;
     Vector3[] normals;
+    Vector4[] tangents;
     // color comes from a map texture
     Vector2[] uvs;
     Vector2[] uvs2;
@@ -177,6 +189,10 @@ public partial class MapData : ScriptableObject
 
     private void OnEnable()
     {
+#if !UNITY_EDITOR
+        HeightTextureLoad();
+#endif
+
         PropsDataOnEnable();
         MapTextureOnEnable();
     }
@@ -189,6 +205,7 @@ public partial class MapData : ScriptableObject
     }
 
 
+#if UNITY_EDITOR
     private void OnValidate()
     {
         HeightTextureLoad();
@@ -196,10 +213,9 @@ public partial class MapData : ScriptableObject
         PropsDataOnValidate();
         MapTextureOnValidate();//Load colorMapIndex map for mesh build even if !EDITOR
 
-#if UNITY_EDITOR
         ValidateSubassets();// SerializeMapAssets();
-#endif
     }
+#endif
 
     private void HeightTextureLoad()
     {
@@ -323,7 +339,7 @@ public partial class MapData : ScriptableObject
 
     // e2 · ((or - v0) x e1)
 
-    #region RaycastParallel
+#region RaycastParallel
     private class RaycastThreadData {
         public int startIndex, endIndex;
         public RaycastHit hitInfo;
@@ -400,7 +416,7 @@ public partial class MapData : ScriptableObject
         if (hitInfo.distance >= raycastDistance) return false;
         return true;
     }
-    #endregion
+#endregion
 
    
 
@@ -430,6 +446,7 @@ public partial class MapData : ScriptableObject
         
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
+        if (tangents == null || tangents.Length != verticesLength) tangents = new Vector4[verticesLength];
         if (uvs == null || uvs.Length != verticesLength) uvs = new Vector2[verticesLength];
         if (uvs2 == null || uvs2.Length != verticesLength) uvs2 = new Vector2[verticesLength];
 
@@ -499,16 +516,21 @@ public partial class MapData : ScriptableObject
         }
         for (int vertexIndex = 0; vertexIndex < verticesLength; ++vertexIndex)
         {
-            normals[vertexIndex] = normals[vertexIndex].normalized;
+            Vector3 normal = normals[vertexIndex].normalized;
+            Vector4 tangent = new Vector3(normal.y, -normal.x, 0f).normalized;//This should be close enough
+            tangent.w = -1f;
+            normals[vertexIndex] = normal;
+            tangents[vertexIndex] = tangent;
         }
 
         terrainMesh.vertices = vertices;
         terrainMesh.normals = normals;
+        terrainMesh.tangents = tangents;
         terrainMesh.uv = uvs;
         terrainMesh.uv2 = uvs2;
         UpdateMeshColor();
         terrainMesh.triangles = indices;
-
+        
         return terrainMesh;
     }
 
@@ -568,7 +590,7 @@ public partial class MapData : ScriptableObject
     }
     
 
-    #region 2DUtility
+#region 2DUtility
     public static void Resize2D<T>(ref T[] array, int srcWidth, int srcHeight, int tgtWidth, int tgtHeight) where T : struct
     {
         if (srcWidth != tgtWidth || srcHeight != tgtHeight) return;
@@ -608,5 +630,5 @@ public partial class MapData : ScriptableObject
             }
         }
     }
-    #endregion
+#endregion
 }

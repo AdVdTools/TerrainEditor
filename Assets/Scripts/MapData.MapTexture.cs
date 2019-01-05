@@ -17,6 +17,8 @@ public partial class MapData : ScriptableObject
         private enum MapTextureFormat { Float, Half, Byte }
         [SerializeField] private MapTextureFormat format;
 
+        public bool loadInRuntime = true;
+
         //Implicit conversión Color-Vector4
         public Color SampleValue(float x, float y, MapData mapData)
         {
@@ -87,7 +89,14 @@ public partial class MapData : ScriptableObject
 
     void MapTextureOnEnable()
     {
-
+#if !UNITY_EDITOR
+        for (int i = 0; i < mapTextures.Length; ++i)
+        {
+            MapTexture mapTexture = mapTextures[i];
+            
+            if (mapTexture.loadInRuntime) ReadTexture(mapTexture.texture, ref mapTexture.map);
+        }
+#endif
     }
 
     void MapTextureOnDisable()
@@ -95,24 +104,18 @@ public partial class MapData : ScriptableObject
 
     }
 
+#if UNITY_EDITOR
     void MapTextureOnValidate()//TODO test
     {
-#if UNITY_EDITOR
         for (int i = 0; i < mapTextures.Length; ++i)
         {
             MapTexture mapTexture = mapTextures[i];
-            
+
             ReadTexture(mapTexture.texture, ref mapTexture.map);
         }
-#else
-        if (meshColorMapIndex > 0 && meshColorMapIndex < mapTextures.Length)
-        {
-            MapTexture mapTexture = mapTextures[meshColorMapIndex];
-            
-            ReadTexture(mapTexture.texture, ref mapTexture.map);
-        }
-#endif
     }
+#endif
+    
 
 
 #if UNITY_EDITOR

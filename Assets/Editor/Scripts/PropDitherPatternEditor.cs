@@ -399,12 +399,15 @@ public class PropDitherPatternEditor : Editor {
                 pos = instance.pos,
                 r = instance.r,
 
+                densityRand = (float)(i + 1) / instances.Length,
+
                 rand0 = Random.value,
                 rand1 = Random.value,
                 rand2 = Random.value,
                 rand3 = Random.value
             };
         }
+        EditorUtility.SetDirty(targetPDP);
     }
 
     void ResetPreview()

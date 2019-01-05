@@ -45,21 +45,21 @@ public sealed class CustomDensityPropsLogic : MapData.PropsMeshData.DensityProps
     //[SerializeField] private int mapIndex;
     //private MapData.MapTexture mapTexture;
 
-    public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, float elementRand, PropDitherPattern.PatternElement element, Vector4 densityValues)
+    public sealed override MapData.PropInstance BuildInstanceData(Vector2 pos, PropDitherPattern.PatternElement element, Vector4 densityValues)
     {
         MapData.PropInstance instanceData = default(MapData.PropInstance);
         instanceData.variantIndex = -1;//Null instance
 
         float densityValue = densityValues.w;
         
-        if (elementRand > densityValue) return instanceData;//Density filter
+        if (element.densityRand > densityValue) return instanceData;//Density filter
 
         int variantRange = maxVariantIndex - minVariantIndex + 1;
         instanceData.variantIndex = minVariantIndex + Mathf.Clamp(Mathf.FloorToInt(element.rand3 * variantRange), 0, variantRange - 1); //Random.Range(minVariantIndex, maxVariantIndex + 1);
         
         VariantAttributes attributes = variantAttributes;
 
-        instanceData.position = new Vector3(pos.x, attributes.yOffsetRange.GetValue(/*element.rand2*/elementRand), pos.y);
+        instanceData.position = new Vector3(pos.x, attributes.yOffsetRange.GetValue(/*element.rand2*/element.densityRand), pos.y);
         instanceData.alignment = attributes.alignmentRange.GetValue(element.rand0);
         instanceData.rotation = attributes.rotationRange.GetValue(element.rand1);
         instanceData.size = element.r * attributes.scaleRange.GetValue(element.rand2);//repurposed
