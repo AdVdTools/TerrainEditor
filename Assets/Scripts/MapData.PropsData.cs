@@ -1,4 +1,5 @@
 ﻿#define GPU_INSTANCING
+#define TEST_CULLING_BATCHING
 
 using System.Collections.Generic;
 using System.Threading;
@@ -69,6 +70,16 @@ public partial class MapData : ScriptableObject
         }
     }
 
+#if TEST_CULLING_BATCHING
+    public void DrawPropMeshes(Camera cam)
+    {
+        //TODO disable occlusion if no cam
+        for (int i = 0; i < propsMeshesData.Length; ++i)
+        {
+            propsMeshesData[i].DrawProps(cam);
+        }
+    }
+#else
     /// <summary>
     /// Uses Graphics.DrawMesh calls!
     /// </summary>
@@ -79,6 +90,7 @@ public partial class MapData : ScriptableObject
             propsMeshesData[i].DrawProps();
         }
     }
+#endif
 
     public void PropMeshesSetDirty()
     {
@@ -160,15 +172,16 @@ public partial class MapData : ScriptableObject
         {
             public abstract PropInstance BuildInstanceData(Vector2 pos, PropDitherPattern.PatternElement element, Vector4 densityValues);
         }
-
-
+        
+        [Header("Batching Mode")]
         [SerializeField] int verticesLengthLimit = 900;
         [SerializeField] int trianglesLengthLimit = 900;//indices actually
-
-        [Range(1, 1023)]
-        [SerializeField] int variantInstanceLimit = 1000;
         
+        [Header("GPU Instancing Mode")]
+        [SerializeField] int variantInstanceLimit = 1000;
 
+
+        [Header("Rendering")]
         [SerializeField]
         private ShadowCastingMode castShadows = ShadowCastingMode.Off;
         [SerializeField]
@@ -189,39 +202,47 @@ public partial class MapData : ScriptableObject
         List<Color> colors;
         List<int>[] triangleLists;
 #else
-        private struct VariantInstancesData
+        private class VariantInstancesData
         {
             private static int _ColorPropertyID = Shader.PropertyToID("_Color");
 
             //Background workspace
-            private List<Matrix4x4> _instanceMatrices;
-            private List<Vector4> _instanceColors;
+            private Matrix4x4[] _instanceMatrices;
+            private Vector4[] _instanceColors;
+            private int _count;
             
-            public List<Matrix4x4> instanceMatrices;
+            public Matrix4x4[] instanceMatrices;
+#if TEST_CULLING_BATCHING
+            public Vector4[] instanceColors;
+#else
             public MaterialPropertyBlock instanceProperties;
+#endif
+            private int count;
+            public int Count { get { return count; } }
 
-            /// <summary>
-            /// Called from the building thread
-            /// </summary>
-            public int InternalCount { get { return _instanceMatrices.Count; } }
 
             /// <summary>
             /// Called from the main thread before the work on the building thread starts.
             /// Do NOT change capacity for each list independently!
             /// </summary>
-            public void Initialize(int capacity)
+            public void Initialize(int capacity)//TODO growing size? shared indexed buffers?
             {
-                if (_instanceMatrices == null) _instanceMatrices = new List<Matrix4x4>(capacity);
-                else if (_instanceMatrices.Capacity != capacity) _instanceMatrices.Capacity = capacity;
-                if (_instanceColors == null) _instanceColors = new List<Vector4>(capacity);
-                else if (_instanceColors.Capacity != capacity) _instanceColors.Capacity = capacity;
-                
-                _instanceMatrices.Clear();
-                _instanceColors.Clear();
+                if (_instanceMatrices == null || _instanceMatrices.Length != capacity) _instanceMatrices = new Matrix4x4[capacity];
+                if (_instanceColors == null || _instanceColors.Length != capacity) _instanceColors = new Vector4[capacity];
 
-                if (instanceMatrices == null) instanceMatrices = new List<Matrix4x4>(capacity);
-                else if (instanceMatrices.Capacity != capacity) instanceMatrices.Capacity = capacity;
-                if (instanceProperties == null) instanceProperties = new MaterialPropertyBlock();
+                _count = 0;
+
+
+                if (instanceMatrices == null) instanceMatrices = new Matrix4x4[capacity];
+#if TEST_CULLING_BATCHING
+                if (instanceColors == null) instanceColors = new Vector4[capacity];
+#else
+                if (instanceProperties == null)
+                {
+                    instanceProperties = new MaterialPropertyBlock();
+                    //TODO assign full array?
+                }
+#endif
             }
 
             /// <summary>
@@ -229,12 +250,32 @@ public partial class MapData : ScriptableObject
             /// </summary>
             public void UpdateData()
             {
-                instanceMatrices.Clear();
+                if (instanceMatrices.Length != _instanceMatrices.Length) instanceMatrices = new Matrix4x4[_instanceMatrices.Length];
+#if TEST_CULLING_BATCHING
+                if (instanceColors.Length != _instanceColors.Length) instanceColors = new Vector4[_instanceColors.Length];
+#else
                 instanceProperties.Clear();
+#endif
 
-                instanceMatrices.AddRange(_instanceMatrices);
-                instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);//TODO this might be causing hiccups when the list count increases
+                for (count = 0; count < _count; ++count) instanceMatrices[count] = _instanceMatrices[count];
+#if TEST_CULLING_BATCHING
+                for (count = 0; count < _count; ++count) instanceColors[count] = _instanceColors[count];
+#else
+                instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);
+#endif
+                //TODO when the instance count increases, somthing causes hiccups, materialProperties seems to be inocent
             }
+
+
+            /// <summary>
+            /// Called from the building thread
+            /// </summary>
+            public int InternalCapacity { get { return _instanceMatrices.Length; } }
+
+            /// <summary>
+            /// Called from the building thread
+            /// </summary>
+            public int InternalCount { get { return _count; } }
 
             /// <summary>
             /// Called from the building thread
@@ -243,8 +284,9 @@ public partial class MapData : ScriptableObject
             /// <param name="color"></param>
             public void AddInstance(Matrix4x4 matrix, Vector4 color)
             {
-                _instanceMatrices.Add(matrix);
-                _instanceColors.Add(color);
+                _instanceMatrices[_count] = matrix;
+                _instanceColors[_count] = color;
+                _count++;
             }
         }
         VariantInstancesData[] variantsInstancesData;
@@ -322,9 +364,14 @@ public partial class MapData : ScriptableObject
                 }
             }
         }
-
+#if TEST_CULLING_BATCHING
+        public void DrawProps(Camera cullingCam)
+        {
+            this.cullingCam = cullingCam;
+#else
         public void DrawProps()
         {
+#endif
 #if !GPU_INSTANCING
             PropsDraw();       
 #else
@@ -506,6 +553,7 @@ public partial class MapData : ScriptableObject
             if (variantsInstancesData == null || variantsInstancesData.Length != variantsLength)
             {
                 variantsInstancesData = new VariantInstancesData[variantsLength];
+                for (int i = 0; i < variantsLength; ++i) variantsInstancesData[i] = new VariantInstancesData();
             }
             for (int i = 0; i < variantsLength; ++i) variantsInstancesData[i].Initialize(variantInstanceLimit);
         }
@@ -685,6 +733,110 @@ public partial class MapData : ScriptableObject
             }
         }
 #else
+
+
+#if TEST_CULLING_BATCHING
+
+        [System.NonSerialized]
+        Matrix4x4[] instanceMatrices;
+        [System.NonSerialized]
+        Vector4[] instanceColors;
+        [System.NonSerialized]
+        MaterialPropertyBlock instanceProperties;
+        private static int _ColorPropertyID = Shader.PropertyToID("_Color");
+        const int maxSubCount = 500;//TODO rename?
+
+        Camera cullingCam;
+        
+        void PropsDrawInstanced()
+        {
+            int variantsLength = variants.Length;
+            if (variantsInstancesData == null || variantsInstancesData.Length != variantsLength) return;
+
+            bool culling = cullingCam != null;
+            Matrix4x4 projMatrix = default(Matrix4x4);
+            Vector3 camUpRight = default(Vector3);
+            Vector3 camBottomLeft = default(Vector3);
+            if (culling) {
+                projMatrix = GL.GetGPUProjectionMatrix(cullingCam.projectionMatrix, false) * cullingCam.worldToCameraMatrix;//TODO jittered vs nonjittered projMatrix
+                camUpRight = cullingCam.transform.TransformVector(new Vector3(1f, 1f, 1f));
+                camBottomLeft = cullingCam.transform.TransformVector(new Vector3(-1f, -1f, 1f));
+            }
+
+            //Debug.Log("***"+instanceMatrices);
+            if (instanceMatrices == null) instanceMatrices = new Matrix4x4[maxSubCount];
+            if (instanceColors == null) instanceColors = new Vector4[maxSubCount];
+            if (instanceProperties == null) instanceProperties = new MaterialPropertyBlock();
+            //Debug.Log(instanceMatrices.Length + " " + maxSubCount + "****");
+
+            for (int i = 0; i < variantsLength; ++i)
+            {
+                Variant variant = variants[i];
+                VariantInstancesData instancesData = variantsInstancesData[i];
+
+                if (instancesData.instanceMatrices == null)
+                {
+                    Debug.LogErrorFormat("VariantInstancesData at {0} is not initialized!", i);
+                    continue;
+                }
+
+                if (instancesData.Count == 0) continue;
+                //MaterialPropertyBlock properties = new MaterialPropertyBlock();// store in VariantInstancesData?, save one of the lists, have the aux matrix list in there too?
+                //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property
+                
+                for (int r = 0; r < variant.meshResources.Length; ++r)
+                {
+                    MeshResource meshResource = variant.meshResources[r];
+                    MeshResourceData meshData = meshResource.data;
+                    if (meshData == null) continue;
+
+                    Bounds bounds = meshData.sharedMesh.bounds;
+                    Vector3 extents = bounds.extents;
+                    Vector3 boundsOffset = bounds.center;
+                    float maxBoundSize = Mathf.Max(Mathf.Max(extents.x, extents.y), extents.z);//0.5f;//TODO max bound size
+
+                    int instanceIndex = 0;
+                    int instancesCount = instancesData.Count;
+                    while (instanceIndex < instancesData.Count)
+                    {
+                        int subCount = 0;
+                        while (subCount < maxSubCount && instanceIndex < instancesCount)
+                        {
+                            Matrix4x4 instanceMatrix = instancesData.instanceMatrices[instanceIndex];
+                            Vector4 instanceColor = instancesData.instanceColors[instanceIndex];
+
+                            Vector3 position = instanceMatrix.MultiplyPoint(boundsOffset);// new Vector3(instanceMatrix.m03, instanceMatrix.m13, instanceMatrix.m23);//TODO bounds offset multiplied by the matrix
+                            //TODO include localToWorld if !GPU_INSTANCING
+                            Vector3 urPosition = position + camUpRight * maxBoundSize;
+                            Vector3 blPosition = position + camBottomLeft * maxBoundSize;
+                            Vector3 urCamPosition = projMatrix.MultiplyPoint(urPosition);
+                            Vector3 blCamPosition = projMatrix.MultiplyPoint(blPosition);
+
+                            // Ignoring far plane, it would need another matrix multiplication on the nearest point in bounds
+                            if (urCamPosition.z > -1f && urCamPosition.x > -1f && blCamPosition.x < 1f && urCamPosition.y > -1f && blCamPosition.y < 1f)
+                            {
+                                instanceMatrices[subCount] = instanceMatrix;
+                                instanceColors[subCount] = instanceColor;
+
+                                //if (blCamPosition.x < -0.8f || urCamPosition.x > 0.8f) instanceColors[subCount] = Color.red;
+                                //else instanceColors[subCount] = Color.black;
+
+                                subCount++;
+                            }
+
+                            instanceIndex++;
+                        }
+                        
+                        instanceProperties.SetVectorArray(_ColorPropertyID, instanceColors);
+
+                        //TODO configurable properties added? define? (color/lodBlend?/pov+lodScale)
+                        Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instanceMatrices, subCount, instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
+                    }
+                }
+            }
+        }
+#else
+        private int countRecord = 0;
         /// <summary>
         /// Call Graphics.DrawMesh in main thread and rely on gpu instancing material?
         /// </summary>
@@ -708,7 +860,8 @@ public partial class MapData : ScriptableObject
                     Debug.LogErrorFormat("VariantInstancesData at {0} is not initialized!", i);
                     continue;
                 }
-                if (instancesData.instanceMatrices.Count == 0) continue;
+
+                if (instancesData.Count == 0) continue;
                 //MaterialPropertyBlock properties = new MaterialPropertyBlock();// store in VariantInstancesData?, save one of the lists, have the aux matrix list in there too?
                 //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property
                 
@@ -719,10 +872,21 @@ public partial class MapData : ScriptableObject
                     if (meshData == null) continue;
 
                     //TODO configurable properties added? define? (color/lodBlend?/pov+lodScale)
-                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, instancesData.instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
+                    if (instancesData.Count > countRecord)
+                    {
+                        Debug.LogFormat("New count record {0} (prev: {1}), by {2}", instancesData.Count, countRecord, i);
+                    }
+                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, Mathf.Min(1023, instancesData.Count), instancesData.instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
+                    if (instancesData.Count > countRecord)
+                    {
+                        countRecord = instancesData.Count;
+                        Debug.Log("I see you on the other side");
+                    }
                 }
             }
         }
+#endif
+
 #endif
 
         Vector2 GetElementPosition(int cellX, int cellY, PropDitherPattern.PatternElement element)
@@ -851,7 +1015,7 @@ public partial class MapData : ScriptableObject
             Variant variant = variants[instance.variantIndex];
 
             VariantInstancesData instancesData = variantsInstancesData[instance.variantIndex];
-            if (instancesData.InternalCount >= variantInstanceLimit) return;
+            if (instancesData.InternalCount >= instancesData.InternalCapacity) return;
 
             Vector3 position = instance.position;
             Vector2 position2D = new Vector2(position.x, position.z);
@@ -924,10 +1088,19 @@ public partial class MapData : ScriptableObject
 #if DEBUG
         public string GetDebug()
         {
-            return string.Format("{0} ms", updateDuration);
+            string instanceCounts = "-";
+#if GPU_INSTANCING
+            int variantsLength = variants.Length;
+            if (variantsInstancesData == null) return instanceCounts;
+            for (int i = 0; i < variantsLength; ++i)
+            {
+                instanceCounts += variantsInstancesData[i].Count + "-";
+            }
+#endif
+            return string.Format("{0} ms, {1} instances", updateDuration, instanceCounts);
         }
 #endif
-    }
+        }
 
 #if DEBUG
     string[] debugLines;

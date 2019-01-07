@@ -1,0 +1,170 @@
+fileFormatVersion: 2
+guid: 98939393488b06e49b4b5e0ca450d85e
+ModelImporter:
+  serializedVersion: 23
+  fileIDToRecycleName:
+    100000: Leave.000
+    100002: Leave.001
+    100004: Leave.002
+    100006: Leave.003
+    100008: Leave.004
+    100010: Leave.005
+    100012: Leave.006
+    100014: Leave.007
+    100016: //RootNode
+    100018: Leaf.000
+    100020: Leaf.001
+    100022: Leaf.002
+    100024: Leaf.003
+    100026: Leaf.004
+    100028: Leaf.005
+    100030: Leaf.006
+    100032: Leaf.007
+    400000: Leave.000
+    400002: Leave.001
+    400004: Leave.002
+    400006: Leave.003
+    400008: Leave.004
+    400010: Leave.005
+    400012: Leave.006
+    400014: Leave.007
+    400016: //RootNode
+    400018: Leaf.000
+    400020: Leaf.001
+    400022: Leaf.002
+    400024: Leaf.003
+    400026: Leaf.004
+    400028: Leaf.005
+    400030: Leaf.006
+    400032: Leaf.007
+    2100000: LeaveMaterial
+    2300000: Leave.000
+    2300002: Leave.001
+    2300004: Leave.002
+    2300006: Leave.003
+    2300008: Leave.004
+    2300010: Leave.005
+    2300012: Leave.006
+    2300014: Leave.007
+    2300016: Leaf.000
+    2300018: Leaf.001
+    2300020: Leaf.002
+    2300022: Leaf.003
+    2300024: Leaf.004
+    2300026: Leaf.005
+    2300028: Leaf.006
+    2300030: Leaf.007
+    3300000: Leave.000
+    3300002: Leave.001
+    3300004: Leave.002
+    3300006: Leave.003
+    3300008: Leave.004
+    3300010: Leave.005
+    3300012: Leave.006
+    3300014: Leave.007
+    3300016: Leaf.000
+    3300018: Leaf.001
+    3300020: Leaf.002
+    3300022: Leaf.003
+    3300024: Leaf.004
+    3300026: Leaf.005
+    3300028: Leaf.006
+    3300030: Leaf.007
+    4300000: Leave.007
+    4300002: Leave.006
+    4300004: Leave.005
+    4300006: Leave.004
+    4300008: Leave.003
+    4300010: Leave.002
+    4300012: Leave.000
+    4300014: Leave.001
+    4300016: Leaf.007
+    4300018: Leaf.006
+    4300020: Leaf.005
+    4300022: Leaf.004
+    4300024: Leaf.003
+    4300026: Leaf.002
+    4300028: Leaf.000
+    4300030: Leaf.001
+  externalObjects: {}
+  materials:
+    importMaterials: 1
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+  animations:
+    legacyGenerateAnimations: 4
+    bakeSimulation: 0
+    resampleCurves: 1
+    optimizeGameObjects: 0
+    motionNodeName: 
+    rigImportErrors: 
+    rigImportWarnings: 
+    animationImportErrors: 
+    animationImportWarnings: 
+    animationRetargetingWarnings: 
+    animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
+    importConstraints: 0
+    animationCompression: 1
+    animationRotationError: 0.5
+    animationPositionError: 0.5
+    animationScaleError: 0.5
+    animationWrapMode: 0
+    extraExposedTransformPaths: []
+    extraUserProperties: []
+    clipAnimations: []
+    isReadable: 1
+  meshes:
+    lODScreenPercentages: []
+    globalScale: 1
+    meshCompression: 0
+    addColliders: 0
+    importVisibility: 1
+    importBlendShapes: 1
+    importCameras: 1
+    importLights: 1
+    swapUVChannels: 0
+    generateSecondaryUV: 0
+    useFileUnits: 1
+    optimizeMeshForGPU: 1
+    keepQuads: 0
+    weldVertices: 1
+    preserveHierarchy: 0
+    indexFormat: 0
+    secondaryUVAngleDistortion: 8
+    secondaryUVAreaDistortion: 15.000001
+    secondaryUVHardAngle: 88
+    secondaryUVPackMargin: 4
+    useFileScale: 1
+    previousCalculatedGlobalScale: 1
+    hasPreviousCalculatedGlobalScale: 0
+  tangentSpace:
+    normalSmoothAngle: 60
+    normalImportMode: 0
+    tangentImportMode: 0
+    normalCalculationMode: 4
+  importAnimation: 1
+  copyAvatar: 0
+  humanDescription:
+    serializedVersion: 2
+    human: []
+    skeleton: []
+    armTwist: 0.5
+    foreArmTwist: 0.5
+    upperLegTwist: 0.5
+    legTwist: 0.5
+    armStretch: 0.05
+    legStretch: 0.05
+    feetSpacing: 0
+    rootMotionBoneName: 
+    hasTranslationDoF: 0
+    hasExtraRoot: 0
+    skeletonHasParents: 1
+  lastHumanDescriptionAvatarSource: {instanceID: 0}
+  animationType: 0
+  humanoidOversampling: 1
+  additionalBone: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

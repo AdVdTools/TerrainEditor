@@ -10,6 +10,8 @@ public class Map : MonoBehaviour
     
     [SerializeField] float lodScale = 1f;
 
+    [SerializeField] Camera occlusionCamera;
+
     public MapData Data { get { return mapData; } }
     public Transform POVTransform { get { return povTransform; } set { povTransform = value; } }
     public float LODScale { get { return lodScale; } }
@@ -44,7 +46,7 @@ public class Map : MonoBehaviour
                 }//TODO else follow editcam?, let the editor do the work?, TODO implement disable on multiple failures + callback to handle both in game and in editor
             }
 
-            mapData.DrawPropMeshes();
+            mapData.DrawPropMeshes(occlusionCamera);
         }
     }
 

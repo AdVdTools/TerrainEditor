@@ -77,9 +77,10 @@
     <None Include="Assets\Test\LeavesShader.shader" />
     <None Include="Assets\Test\TerrainShader3.shader" />
     <None Include="Assets\MapAssets\TerrainShader2.shader" />
-    <None Include="Assets\Painterly Terrain Textures\Read Me.txt" />
     <None Include="Assets\MapAssets\TerrainShader.shader" />
+    <None Include="Assets\Test\Mobile-Particle-Alpha.shader" />
     <None Include="Assets\Test\TerrainShader4.shader" />
+    <None Include="Assets\Test\Mobile-Diffuse.shader" />
     <Reference Include="Unity.PackageManagerUI.Editor">
       <HintPath>C:/Users/ADM_0/Documents/TerrainEditor/Library/ScriptAssemblies/Unity.PackageManagerUI.Editor.dll</HintPath>
     </Reference>
