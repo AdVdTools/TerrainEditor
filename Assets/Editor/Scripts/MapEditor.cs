@@ -867,12 +867,14 @@ public class MapEditor : Editor {
 
         if (data.PropMeshesRebuildOngoing())
         {
+            EditorApplication.QueuePlayerLoopUpdate();
             SceneView.RepaintAll();
             //Extra repaint after "ready" to redraw with the new mesh
             afterMeshUpdateRefreshPending = true;
         }
         else if (afterMeshUpdateRefreshPending)
         {
+            EditorApplication.QueuePlayerLoopUpdate();
             SceneView.RepaintAll();
             afterMeshUpdateRefreshPending = false;
         }

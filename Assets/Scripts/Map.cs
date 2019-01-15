@@ -45,7 +45,6 @@ public class Map : MonoBehaviour
                     mapData.RefreshPropMeshesAsync(transform.InverseTransformPoint(povTransform.position), lodScale, localToWorld);
                 }//TODO else follow editcam?, let the editor do the work?, TODO implement disable on multiple failures + callback to handle both in game and in editor
             }
-
             mapData.DrawPropMeshes(occlusionCamera);
         }
     }

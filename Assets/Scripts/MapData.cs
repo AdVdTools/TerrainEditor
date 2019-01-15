@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define TERRAIN_TANGENTS
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -175,7 +177,9 @@ public partial class MapData : ScriptableObject
     Mesh terrainMesh;
     Vector3[] vertices;
     Vector3[] normals;
+#if TERRAIN_TANGENTS
     Vector4[] tangents;
+#endif
     // color comes from a map texture
     Vector2[] uvs;
     Vector2[] uvs2;
@@ -446,7 +450,9 @@ public partial class MapData : ScriptableObject
         
         if (vertices == null || vertices.Length != verticesLength) vertices = new Vector3[verticesLength];
         if (normals == null || normals.Length != verticesLength) normals = new Vector3[verticesLength];
+#if TERRAIN_TANGENTS
         if (tangents == null || tangents.Length != verticesLength) tangents = new Vector4[verticesLength];
+#endif
         if (uvs == null || uvs.Length != verticesLength) uvs = new Vector2[verticesLength];
         if (uvs2 == null || uvs2.Length != verticesLength) uvs2 = new Vector2[verticesLength];
 
@@ -517,15 +523,19 @@ public partial class MapData : ScriptableObject
         for (int vertexIndex = 0; vertexIndex < verticesLength; ++vertexIndex)
         {
             Vector3 normal = normals[vertexIndex].normalized;
+            normals[vertexIndex] = normal;
+#if TERRAIN_TANGENTS
             Vector4 tangent = new Vector3(normal.y, -normal.x, 0f).normalized;//This should be close enough
             tangent.w = -1f;
-            normals[vertexIndex] = normal;
             tangents[vertexIndex] = tangent;
+#endif
         }
 
         terrainMesh.vertices = vertices;
         terrainMesh.normals = normals;
+#if TERRAIN_TANGENTS
         terrainMesh.tangents = tangents;
+#endif
         terrainMesh.uv = uvs;
         terrainMesh.uv2 = uvs2;
         UpdateMeshColor();

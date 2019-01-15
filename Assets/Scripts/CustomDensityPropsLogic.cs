@@ -55,7 +55,7 @@ public sealed class CustomDensityPropsLogic : MapData.PropsMeshData.DensityProps
         if (element.densityRand > densityValue) return instanceData;//Density filter
 
         int variantRange = maxVariantIndex - minVariantIndex + 1;
-        instanceData.variantIndex = minVariantIndex + Mathf.Clamp(Mathf.FloorToInt(element.rand3 * variantRange), 0, variantRange - 1); //Random.Range(minVariantIndex, maxVariantIndex + 1);
+        instanceData.variantIndex = minVariantIndex + Mathf.Clamp(Mathf.FloorToInt(element.rand1 * variantRange), 0, variantRange - 1); //Random.Range(minVariantIndex, maxVariantIndex + 1);
         
         VariantAttributes attributes = variantAttributes;
 

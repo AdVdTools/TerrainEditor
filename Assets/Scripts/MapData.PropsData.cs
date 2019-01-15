@@ -1,5 +1,7 @@
 ﻿#define GPU_INSTANCING
-#define TEST_CULLING_BATCHING
+#define GPU_INSTANCING_CULLING // Required for 1023+ instances/variant
+
+//#define BATCHING_TANGENTS // Ignored in GPU_INSTANCING
 
 using System.Collections.Generic;
 using System.Threading;
@@ -70,27 +72,21 @@ public partial class MapData : ScriptableObject
         }
     }
 
-#if TEST_CULLING_BATCHING
+    /// <summary>
+    /// Uses Graphics.DrawMesh calls!
+    /// </summary>
     public void DrawPropMeshes(Camera cam)
     {
         //TODO disable occlusion if no cam
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
+#if GPU_INSTANCING_CULLING
             propsMeshesData[i].DrawProps(cam);
-        }
-    }
 #else
-    /// <summary>
-    /// Uses Graphics.DrawMesh calls!
-    /// </summary>
-    public void DrawPropMeshes()
-    {
-        for (int i = 0; i < propsMeshesData.Length; ++i)
-        {
-            propsMeshesData[i].DrawProps();
+            propsMeshesData[i].DrawProps();/*Unused cam*/
+#endif
         }
     }
-#endif
 
     public void PropMeshesSetDirty()
     {
@@ -179,6 +175,7 @@ public partial class MapData : ScriptableObject
         
         [Header("GPU Instancing Mode")]
         [SerializeField] int variantInstanceLimit = 1000;
+        [SerializeField] bool colorMaterialProperty = true;//TODO handle
 
 
         [Header("Rendering")]
@@ -196,7 +193,9 @@ public partial class MapData : ScriptableObject
 #if !GPU_INSTANCING
         List<Vector3> vertices;
         List<Vector3> normals;
+#if BATCHING_TANGENTS
         List<Vector4> tangents;
+#endif
         List<Vector2> uvs;
         List<Vector2> uvs2;//Common sampling point and pivot for each instance
         List<Color> colors;
@@ -212,7 +211,7 @@ public partial class MapData : ScriptableObject
             private int _count;
             
             public Matrix4x4[] instanceMatrices;
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
             public Vector4[] instanceColors;
 #else
             public MaterialPropertyBlock instanceProperties;
@@ -227,6 +226,10 @@ public partial class MapData : ScriptableObject
             /// </summary>
             public void Initialize(int capacity)//TODO growing size? shared indexed buffers?
             {
+#if !GPU_INSTANCING_CULLING
+                if (capacity > 1023) capacity = 1023;//Material Property Block limit!
+#endif
+
                 if (_instanceMatrices == null || _instanceMatrices.Length != capacity) _instanceMatrices = new Matrix4x4[capacity];
                 if (_instanceColors == null || _instanceColors.Length != capacity) _instanceColors = new Vector4[capacity];
 
@@ -234,7 +237,7 @@ public partial class MapData : ScriptableObject
 
 
                 if (instanceMatrices == null) instanceMatrices = new Matrix4x4[capacity];
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
                 if (instanceColors == null) instanceColors = new Vector4[capacity];
 #else
                 if (instanceProperties == null)
@@ -251,19 +254,18 @@ public partial class MapData : ScriptableObject
             public void UpdateData()
             {
                 if (instanceMatrices.Length != _instanceMatrices.Length) instanceMatrices = new Matrix4x4[_instanceMatrices.Length];
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
                 if (instanceColors.Length != _instanceColors.Length) instanceColors = new Vector4[_instanceColors.Length];
 #else
                 instanceProperties.Clear();
 #endif
 
                 for (count = 0; count < _count; ++count) instanceMatrices[count] = _instanceMatrices[count];
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
                 for (count = 0; count < _count; ++count) instanceColors[count] = _instanceColors[count];
 #else
                 instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);
 #endif
-                //TODO when the instance count increases, somthing causes hiccups, materialProperties seems to be inocent
             }
 
 
@@ -364,10 +366,10 @@ public partial class MapData : ScriptableObject
                 }
             }
         }
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
         public void DrawProps(Camera cullingCam)
         {
-            this.cullingCam = cullingCam;
+            this.cullingCam = Utils.IsEditMode ? null : cullingCam;
 #else
         public void DrawProps()
         {
@@ -525,7 +527,9 @@ public partial class MapData : ScriptableObject
         {
             if (vertices == null) vertices = new List<Vector3>();
             if (normals == null) normals = new List<Vector3>();
+#if BATCHING_TANGENTS
             if (tangents == null) tangents = new List<Vector4>();
+#endif
             if (uvs == null) uvs = new List<Vector2>();
             if (uvs2 == null) uvs2 = new List<Vector2>();
             if (colors == null) colors = new List<Color>();
@@ -540,7 +544,9 @@ public partial class MapData : ScriptableObject
             // Clear lists
             vertices.Clear();
             normals.Clear();
+#if BATCHING_TANGENTS
             tangents.Clear();
+#endif
             uvs.Clear();
             uvs2.Clear();
             colors.Clear();
@@ -735,7 +741,7 @@ public partial class MapData : ScriptableObject
 #else
 
 
-#if TEST_CULLING_BATCHING
+#if GPU_INSTANCING_CULLING
 
         [System.NonSerialized]
         Matrix4x4[] instanceMatrices;
@@ -764,6 +770,7 @@ public partial class MapData : ScriptableObject
             }
 
             //Debug.Log("***"+instanceMatrices);
+            //TODO move initialization to onenable?
             if (instanceMatrices == null) instanceMatrices = new Matrix4x4[maxSubCount];
             if (instanceColors == null) instanceColors = new Vector4[maxSubCount];
             if (instanceProperties == null) instanceProperties = new MaterialPropertyBlock();
@@ -788,16 +795,17 @@ public partial class MapData : ScriptableObject
                 {
                     MeshResource meshResource = variant.meshResources[r];
                     MeshResourceData meshData = meshResource.data;
-                    if (meshData == null) continue;
+                    if (meshData == null || meshResource.targetSubMesh < 0 || meshResource.targetSubMesh >= materials.Length) continue;
 
                     Bounds bounds = meshData.sharedMesh.bounds;
                     Vector3 extents = bounds.extents;
                     Vector3 boundsOffset = bounds.center;
-                    float maxBoundSize = Mathf.Max(Mathf.Max(extents.x, extents.y), extents.z);//0.5f;//TODO max bound size
+                    float maxBoundSize = Mathf.Max(Mathf.Max(extents.x, extents.y), extents.z);
 
                     int instanceIndex = 0;
                     int instancesCount = instancesData.Count;
-                    while (instanceIndex < instancesData.Count)
+                    //Debug.Log("Drawing " + instancesCount + " instances");
+                    while (instanceIndex < instancesCount)
                     {
                         int subCount = 0;
                         while (subCount < maxSubCount && instanceIndex < instancesCount)
@@ -805,21 +813,31 @@ public partial class MapData : ScriptableObject
                             Matrix4x4 instanceMatrix = instancesData.instanceMatrices[instanceIndex];
                             Vector4 instanceColor = instancesData.instanceColors[instanceIndex];
 
-                            Vector3 position = instanceMatrix.MultiplyPoint(boundsOffset);// new Vector3(instanceMatrix.m03, instanceMatrix.m13, instanceMatrix.m23);//TODO bounds offset multiplied by the matrix
-                            //TODO include localToWorld if !GPU_INSTANCING
-                            Vector3 urPosition = position + camUpRight * maxBoundSize;
-                            Vector3 blPosition = position + camBottomLeft * maxBoundSize;
-                            Vector3 urCamPosition = projMatrix.MultiplyPoint(urPosition);
-                            Vector3 blCamPosition = projMatrix.MultiplyPoint(blPosition);
+                            if (culling)
+                            {
+                                Vector3 position = instanceMatrix.MultiplyPoint(boundsOffset);// new Vector3(instanceMatrix.m03, instanceMatrix.m13, instanceMatrix.m23);//TODO bounds offset multiplied by the matrix
+                                                                                              //TODO include localToWorld if !GPU_INSTANCING
+                                Vector3 urPosition = position + camUpRight * maxBoundSize;
+                                Vector3 blPosition = position + camBottomLeft * maxBoundSize;
+                                Vector3 urCamPosition = projMatrix.MultiplyPoint(urPosition);
+                                Vector3 blCamPosition = projMatrix.MultiplyPoint(blPosition);
 
-                            // Ignoring far plane, it would need another matrix multiplication on the nearest point in bounds
-                            if (urCamPosition.z > -1f && urCamPosition.x > -1f && blCamPosition.x < 1f && urCamPosition.y > -1f && blCamPosition.y < 1f)
+                                // Ignoring far plane, it would need another matrix multiplication on the nearest point in bounds
+                                if (urCamPosition.z > -1f && urCamPosition.x > -1f && blCamPosition.x < 1f && urCamPosition.y > -1f && blCamPosition.y < 1f)
+                                {
+                                    instanceMatrices[subCount] = instanceMatrix;
+                                    instanceColors[subCount] = instanceColor;
+
+                                    //if (blCamPosition.x < -0.8f || urCamPosition.x > 0.8f) instanceColors[subCount] = Color.red;
+                                    //else instanceColors[subCount] = Color.black;
+
+                                    subCount++;
+                                }
+                            }
+                            else
                             {
                                 instanceMatrices[subCount] = instanceMatrix;
                                 instanceColors[subCount] = instanceColor;
-
-                                //if (blCamPosition.x < -0.8f || urCamPosition.x > 0.8f) instanceColors[subCount] = Color.red;
-                                //else instanceColors[subCount] = Color.black;
 
                                 subCount++;
                             }
@@ -940,6 +958,7 @@ public partial class MapData : ScriptableObject
                         Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]).normalized;
                         normals.Add(normal);
                     }
+#if BATCHING_TANGENTS
                     if (meshData.tangentsList.Count == meshData.verticesCount)//If it has tangents
                     {
                         for (int i = 0; i < meshData.verticesCount; ++i)
@@ -959,6 +978,7 @@ public partial class MapData : ScriptableObject
                             tangents.Add(rightTangent);
                         }
                     }
+#endif
                     if (meshData.uvsList.Count == meshData.verticesCount)//If uvs loaded
                     {
                         for (int i = 0; i < meshData.verticesCount; ++i)
@@ -1057,7 +1077,9 @@ public partial class MapData : ScriptableObject
 
             mesh.SetVertices(vertices);//mesh.vertices = vertices;
             mesh.SetNormals(normals);//mesh.normals = normals;
+#if BATCHING_TANGENTS
             mesh.SetTangents(tangents);//mesh.tangents = tangents;
+#endif
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
             mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
             mesh.SetColors(colors);//mesh.colors = colors;
