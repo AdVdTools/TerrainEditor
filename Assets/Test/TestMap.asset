@@ -135,49 +135,50 @@ MonoBehaviour:
       - data: {fileID: 11400000, guid: e04ddccdfdd89f7438195567704e7be6, type: 2}
         targetSubMesh: 0
       - data: {fileID: 11400000, guid: 32bf865815615d745be8aa87e79d8925, type: 2}
-        targetSubMesh: 2
+        targetSubMesh: 3
       propsDirection: {x: 0, y: 1, z: 0}
       distanceRange:
         min: 0
         max: 30
     - meshResources:
       - data: {fileID: 11400000, guid: 9b3c6dc8ffd9b9245a92f65e21510f0d, type: 2}
-        targetSubMesh: 0
-      - data: {fileID: 11400000, guid: 14577f2a697c897428667b489697709a, type: 2}
         targetSubMesh: 1
+      - data: {fileID: 11400000, guid: 14577f2a697c897428667b489697709a, type: 2}
+        targetSubMesh: 2
       propsDirection: {x: 0, y: 1, z: 0}
       distanceRange:
         min: 0
         max: 30
     - meshResources:
       - data: {fileID: 11400000, guid: 7305fb6f87d11f94aa456932cd4bf66f, type: 2}
-        targetSubMesh: 3
+        targetSubMesh: 4
       propsDirection: {x: 0, y: 1, z: 0}
       distanceRange:
         min: 0
         max: 30
     - meshResources:
       - data: {fileID: 11400000, guid: a38b0d0d9aec0de4fb29398b90fc2386, type: 2}
-        targetSubMesh: 3
+        targetSubMesh: 4
       propsDirection: {x: 0, y: 1, z: 0}
       distanceRange:
         min: 0
         max: 30
     - meshResources:
       - data: {fileID: 11400000, guid: 495afe7b9ed3f1a45b9dd4c8816f5141, type: 2}
-        targetSubMesh: 3
+        targetSubMesh: 4
       propsDirection: {x: 0, y: 1, z: 0}
       distanceRange:
         min: 0
         max: 30
     propsLogic: {fileID: 11400000, guid: 2bf82eb317ae8254c8dd28fffc653291, type: 2}
-    verticesLengthLimit: 24000
-    trianglesLengthLimit: 36000
+    verticesLengthLimit: 65000
+    trianglesLengthLimit: 195000
     variantInstanceLimit: 2000
     colorMaterialProperty: 1
     castShadows: 0
     receiveShadows: 0
     materials:
+    - {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
     - {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
     - {fileID: 2100000, guid: b9180c7892639f14b87707e28f5d4a29, type: 2}
     - {fileID: 2100000, guid: 653c076cc9a7fa54aa2493bc26859f06, type: 2}

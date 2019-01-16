@@ -1,8 +1,9 @@
-﻿#define GPU_INSTANCING
-#define GPU_INSTANCING_CULLING // Required for 1023+ instances/variant
+﻿//#define BATCHING // AKA !GPU_INSTANCING
 
-//#define BATCHING_TANGENTS // Ignored in GPU_INSTANCING
+#define GPU_INSTANCING_CULLING // Required for 1023+ instances/variant, ignred in BATCHING
+//#define BATCHING_TANGENTS // Used in BATCHING only
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
@@ -80,7 +81,7 @@ public partial class MapData : ScriptableObject
         //TODO disable occlusion if no cam
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
-#if GPU_INSTANCING_CULLING
+#if GPU_INSTANCING_CULLING && !BATCHING
             propsMeshesData[i].DrawProps(cam);
 #else
             propsMeshesData[i].DrawProps();/*Unused cam*/
@@ -187,10 +188,13 @@ public partial class MapData : ScriptableObject
         [SerializeField] Material[] materials;
         public Material[] sharedMaterials { get { return materials; } }
 
+        /// <summary>
+        /// Unused in GPU_INSTANCING mode
+        /// </summary>
         public Mesh sharedMesh { get { return mesh; } }
 
         Mesh mesh;
-#if !GPU_INSTANCING
+#if BATCHING
         List<Vector3> vertices;
         List<Vector3> normals;
 #if BATCHING_TANGENTS
@@ -200,7 +204,9 @@ public partial class MapData : ScriptableObject
         List<Vector2> uvs2;//Common sampling point and pivot for each instance
         List<Color> colors;
         List<int>[] triangleLists;
-#else
+        int[] startIndices;
+#endif
+
         private class VariantInstancesData
         {
             private static int _ColorPropertyID = Shader.PropertyToID("_Color");
@@ -209,7 +215,8 @@ public partial class MapData : ScriptableObject
             private Matrix4x4[] _instanceMatrices;
             private Vector4[] _instanceColors;
             private int _count;
-            
+
+#if !BATCHING
             public Matrix4x4[] instanceMatrices;
 #if GPU_INSTANCING_CULLING
             public Vector4[] instanceColors;
@@ -218,7 +225,7 @@ public partial class MapData : ScriptableObject
 #endif
             private int count;
             public int Count { get { return count; } }
-
+#endif
 
             /// <summary>
             /// Called from the main thread before the work on the building thread starts.
@@ -226,7 +233,7 @@ public partial class MapData : ScriptableObject
             /// </summary>
             public void Initialize(int capacity)//TODO growing size? shared indexed buffers?
             {
-#if !GPU_INSTANCING_CULLING
+#if !GPU_INSTANCING_CULLING && !BATCHING
                 if (capacity > 1023) capacity = 1023;//Material Property Block limit!
 #endif
 
@@ -235,19 +242,17 @@ public partial class MapData : ScriptableObject
 
                 _count = 0;
 
-
+#if !BATCHING
                 if (instanceMatrices == null) instanceMatrices = new Matrix4x4[capacity];
 #if GPU_INSTANCING_CULLING
                 if (instanceColors == null) instanceColors = new Vector4[capacity];
 #else
-                if (instanceProperties == null)
-                {
-                    instanceProperties = new MaterialPropertyBlock();
-                    //TODO assign full array?
-                }
+                if (instanceProperties == null) instanceProperties = new MaterialPropertyBlock();
+#endif
 #endif
             }
 
+#if !BATCHING
             /// <summary>
             /// Called from the main thread when the work on the building thread is done
             /// </summary>
@@ -267,6 +272,7 @@ public partial class MapData : ScriptableObject
                 instanceProperties.SetVectorArray(_ColorPropertyID, _instanceColors);
 #endif
             }
+#endif
 
 
             /// <summary>
@@ -290,9 +296,21 @@ public partial class MapData : ScriptableObject
                 _instanceColors[_count] = color;
                 _count++;
             }
+
+#if BATCHING
+            /// <summary>
+            /// Called from the building thread
+            /// Batching mode only
+            /// </summary>
+            public void GetInstance(int instanceIndex, out Matrix4x4 matrix, out Color color)
+            {
+                matrix = _instanceMatrices[instanceIndex];
+                color = _instanceColors[instanceIndex];
+            }
+#endif
         }
         VariantInstancesData[] variantsInstancesData;
-#endif
+
 
         MapData mapData;
 
@@ -332,18 +350,17 @@ public partial class MapData : ScriptableObject
                     _pov = pov;
                     _lodScale = lodScale;
 
-#if !GPU_INSTANCING
+#if BATCHING
                     LoadMeshLists();
                     InitializeLists();
-                    currentUpdateState = UpdateState.Updating;
-                    Debug.Log("ForceUpdate");
-                    PropsUpdate();
-                    UpdateMesh();
-#else
+#endif
                     InitializeVariantsInstancesData();
                     currentUpdateState = UpdateState.Updating;
                     Debug.Log("ForceUpdate");
-                    PropsBuildData();
+                    PropsBuildData();//TODO remove propsupdate?
+#if BATCHING
+                    UpdateMesh();
+#else
                     RetrieveInstanceData();
 #endif
 
@@ -366,7 +383,7 @@ public partial class MapData : ScriptableObject
                 }
             }
         }
-#if GPU_INSTANCING_CULLING
+#if GPU_INSTANCING_CULLING && !BATCHING
         public void DrawProps(Camera cullingCam)
         {
             this.cullingCam = Utils.IsEditMode ? null : cullingCam;
@@ -374,8 +391,8 @@ public partial class MapData : ScriptableObject
         public void DrawProps()
         {
 #endif
-#if !GPU_INSTANCING
-            PropsDraw();       
+#if BATCHING
+            PropsDrawBatched();//TODO rename PropsDraw to PropsDrawBatched       
 #else
             PropsDrawInstanced();
 #endif
@@ -387,7 +404,7 @@ public partial class MapData : ScriptableObject
             {
                 if (currentUpdateState == UpdateState.Ready)
                 {
-#if !GPU_INSTANCING
+#if BATCHING
                     //Vertices/Indices ready, build mesh
                     UpdateMesh();
 #else
@@ -414,12 +431,12 @@ public partial class MapData : ScriptableObject
                         _pov = pov;
                         _lodScale = lodScale;
 
-#if !GPU_INSTANCING
+#if BATCHING
                         LoadMeshLists();
                         InitializeLists();
-#else
-                        InitializeVariantsInstancesData();
 #endif
+                        InitializeVariantsInstancesData();
+
 
                         dirty = false;//Allow dirtying while updating
                                       //Begin Vertices/Indices update
@@ -454,11 +471,8 @@ public partial class MapData : ScriptableObject
                     {
                         try
                         {
-#if !GPU_INSTANCING
-                            PropsUpdate();
-#else
+                            //PropsUpdate();
                             PropsBuildData();
-#endif
                         }
                         catch (System.Exception e)
                         {
@@ -490,7 +504,7 @@ public partial class MapData : ScriptableObject
             mre.Set();//Run another iteration
         }
 
-#if !GPU_INSTANCING
+#if BATCHING
         void LoadMeshLists()
         {
             for (var v = 0; v < variants.Length; ++v)
@@ -540,6 +554,9 @@ public partial class MapData : ScriptableObject
                 triangleLists = new List<int>[subMeshCount];
                 for (int i = 0; i < subMeshCount; ++i) triangleLists[i] = new List<int>();
             }
+            if (startIndices == null || startIndices.Length != subMeshCount) {
+                startIndices = new int[subMeshCount];
+            }
 
             // Clear lists
             vertices.Clear();
@@ -551,8 +568,10 @@ public partial class MapData : ScriptableObject
             uvs2.Clear();
             colors.Clear();
             for (int i = 0; i < subMeshCount; ++i) triangleLists[i].Clear();       
+            //StartIndices data is overwritten on mesh build
         }
-#else
+#endif
+
         void InitializeVariantsInstancesData()
         {
             int variantsLength = variants.Length;
@@ -563,89 +582,89 @@ public partial class MapData : ScriptableObject
             }
             for (int i = 0; i < variantsLength; ++i) variantsInstancesData[i].Initialize(variantInstanceLimit);
         }
-#endif
+
 
         System.Diagnostics.Stopwatch updateStopWatch = new System.Diagnostics.Stopwatch();
         float updateDuration;
 
-#if !GPU_INSTANCING
-        void PropsUpdate()
-        {
-            updateStopWatch.Reset();
-            updateStopWatch.Start();
+//#if BATCHING
+//        void PropsUpdate()
+//        {
+//            updateStopWatch.Reset();
+//            updateStopWatch.Start();
 
-            int vertexIndex = 0;
-            int indexIndex = 0;
+//            int vertexIndex = 0;
+//            int indexIndex = 0;
 
-            if (instanceSetIndex >= 0 && instanceSetIndex < mapData.instanceSets.Length)
-            {
-                InstanceSet instanceSet = mapData.instanceSets[instanceSetIndex];
-                int instanceCount = instanceSet.Count;
-                List<PropInstance> instances = instanceSet.Instances;//We could sync this, but it should not be a problem outside the edtir
+//            if (instanceSetIndex >= 0 && instanceSetIndex < mapData.instanceSets.Length)
+//            {
+//                InstanceSet instanceSet = mapData.instanceSets[instanceSetIndex];
+//                int instanceCount = instanceSet.Count;
+//                List<PropInstance> instances = instanceSet.Instances;//We could sync this, but it should not be a problem outside the edtir
 
-                for (int i = 0; i < instanceCount; ++i)
-                {
-                    PropInstance instance = instances[i];
+//                for (int i = 0; i < instanceCount; ++i)
+//                {
+//                    PropInstance instance = instances[i];
                     
-                    DoInstance(instance, ref vertexIndex, ref indexIndex);
-                }
-            }
+//                    DoInstance(instance, ref vertexIndex, ref indexIndex);
+//                }
+//            }
 
 
-            if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.mapTextures.Length)
-            {
-                PropDitherPattern.PatternElement[] elements = pattern.elements;
-                int elementsLength = elements.Length;
+//            if (pattern != null && propsLogic != null && densityMapIndex >= 0 && densityMapIndex < mapData.mapTextures.Length)
+//            {
+//                PropDitherPattern.PatternElement[] elements = pattern.elements;
+//                int elementsLength = elements.Length;
 
-                int povCellX = Mathf.RoundToInt(_pov.x / patternScale);
-                int povCellY = Mathf.RoundToInt(_pov.z / patternScale);
+//                int povCellX = Mathf.RoundToInt(_pov.x / patternScale);
+//                int povCellY = Mathf.RoundToInt(_pov.z / patternScale);
 
-                MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
+//                MapTexture densityMapTexture = mapData.mapTextures[densityMapIndex];//TODO null checks in all classes?
 
-                DensityPropsLogic currentPropsLogic = propsLogic;
-                //System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance> BuildInstanceData = currentPropsLogic.BuildInstanceData;//No apparent improvement
+//                DensityPropsLogic currentPropsLogic = propsLogic;
+//                //System.Func<Vector2, float, PropDitherPattern.PatternElement, Vector4, PropInstance> BuildInstanceData = currentPropsLogic.BuildInstanceData;//No apparent improvement
 
-                Vector2 elementPosition;
-                Vector4 densityValues;
-                for (int e = 0; e < elements.Length; ++e)
-                {
-                    PropDitherPattern.PatternElement element = elements[e];
+//                Vector2 elementPosition;
+//                Vector4 densityValues;
+//                for (int e = 0; e < elements.Length; ++e)
+//                {
+//                    PropDitherPattern.PatternElement element = elements[e];
 
-                    elementPosition = GetElementPosition(povCellX, povCellY, element);
-                    densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
-                }
+//                    elementPosition = GetElementPosition(povCellX, povCellY, element);
+//                    densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+//                    DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+//                }
                 
-                for (int offset = 1; offset <= maxCellOffset; ++offset)
-                {
-                    //int sideLength = offset * 2;
-                    for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
-                    {
-                        for (int e = 0; e < elements.Length; ++e)
-                        {
-                            PropDitherPattern.PatternElement element = elements[e];
+//                for (int offset = 1; offset <= maxCellOffset; ++offset)
+//                {
+//                    //int sideLength = offset * 2;
+//                    for (int offset2 = 1 - offset; offset2 <= offset; ++offset2)
+//                    {
+//                        for (int e = 0; e < elements.Length; ++e)
+//                        {
+//                            PropDitherPattern.PatternElement element = elements[e];
 
-                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, element);
-                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, element);
-                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, element);
-                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
-                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, element);
-                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
-                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
-                        }
-                    }
-                }
-            }
+//                            elementPosition = GetElementPosition(povCellX + offset, povCellY + offset2, element);
+//                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+//                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+//                            elementPosition = GetElementPosition(povCellX - offset2, povCellY + offset, element);
+//                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+//                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+//                            elementPosition = GetElementPosition(povCellX - offset, povCellY - offset2, element);
+//                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+//                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+//                            elementPosition = GetElementPosition(povCellX + offset2, povCellY - offset, element);
+//                            densityValues = densityMapTexture.SampleValue(elementPosition.x, elementPosition.y, mapData);
+//                            DoInstance(currentPropsLogic.BuildInstanceData(elementPosition, element, densityValues), ref vertexIndex, ref indexIndex);
+//                        }
+//                    }
+//                }
+//            }
             
-            updateStopWatch.Stop();
-            updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
-        }
-#else
+//            updateStopWatch.Stop();
+//            updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
+//        }
+//#else
         /// <summary>
         /// Builds each instance data
         /// </summary>
@@ -719,16 +738,150 @@ public partial class MapData : ScriptableObject
                 }
             }
 
+#if BATCHING
+            BuildMesh();   //TODO build mesh
+#endif
+
             updateStopWatch.Stop();
             updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
 
             //Debug.Log("PropsInstanceDataBuild: " + updateDuration);
         }
+        //#endif
+
+#if BATCHING
+        void BuildMesh()
+        {
+            int subMeshStartIndex = 0;
+            int variantsLength = variants.Length;
+
+            int subMeshCount = triangleLists.Length;
+            for (int subMesh = 0; subMesh < subMeshCount; ++subMesh)
+            {
+                startIndices[subMesh] = subMeshStartIndex;
+
+                int indexIndex = 0;
+                int vertexIndex = 0;
+                for (int v = 0; v < variantsLength; ++v)
+                {
+                    Variant variant = variants[v];
+                    VariantInstancesData instancesData = variantsInstancesData[v];
+
+                    int instanceCount = instancesData.InternalCount;
+                    if (instanceCount == 0) continue;
+                    
+                    for (int r = 0; r < variant.meshResources.Length; ++r)
+                    {
+                        MeshResource meshResource = variant.meshResources[r];
+                        if (meshResource.targetSubMesh != subMesh) continue;
+
+                        MeshResourceData meshData = meshResource.data;
+                        if (meshData == null) continue;
+
+                        lock (meshData.dataLock)
+                        {
+                            if (!meshData.MeshListsLoaded()) continue;
+
+                            for (int instanceIndex = 0; instanceIndex < instanceCount; ++instanceIndex)
+                            {
+                                if (vertexIndex + meshData.verticesCount > verticesLengthLimit) break;
+                                if (indexIndex + meshData.indicesCount > trianglesLengthLimit) break;
+
+                                Matrix4x4 matrix;
+                                Color tint;
+                                instancesData.GetInstance(instanceIndex, out matrix, out tint);
+                                Vector2 position2D = new Vector2(matrix.m00, matrix.m20);
+
+                                for (int i = 0; i < meshData.verticesCount; ++i)
+                                {
+                                    Vector3 vertex = matrix.MultiplyPoint3x4(meshData.verticesList[i]);
+                                    vertices.Add(vertex);
+                                }
+                                for (int i = 0; i < meshData.verticesCount; ++i)
+                                {
+                                    Vector3 normal = matrix.MultiplyVector(meshData.normalsList[i]).normalized;
+                                    normals.Add(normal);
+                                }
+#if BATCHING_TANGENTS
+                                if (meshData.tangentsList.Count == meshData.verticesCount)//If it has tangents
+                                {
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        Vector4 origTangent = meshData.tangentsList[i];
+                                        Vector4 tangent = matrix.MultiplyVector(origTangent).normalized * origTangent.w;
+                                        tangent.w = 1;
+                                        tangents.Add(tangent);
+                                    }
+                                }
+                                else
+                                {
+                                    Vector4 rightTangent = matrix.MultiplyVector(new Vector3(1, 0, 0)).normalized;
+                                    rightTangent.w = 1;
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        tangents.Add(rightTangent);
+                                    }
+                                }
+#endif
+                                if (meshData.uvsList.Count == meshData.verticesCount)//If uvs loaded
+                                {
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        Vector2 uv = meshData.uvsList[i];
+                                        uvs.Add(uv);
+                                        uvs2.Add(position2D);
+                                    }
+                                }
+                                else
+                                {
+                                    Vector2 zero = default(Vector2);
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        uvs.Add(zero);
+                                        uvs2.Add(position2D);
+                                    }
+                                }
+                                if (meshData.colorsList.Count == meshData.verticesCount)//If colors loaded, TODO create arrays in mesh resource and assume here? same for uvs?
+                                {
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        Color color = meshData.colorsList[i];
+                                        colors.Add(color * tint);
+                                    }
+                                }
+                                else
+                                {
+                                    for (int i = 0; i < meshData.verticesCount; ++i)
+                                    {
+                                        colors.Add(tint);
+                                    }
+                                }
+
+                                if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
+                                {
+                                    List<int> triangles = triangleLists[meshResource.targetSubMesh];
+                                    for (int i = 0; i < meshData.indicesCount; ++i)
+                                    {
+                                        int index = vertexIndex + meshData.trianglesList[i];
+                                        triangles.Add(index);
+                                    }
+                                }
+
+                                vertexIndex += meshData.verticesCount;
+                                indexIndex += meshData.indicesCount;
+                            }
+                        }
+                    }
+                }
+                subMeshStartIndex += vertexIndex;
+            }
+        }
 #endif
 
-#if !GPU_INSTANCING
+
+#if BATCHING
         //TODO more submeshes?
-        void PropsDraw()
+        void PropsDrawBatched()
         {
             //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property 
 
@@ -738,10 +891,7 @@ public partial class MapData : ScriptableObject
                 Graphics.DrawMesh(mesh, localToWorld, materials[i], 0, null, i, null, castShadows, receiveShadows, null, LightProbeUsage.Off);
             }
         }
-#else
-
-
-#if GPU_INSTANCING_CULLING
+#elif GPU_INSTANCING_CULLING
 
         [System.NonSerialized]
         Matrix4x4[] instanceMatrices;
@@ -904,15 +1054,14 @@ public partial class MapData : ScriptableObject
             }
         }
 #endif
-
-#endif
+        
 
         Vector2 GetElementPosition(int cellX, int cellY, PropDitherPattern.PatternElement element)
         {
             return (new Vector2(cellX, cellY) + element.pos / PropDitherPattern.CellSize) * patternScale;
         }
 
-#if !GPU_INSTANCING
+/*#if BATCHING
         void DoInstance(PropInstance instance, ref int vertexIndex, ref int indexIndex)
         {
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
@@ -1028,7 +1177,7 @@ public partial class MapData : ScriptableObject
                 }
             }
         }
-#else
+#else*/
         void DoInstance(PropInstance instance)
         {
             if (instance.variantIndex < 0 || instance.variantIndex >= variants.Length) return;
@@ -1038,7 +1187,6 @@ public partial class MapData : ScriptableObject
             if (instancesData.InternalCount >= instancesData.InternalCapacity) return;
 
             Vector3 position = instance.position;
-            Vector2 position2D = new Vector2(position.x, position.z);
             
             Vector3 realPosition = mapData.GetRealInstancePosition(position);
             float sqrDistance = (realPosition - _pov).sqrMagnitude * _lodScale * _lodScale;
@@ -1053,13 +1201,17 @@ public partial class MapData : ScriptableObject
             Color tint = instance.tint;
 
             Matrix4x4 matrix = Matrix4x4.TRS(realPosition, Quaternion.FromToRotation(Vector3.up, direction) * Quaternion.Euler(0, rotation, 0), new Vector3(size, size, size));//TODO Optimize?
-            
+
+#if BATCHING
+            instancesData.AddInstance(matrix, tint);
+#else
             instancesData.AddInstance(_localToWorld * matrix, tint);
-        }
 #endif
+        }
+        //#endif
 
 
-#if !GPU_INSTANCING
+#if BATCHING
         void UpdateMesh()
         {
             if (mesh == null)
@@ -1089,11 +1241,13 @@ public partial class MapData : ScriptableObject
             mesh.subMeshCount = triangleLists.Length;
             for (int sm = 0; sm < triangleLists.Length; ++sm)
             {
-                mesh.SetTriangles(triangleLists[sm], sm, false);//TODO calculate bounds later?
+                mesh.SetTriangles(triangleLists[sm], sm, false, startIndices[sm]);//TODO calculate bounds later?
             }
             //mesh.RecalculateBounds();
         }
-#else
+#endif
+
+#if !BATCHING
         void RetrieveInstanceData()
         {
             //Debug.Log("RetrieveInstanceData");
@@ -1110,22 +1264,32 @@ public partial class MapData : ScriptableObject
 #if DEBUG
         public string GetDebug()
         {
+#if BATCHING
+            int indexCountSum = 0;
+            string indexCounts = "";
+            int submeshCount = mesh.subMeshCount;
+            for (int i = 0; i < submeshCount; ++i)
+            {
+                indexCounts += "+" + mesh.GetIndexCount(i);
+                indexCountSum += (int) mesh.GetIndexCount(i);
+            }
+            return string.Format("{0} ms, {1} vertices, {2} = {3} indices", updateDuration, mesh.vertexCount, indexCounts, indexCountSum);
+#else
             string instanceCounts = "-";
-#if GPU_INSTANCING
             int variantsLength = variants.Length;
             if (variantsInstancesData == null) return instanceCounts;
             for (int i = 0; i < variantsLength; ++i)
             {
                 instanceCounts += variantsInstancesData[i].Count + "-";
             }
-#endif
             return string.Format("{0} ms, {1} instances", updateDuration, instanceCounts);
+#endif
         }
 #endif
         }
 
 #if DEBUG
-    string[] debugLines;
+        string[] debugLines;
     public string[] GetDebug()
     {
         int propsMeshesDataLength = propsMeshesData.Length;
