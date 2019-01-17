@@ -1,9 +1,7 @@
 ﻿//#define BATCHING // AKA !GPU_INSTANCING
 
 //#define BATCHING_TANGENTS // Used in BATCHING only
-  
-//TODO make culling directive default, since it allows for more instances? (easier lod prop handling?) remove no culling mode
-
+//#define BATCHING_UV2 // this makes no sense..
 
 using System;
 using System.Collections.Generic;
@@ -80,6 +78,7 @@ public partial class MapData : ScriptableObject
     /// </summary>
     public void DrawPropMeshes(Camera cam)
     {
+        //Debug.Log("Draw " + cam);
         for (int i = 0; i < propsMeshesData.Length; ++i)
         {
 #if !BATCHING
@@ -220,7 +219,9 @@ public partial class MapData : ScriptableObject
         List<Vector4> tangents;
 #endif
         List<Vector2> uvs;
+#if BATCHING_UV2
         List<Vector2> uvs2;//Common sampling point and pivot for each instance
+#endif
         List<Color> colors;
         List<int>[] triangleLists;
         int[] startIndices;
@@ -357,7 +358,7 @@ public partial class MapData : ScriptableObject
                     InitializeVariantsInstancesData();
                     currentUpdateState = UpdateState.Updating;
                     Debug.Log("ForceUpdate");
-                    PropsBuildData();
+                    PropsUpdate();
 #if BATCHING
                     UpdateMesh();
 #else
@@ -383,7 +384,7 @@ public partial class MapData : ScriptableObject
                 }
             }
         }
-        
+
 #if BATCHING
         public void DrawProps()
         {
@@ -470,8 +471,7 @@ public partial class MapData : ScriptableObject
                     {
                         try
                         {
-                            //PropsUpdate();
-                            PropsBuildData();
+                            PropsUpdate();
                         }
                         catch (System.Exception e)
                         {
@@ -544,7 +544,9 @@ public partial class MapData : ScriptableObject
             if (tangents == null) tangents = new List<Vector4>();
 #endif
             if (uvs == null) uvs = new List<Vector2>();
+#if BATCHING_UV2
             if (uvs2 == null) uvs2 = new List<Vector2>();
+#endif
             if (colors == null) colors = new List<Color>();
             
             int subMeshCount = submeshRenderingConfig.Length;
@@ -564,7 +566,9 @@ public partial class MapData : ScriptableObject
             tangents.Clear();
 #endif
             uvs.Clear();
+#if BATCHING_UV2
             uvs2.Clear();
+#endif
             colors.Clear();
             for (int i = 0; i < subMeshCount; ++i) triangleLists[i].Clear();       
             //StartIndices data is overwritten on mesh build
@@ -590,7 +594,7 @@ public partial class MapData : ScriptableObject
         /// <summary>
         /// Builds each instance data
         /// </summary>
-        void PropsBuildData()
+        void PropsUpdate()
         {
             updateStopWatch.Reset();
             updateStopWatch.Start();
@@ -667,7 +671,7 @@ public partial class MapData : ScriptableObject
             updateStopWatch.Stop();
             updateDuration += (updateStopWatch.ElapsedMilliseconds - updateDuration) * 0.5f;
 
-            //Debug.Log("PropsInstanceDataBuild: " + updateDuration);
+            //Debug.Log("PropsUpdate: " + updateDuration);
         }
 
 #if BATCHING
@@ -757,7 +761,9 @@ public partial class MapData : ScriptableObject
                                     {
                                         Vector2 uv = meshData.uvsList[i];
                                         uvs.Add(uv);
+#if BATCHING_UV2
                                         uvs2.Add(position2D);
+#endif
                                     }
                                 }
                                 else
@@ -766,7 +772,9 @@ public partial class MapData : ScriptableObject
                                     for (int i = 0; i < meshData.verticesCount; ++i)
                                     {
                                         uvs.Add(zero);
+#if BATCHING_UV2
                                         uvs2.Add(position2D);
+#endif
                                     }
                                 }
                                 if (meshData.colorsList.Count == meshData.verticesCount)//If colors loaded, TODO create arrays in mesh resource and assume here? same for uvs?
@@ -921,8 +929,6 @@ public partial class MapData : ScriptableObject
                             {
                                 instanceMatrices[subCount] = instanceMatrix;
                                 instanceColors[subCount] = instanceColor;
-                                //TODO array for unity_LODFade vector values for each instance? (alt is per vertex in shader!) not supported in batching
-                                //TODO camera as distance reference?, add another argument for pov? 
                                 instanceLODFades[subCount] = 1f;
 
                                 subCount++;
@@ -1004,7 +1010,9 @@ public partial class MapData : ScriptableObject
             mesh.SetTangents(tangents);//mesh.tangents = tangents;
 #endif
             mesh.SetUVs(0, uvs);//mesh.uv = uvs;
+#if BATCHING_UV2
             mesh.SetUVs(1, uvs2);//mesh.uv2 = uvs2;
+#endif
             mesh.SetColors(colors);//mesh.colors = colors;
 
             //Debug.Log("BTW: " + updateDuration);

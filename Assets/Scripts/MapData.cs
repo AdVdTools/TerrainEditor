@@ -215,7 +215,7 @@ public partial class MapData : ScriptableObject
         HeightTextureLoad();
 
         PropsDataOnValidate();
-        MapTextureOnValidate();//Load colorMapIndex map for mesh build even if !EDITOR
+        MapTextureOnValidate();
 
         ValidateSubassets();// SerializeMapAssets();
     }

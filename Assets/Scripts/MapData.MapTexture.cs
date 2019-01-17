@@ -64,7 +64,7 @@ public partial class MapData : ScriptableObject
 
     
     public void ReadTexture(Texture2D texture, ref Color[] map)
-    { 
+    {
         int targetLength = width * depth;
         if (map == null || map.Length != targetLength) map = new Color[targetLength];
 

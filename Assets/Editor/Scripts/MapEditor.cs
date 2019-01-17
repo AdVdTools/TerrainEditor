@@ -867,7 +867,6 @@ public class MapEditor : Editor {
 
         if (data.PropMeshesRebuildOngoing())
         {
-            EditorApplication.QueuePlayerLoopUpdate();
             SceneView.RepaintAll();
             //Extra repaint after "ready" to redraw with the new mesh
             afterMeshUpdateRefreshPending = true;
@@ -880,7 +879,7 @@ public class MapEditor : Editor {
         }
     }
 
-    //void DrawPropMeshes()
+    //void DrawPropMeshes()//TODO remove if not used, but might be useful
     //{
     //    if (EditorApplication.isPlaying) return;//Let Map class do the drawing
 
