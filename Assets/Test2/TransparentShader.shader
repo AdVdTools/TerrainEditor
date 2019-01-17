@@ -7,8 +7,8 @@
 		[NoScaleOffset] _MainTex("Base (RGB)", 2D) = "white" {}
 	}
 
-	SubShader
-	{ 
+		SubShader
+	{
 		Tags {"Queue" = "AlphaTest" /*Transparent*/ "RenderType" = "Transparent" }
 		LOD 100
 
@@ -21,7 +21,7 @@
 			Tags {"LightMode" = "ForwardBase"}
 
 			CGPROGRAM
-		
+
 #pragma vertex vert
 #pragma fragment frag
 #include "UnityCG.cginc"
@@ -35,6 +35,7 @@
 // shadow helper functions and macros
 #include "AutoLight.cginc"
 
+float4 _POV_LOD;
 		
 struct appdata
 {
@@ -62,6 +63,7 @@ struct v2f
 UNITY_INSTANCING_BUFFER_START(Props)
 // put more per-instance properties here
 UNITY_DEFINE_INSTANCED_PROP(fixed4, _Color)
+UNITY_DEFINE_INSTANCED_PROP(fixed, _LODFade)
 UNITY_INSTANCING_BUFFER_END(Props)
 
 v2f vert(appdata v)
@@ -70,10 +72,19 @@ v2f vert(appdata v)
 	UNITY_SETUP_INSTANCE_ID(v);
 	//UNITY_TRANSFER_INSTANCE_ID(v, o); // necessary only if you want to access instanced properties in the fragment Shader.
 
-	o.pos = UnityObjectToClipPos(v.vertex);
+	//float3 offset = mul(unity_ObjectToWorld, v.vertex).xyz - _POV_LOD.xyz;
+	//float distance = length(offset) * _POV_LOD.w;
+
+	//float fadeMultiplier = distance < 20 ? 1 : distance < 30 ? 1 - (distance - 20) / (30 - 20) : 0;
+	float fadeMultiplier = UNITY_ACCESS_INSTANCED_PROP(Props, _LODFade);
+
+	o.pos = UnityObjectToClipPos(v.vertex * fadeMultiplier);
 	o.uv = v.uv;
 
+
 	fixed4 color = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
+	//color.rgb *= multiplier;
+	//color.a *= multiplier;/////
 
 	half3 worldNormal = UnityObjectToWorldNormal(v.normal);
 	half nl = max(0, dot(worldNormal, _WorldSpaceLightPos0.xyz));

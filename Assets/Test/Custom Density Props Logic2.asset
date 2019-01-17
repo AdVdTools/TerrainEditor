@@ -27,7 +27,7 @@ MonoBehaviour:
       max: 0.04
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.57498217, g: 0.65284866, b: 0.6886792, a: 1}
+      key0: {r: 0.52354044, g: 0.5795824, b: 0.6132076, a: 1}
       key1: {r: 0.7636925, g: 0.7830189, b: 0.7497775, a: 1}
       key2: {r: 0, g: 0, b: 0, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}

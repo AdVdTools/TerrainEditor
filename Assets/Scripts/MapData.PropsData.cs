@@ -1,7 +1,10 @@
 ﻿//#define BATCHING // AKA !GPU_INSTANCING
 
-#define GPU_INSTANCING_CULLING // Required for 1023+ instances/variant, ignred in BATCHING
+#define GPU_INSTANCING_CULLING // Required for 1023+ instances/variant, ignored in BATCHING
 //#define BATCHING_TANGENTS // Used in BATCHING only
+  
+//TODO make culling directive default, since it allows for more instances? (easier lod prop handling?) remove no culling mode
+
 
 using System;
 using System.Collections.Generic;
@@ -179,14 +182,27 @@ public partial class MapData : ScriptableObject
         [SerializeField] bool colorMaterialProperty = true;//TODO handle
 
 
+        //TODO merge options in struct "submeshconfig"
+        [Serializable]
+        private struct PropsSubmeshRendering
+        {
+            public ShadowCastingMode castShadows;
+            public bool receiveShadows;
+            public Material material;
+            public bool includeColorProperties;//TODO include pov property? this pov updates slowly, do externally
+            public bool includeLODFadeProperties;//TODO or lod fade! /*GPU_INSTANCING only!*/
+        }
         [Header("Rendering")]
         [SerializeField]
-        private ShadowCastingMode castShadows = ShadowCastingMode.Off;
-        [SerializeField]
-        private bool receiveShadows = false;
+        private PropsSubmeshRendering[] submeshRenderingConfig;
 
-        [SerializeField] Material[] materials;
-        public Material[] sharedMaterials { get { return materials; } }
+
+        //[SerializeField]
+        //private ShadowCastingMode castShadows = ShadowCastingMode.Off;
+        //[SerializeField]
+        //private bool receiveShadows = false;
+
+        //[SerializeField] Material[] materials;
 
         /// <summary>
         /// Unused in GPU_INSTANCING mode
@@ -548,7 +564,7 @@ public partial class MapData : ScriptableObject
             if (uvs2 == null) uvs2 = new List<Vector2>();
             if (colors == null) colors = new List<Color>();
             
-            int subMeshCount = materials.Length;
+            int subMeshCount = submeshRenderingConfig.Length;
             
             if (triangleLists == null || triangleLists.Length != subMeshCount) {
                 triangleLists = new List<int>[subMeshCount];
@@ -752,12 +768,15 @@ public partial class MapData : ScriptableObject
 #if BATCHING
         void BuildMesh()
         {
+            //TODO predict offsets and limits, parallelize? is it worth it?
             int subMeshStartIndex = 0;
             int variantsLength = variants.Length;
 
             int subMeshCount = triangleLists.Length;
             for (int subMesh = 0; subMesh < subMeshCount; ++subMesh)
             {
+                PropsSubmeshRendering renderingConfig = submeshRenderingConfig[subMesh];
+
                 startIndices[subMesh] = subMeshStartIndex;
 
                 int indexIndex = 0;
@@ -790,6 +809,7 @@ public partial class MapData : ScriptableObject
                                 Matrix4x4 matrix;
                                 Color tint;
                                 instancesData.GetInstance(instanceIndex, out matrix, out tint);
+                                if (!renderingConfig.includeColorProperties) tint = Color.white;
                                 Vector2 position2D = new Vector2(matrix.m00, matrix.m20);
 
                                 for (int i = 0; i < meshData.verticesCount; ++i)
@@ -856,15 +876,12 @@ public partial class MapData : ScriptableObject
                                         colors.Add(tint);
                                     }
                                 }
-
-                                if (meshResource.targetSubMesh >= 0 && meshResource.targetSubMesh < subMeshCount)
+                                
+                                List<int> triangles = triangleLists[subMesh];
+                                for (int i = 0; i < meshData.indicesCount; ++i)
                                 {
-                                    List<int> triangles = triangleLists[meshResource.targetSubMesh];
-                                    for (int i = 0; i < meshData.indicesCount; ++i)
-                                    {
-                                        int index = vertexIndex + meshData.trianglesList[i];
-                                        triangles.Add(index);
-                                    }
+                                    int index = vertexIndex + meshData.trianglesList[i];
+                                    triangles.Add(index);
                                 }
 
                                 vertexIndex += meshData.verticesCount;
@@ -885,10 +902,11 @@ public partial class MapData : ScriptableObject
         {
             //TODO fill MaterialPropertyBlocks with _POV_LODScale Vector4 property 
 
-            int materialsLength = materials.Length;
-            for (int i = 0; i < materialsLength; ++i)
+            int submeshCount = submeshRenderingConfig.Length;
+            for (int i = 0; i < submeshCount; ++i)
             {
-                Graphics.DrawMesh(mesh, localToWorld, materials[i], 0, null, i, null, castShadows, receiveShadows, null, LightProbeUsage.Off);
+                PropsSubmeshRendering renderingConfig = submeshRenderingConfig[i];
+                Graphics.DrawMesh(mesh, localToWorld, renderingConfig.material, 0, null, i, null, renderingConfig.castShadows, renderingConfig.receiveShadows, null, LightProbeUsage.Off);
             }
         }
 #elif GPU_INSTANCING_CULLING
@@ -898,8 +916,11 @@ public partial class MapData : ScriptableObject
         [System.NonSerialized]
         Vector4[] instanceColors;
         [System.NonSerialized]
+        float[] instanceLODFades;
+        [System.NonSerialized]
         MaterialPropertyBlock instanceProperties;
         private static int _ColorPropertyID = Shader.PropertyToID("_Color");
+        private static int _LODFadePropertyID = Shader.PropertyToID("_LODFade");
         const int maxSubCount = 500;//TODO rename?
 
         Camera cullingCam;
@@ -913,16 +934,19 @@ public partial class MapData : ScriptableObject
             Matrix4x4 projMatrix = default(Matrix4x4);
             Vector3 camUpRight = default(Vector3);
             Vector3 camBottomLeft = default(Vector3);
+            Vector3 cameraPosition = default(Vector3);
             if (culling) {
                 projMatrix = GL.GetGPUProjectionMatrix(cullingCam.projectionMatrix, false) * cullingCam.worldToCameraMatrix;//TODO jittered vs nonjittered projMatrix
                 camUpRight = cullingCam.transform.TransformVector(new Vector3(1f, 1f, 1f));
                 camBottomLeft = cullingCam.transform.TransformVector(new Vector3(-1f, -1f, 1f));
+                cameraPosition = cullingCam.transform.position;
             }
 
             //Debug.Log("***"+instanceMatrices);
             //TODO move initialization to onenable?
             if (instanceMatrices == null) instanceMatrices = new Matrix4x4[maxSubCount];
             if (instanceColors == null) instanceColors = new Vector4[maxSubCount];
+            if (instanceLODFades == null) instanceLODFades = new float[maxSubCount];
             if (instanceProperties == null) instanceProperties = new MaterialPropertyBlock();
             //Debug.Log(instanceMatrices.Length + " " + maxSubCount + "****");
 
@@ -945,7 +969,7 @@ public partial class MapData : ScriptableObject
                 {
                     MeshResource meshResource = variant.meshResources[r];
                     MeshResourceData meshData = meshResource.data;
-                    if (meshData == null || meshResource.targetSubMesh < 0 || meshResource.targetSubMesh >= materials.Length) continue;
+                    if (meshData == null || meshResource.targetSubMesh < 0 || meshResource.targetSubMesh >= submeshRenderingConfig.Length) continue;
 
                     Bounds bounds = meshData.sharedMesh.bounds;
                     Vector3 extents = bounds.extents;
@@ -969,17 +993,21 @@ public partial class MapData : ScriptableObject
                                                                                               //TODO include localToWorld if !GPU_INSTANCING
                                 Vector3 urPosition = position + camUpRight * maxBoundSize;
                                 Vector3 blPosition = position + camBottomLeft * maxBoundSize;
-                                Vector3 urCamPosition = projMatrix.MultiplyPoint(urPosition);
-                                Vector3 blCamPosition = projMatrix.MultiplyPoint(blPosition);
+                                Vector3 urCamCoords = projMatrix.MultiplyPoint(urPosition);
+                                Vector3 blCamCoords = projMatrix.MultiplyPoint(blPosition);
 
                                 // Ignoring far plane, it would need another matrix multiplication on the nearest point in bounds
-                                if (urCamPosition.z > -1f && urCamPosition.x > -1f && blCamPosition.x < 1f && urCamPosition.y > -1f && blCamPosition.y < 1f)
+                                if (urCamCoords.z > -1f && urCamCoords.x > -1f && blCamCoords.x < 1f && urCamCoords.y > -1f && blCamCoords.y < 1f)
                                 {
                                     instanceMatrices[subCount] = instanceMatrix;
                                     instanceColors[subCount] = instanceColor;
 
                                     //if (blCamPosition.x < -0.8f || urCamPosition.x > 0.8f) instanceColors[subCount] = Color.red;
                                     //else instanceColors[subCount] = Color.black;
+
+                                    //TODO optimize, avoid sqrtt?
+                                    float distance = Vector3.Distance(position, cameraPosition);//TODO currPOV vs camPos vs another ref
+                                    instanceLODFades[subCount] = distance < 20 ? 1 : distance < 30 ? 1 - (distance - 20) / (30 - 20) : 0;//TODO
 
                                     subCount++;
                                 }
@@ -988,17 +1016,23 @@ public partial class MapData : ScriptableObject
                             {
                                 instanceMatrices[subCount] = instanceMatrix;
                                 instanceColors[subCount] = instanceColor;
+                                //TODO array for unity_LODFade vector values for each instance? (alt is per vertex in shader!) not supported in batching
+                                //TODO camera as distance reference?, add another argument for pov? 
+                                instanceLODFades[subCount] = 1f;
 
                                 subCount++;
                             }
 
                             instanceIndex++;
                         }
-                        
-                        instanceProperties.SetVectorArray(_ColorPropertyID, instanceColors);
+
+                        PropsSubmeshRendering renderingConfig = submeshRenderingConfig[meshResource.targetSubMesh];
+                        instanceProperties.Clear();
+                        if (renderingConfig.includeColorProperties) instanceProperties.SetVectorArray(_ColorPropertyID, instanceColors);
+                        if (renderingConfig.includeLODFadeProperties) instanceProperties.SetFloatArray(_LODFadePropertyID, instanceLODFades);
 
                         //TODO configurable properties added? define? (color/lodBlend?/pov+lodScale)
-                        Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instanceMatrices, subCount, instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
+                        Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, renderingConfig.material, instanceMatrices, subCount, instanceProperties, renderingConfig.castShadows, renderingConfig.receiveShadows, 0, null, LightProbeUsage.Off);
                     }
                 }
             }
@@ -1044,7 +1078,9 @@ public partial class MapData : ScriptableObject
                     {
                         Debug.LogFormat("New count record {0} (prev: {1}), by {2}", instancesData.Count, countRecord, i);
                     }
-                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, materials[meshResource.targetSubMesh], instancesData.instanceMatrices, Mathf.Min(1023, instancesData.Count), instancesData.instanceProperties, castShadows, receiveShadows, 0, null, LightProbeUsage.Off);
+                    PropsSubmeshRendering renderingConfig = submeshRenderingConfig[meshResource.targetSubMesh];
+
+                    Graphics.DrawMeshInstanced(meshData.sharedMesh, meshData.SubMeshIndex, renderingConfig.material, renderingConfig.includeColorProperties ? instancesData.instanceMatrices : null, Mathf.Min(1023, instancesData.Count), instancesData.instanceProperties, renderingConfig.castShadows, renderingConfig.receiveShadows, 0, null, LightProbeUsage.Off);
                     if (instancesData.Count > countRecord)
                     {
                         countRecord = instancesData.Count;

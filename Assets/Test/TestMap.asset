@@ -120,10 +120,7 @@ MonoBehaviour:
     trianglesLengthLimit: 36000
     variantInstanceLimit: 2000
     colorMaterialProperty: 1
-    castShadows: 0
-    receiveShadows: 1
-    materials:
-    - {fileID: 2100000, guid: 80029c445d69ccf4d89e3771d3be750c, type: 2}
+    submeshRenderingConfig: []
   - pattern: {fileID: 11400000, guid: 3b4573685cd2dfe4abe3be9e6243a54e, type: 2}
     patternScale: 12
     maxCellOffset: 4
@@ -175,14 +172,32 @@ MonoBehaviour:
     trianglesLengthLimit: 195000
     variantInstanceLimit: 2000
     colorMaterialProperty: 1
-    castShadows: 0
-    receiveShadows: 0
-    materials:
-    - {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
-    - {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
-    - {fileID: 2100000, guid: b9180c7892639f14b87707e28f5d4a29, type: 2}
-    - {fileID: 2100000, guid: 653c076cc9a7fa54aa2493bc26859f06, type: 2}
-    - {fileID: 2100000, guid: ab5e644900236784394d9312e8c9b6ed, type: 2}
+    submeshRenderingConfig:
+    - castShadows: 0
+      receiveShadows: 0
+      material: {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
+      includeColorProperties: 1
+      includeLODFadeProperties: 1
+    - castShadows: 0
+      receiveShadows: 0
+      material: {fileID: 2100000, guid: 4caff13a48a1c6b46b2ceb971a7ab1cc, type: 2}
+      includeColorProperties: 1
+      includeLODFadeProperties: 1
+    - castShadows: 0
+      receiveShadows: 0
+      material: {fileID: 2100000, guid: b9180c7892639f14b87707e28f5d4a29, type: 2}
+      includeColorProperties: 0
+      includeLODFadeProperties: 1
+    - castShadows: 0
+      receiveShadows: 0
+      material: {fileID: 2100000, guid: 653c076cc9a7fa54aa2493bc26859f06, type: 2}
+      includeColorProperties: 0
+      includeLODFadeProperties: 1
+    - castShadows: 0
+      receiveShadows: 0
+      material: {fileID: 2100000, guid: ab5e644900236784394d9312e8c9b6ed, type: 2}
+      includeColorProperties: 1
+      includeLODFadeProperties: 1
 --- !u!28 &28151203653469532
 Texture2D:
   m_ObjectHideFlags: 0

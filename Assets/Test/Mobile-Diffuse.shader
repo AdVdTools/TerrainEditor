@@ -14,7 +14,7 @@ SubShader {
     LOD 150
 
 CGPROGRAM
-#pragma surface surf Lambert noforwardadd
+#pragma surface surf Lambert noforwardadd vertex:vert
 
 sampler2D _MainTex;
 
@@ -24,6 +24,7 @@ sampler2D _MainTex;
 UNITY_INSTANCING_BUFFER_START(Props)
 // put more per-instance properties here
 UNITY_DEFINE_INSTANCED_PROP(fixed4, _Color)
+UNITY_DEFINE_INSTANCED_PROP(fixed, _LODFade)
 UNITY_INSTANCING_BUFFER_END(Props)
 
 struct Input {
@@ -31,11 +32,23 @@ struct Input {
 	float4 color : COLOR;
 };
 
-void surf (Input IN, inout SurfaceOutput o) {
-	
+void vert(inout appdata_full i)
+{
 	fixed4 instanceColor = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
 
-    fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * IN.color * instanceColor;
+	//float3 offset = mul(unity_ObjectToWorld, v.vertex).xyz - _POV_LOD.xyz;
+	//float distance = length(offset) * _POV_LOD.w;
+
+	//float fadeMultiplier = distance < 20 ? 1 : distance < 30 ? 1 - (distance - 20) / (30 - 20) : 0;
+	float fadeMultiplier = UNITY_ACCESS_INSTANCED_PROP(Props, _LODFade);
+
+	i.vertex *= fadeMultiplier;//TODO alt: fade to color (sample)
+	i.color *= instanceColor;
+}
+
+void surf (Input IN, inout SurfaceOutput o) 
+{
+    fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * IN.color;
     o.Albedo = c.rgb;
     o.Alpha = c.a;
 }
