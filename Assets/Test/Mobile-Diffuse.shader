@@ -8,6 +8,7 @@ Shader "CustomMobile/Diffuse" {
 Properties {
 	_Color("Color", Color) = (1,1,1,1)
     _MainTex ("Base (RGB)", 2D) = "white" {}
+	[HideInInspector]_LODFade("LOD Fade", Float) = 1
 }
 SubShader {
     Tags { "RenderType"="Opaque" }
@@ -36,10 +37,6 @@ void vert(inout appdata_full i)
 {
 	fixed4 instanceColor = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
 
-	//float3 offset = mul(unity_ObjectToWorld, v.vertex).xyz - _POV_LOD.xyz;
-	//float distance = length(offset) * _POV_LOD.w;
-
-	//float fadeMultiplier = distance < 20 ? 1 : distance < 30 ? 1 - (distance - 20) / (30 - 20) : 0;
 	float fadeMultiplier = UNITY_ACCESS_INSTANCED_PROP(Props, _LODFade);
 
 	i.vertex *= fadeMultiplier;//TODO alt: fade to color (sample)

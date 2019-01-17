@@ -3,7 +3,7 @@
 
 	Properties
 	{
-
+		[HideInInspector]_LODFade("LOD Fade", Float) = 1
 	}
 
 	SubShader
@@ -63,10 +63,6 @@ v2f vert(appdata v)
 	UNITY_SETUP_INSTANCE_ID(v);
 	//UNITY_TRANSFER_INSTANCE_ID(v, o); // necessary only if you want to access instanced properties in the fragment Shader.
 
-	//float3 offset = mul(unity_ObjectToWorld, v.vertex).xyz - _POV_LOD.xyz;
-	//float distance = length(offset) * _POV_LOD.w;
-
-	//float fadeMultiplier = distance < 20 ? 1 : distance < 30 ? 1 - (distance - 20) / (30 - 20) : 0;
 	float fadeMultiplier = UNITY_ACCESS_INSTANCED_PROP(Props, _LODFade);
 
 	o.pos = UnityObjectToClipPos(v.vertex * fadeMultiplier);
